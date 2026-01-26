@@ -1,13 +1,5 @@
 import type { NextApiRequest, NextApiResponse } from 'next'
 
-const ENV_GEMINI_API_KEY = process.env.GEMINI_API_KEY
-
-interface ExtractRequest {
-  text: string
-  filename?: string
-  apiKey?: string
-}
-
 interface Course {
   Category?: string
   CourseName?: string
@@ -18,115 +10,146 @@ interface Course {
   CourseDescription?: string
 }
 
-interface GeminiResponse {
-  candidates?: Array<{
-    content?: {
-      parts?: Array<{ text: string }>
-    }
-  }>
-}
-
-export default async function handler(
-  req: NextApiRequest,
-  res: NextApiResponse
-) {
-  if (req.method === 'OPTIONS') {
-    return res.status(200).end()
-  }
-
+export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' })
   }
 
   try {
-    const { text, filename, apiKey: clientApiKey } = req.body as ExtractRequest
+    const { text, apiKey } = req.body
 
-    // Use client-provided key or env var
-    const GEMINI_API_KEY = clientApiKey || ENV_GEMINI_API_KEY
-
-    if (!GEMINI_API_KEY) {
+    if (!apiKey) {
+      console.error('[extract] No API key provided')
       return res.status(400).json({ error: 'API key required' })
     }
 
-    if (!text || text.length === 0) {
+    if (!text || typeof text !== 'string' || text.length === 0) {
+      console.error('[extract] No text provided')
       return res.status(400).json({ error: 'Text is required' })
     }
 
-    // Build simple prompt
-    const prompt = `Extract course data from this document. Return ONLY a valid JSON array.
-Fields: Category, CourseName, GradeLevel, Length, Prerequisite, Credit, CourseDescription
-Return: [{...}, {...}] or []
+    // Build prompt that explicitly asks for JSON
+    const prompt = `You are a course data extraction expert. Extract all course information from the provided document.
 
-Document:
-${text.substring(0, 50000)}`
+Return ONLY a valid JSON array with NO additional text or markdown. Start with [ and end with ].
 
-    // Call Gemini API
-    const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`
-    
-    console.log('[secure_extract] Calling Gemini with key:', GEMINI_API_KEY.substring(0, 10) + '...')
+For each course found, create an object with these fields:
+- Category (string or null)
+- CourseName (string)
+- GradeLevel (string or null)
+- Length (string or null)
+- Prerequisite (string or null)  
+- Credit (string or null)
+- CourseDescription (string or null)
+
+Example format:
+[
+  {"Category":"Science","CourseName":"Biology 101","GradeLevel":"9-12","Length":"1 year","Prerequisite":null,"Credit":"1.0","CourseDescription":"Study of living organisms"},
+  {"Category":"Math","CourseName":"Algebra","GradeLevel":"9-10","Length":"1 year","Prerequisite":null,"Credit":"1.0","CourseDescription":"Basic algebra concepts"}
+]
+
+DOCUMENT TO EXTRACT FROM:
+${text.substring(0, 80000)}`
+
+    console.log('[extract] Calling Gemini API...')
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`
 
     const controller = new AbortController()
-    const timeout = setTimeout(() => controller.abort(), 30000)
+    const timeoutId = setTimeout(() => controller.abort(), 60000) // 60 second timeout
 
     let response
     try {
-      response = await fetch(geminiUrl, {
+      response = await fetch(url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          contents: [{ parts: [{ text: prompt }] }],
-          generationConfig: { temperature: 0.1, maxOutputTokens: 8192 },
+          contents: [
+            {
+              parts: [{ text: prompt }],
+            },
+          ],
+          generationConfig: {
+            temperature: 0.1,
+            maxOutputTokens: 8192,
+          },
         }),
         signal: controller.signal,
       })
-    } finally {
-      clearTimeout(timeout)
+    } catch (fetchError) {
+      clearTimeout(timeoutId)
+      if (fetchError instanceof Error && fetchError.name === 'AbortError') {
+        console.error('[extract] Request timed out')
+        return res.status(504).json({ error: 'Request timed out - Gemini API took too long' })
+      }
+      throw fetchError
     }
 
-    // Read response as text first
+    clearTimeout(timeoutId)
     const responseText = await response.text()
-    console.log('[secure_extract] Response status:', response.status, 'First 100 chars:', responseText.substring(0, 100))
+
+    console.log('[extract] Gemini status:', response.status)
 
     if (!response.ok) {
-      console.error('[secure_extract] API error:', responseText.substring(0, 200))
-      return res.status(response.status).json({ error: 'Failed to extract courses' })
+      console.error('[extract] Gemini error response:', responseText.substring(0, 500))
+      throw new Error(`Gemini API error: ${response.status}`)
     }
 
-    // Parse JSON
-    let data: GeminiResponse
+    let geminiData
     try {
-      data = JSON.parse(responseText)
+      geminiData = JSON.parse(responseText)
     } catch (e) {
-      console.error('[secure_extract] Failed to parse response:', e)
-      return res.status(500).json({ error: 'Invalid response format from API' })
+      console.error('[extract] Failed to parse Gemini response as JSON')
+      console.error('[extract] Response was:', responseText.substring(0, 300))
+      throw new Error('Invalid response from Gemini')
     }
 
-    // Extract text from response
-    const courseText = data.candidates?.[0]?.content?.parts?.[0]?.text || ''
-    console.log('[secure_extract] Got response:', courseText.substring(0, 100))
-
-    if (!courseText) {
+    // Extract the text content from Gemini response
+    const responseContent = geminiData.candidates?.[0]?.content?.parts?.[0]?.text
+    
+    if (!responseContent) {
+      console.error('[extract] No text content in Gemini response')
+      console.error('[extract] Full response:', JSON.stringify(geminiData).substring(0, 500))
       return res.status(200).json([])
     }
 
-    // Parse courses from text
+    console.log('[extract] Gemini returned text, length:', responseContent.length)
+    console.log('[extract] First 200 chars:', responseContent.substring(0, 200))
+
+    // Extract JSON array from response
     let courses: Course[] = []
     try {
-      const jsonMatch = courseText.match(/\[[\s\S]*\]/)
-      if (jsonMatch) {
-        courses = JSON.parse(jsonMatch[0])
+      // Try to find JSON array in the response
+      const jsonMatch = responseContent.match(/\[[\s\S]*\]/)
+      
+      if (!jsonMatch) {
+        console.error('[extract] Could not find JSON array in response')
+        console.error('[extract] Response text:', responseContent)
+        return res.status(200).json([])
       }
-    } catch (e) {
-      console.error('[secure_extract] Failed to parse courses:', e)
+
+      const jsonStr = jsonMatch[0]
+      console.log('[extract] Found JSON, parsing...')
+      
+      courses = JSON.parse(jsonStr)
+      console.log('[extract] Successfully parsed', courses.length, 'courses')
+    } catch (parseError) {
+      console.error('[extract] JSON parse error:', parseError instanceof Error ? parseError.message : String(parseError))
+      console.error('[extract] Attempted to parse:', responseContent.substring(0, 300))
+      return res.status(200).json([])
     }
 
     return res.status(200).json(courses)
   } catch (error) {
-    console.error('[secure_extract] Error:', error instanceof Error ? error.message : error)
-    return res.status(500).json({ error: 'Internal server error' })
+    const errorMsg = error instanceof Error ? error.message : String(error)
+    console.error('[extract] Fatal error:', errorMsg)
+    return res.status(500).json({ error: errorMsg })
   }
 }
 
 export const config = {
-  api: { bodyParser: { sizeLimit: '50mb' } },
+  api: {
+    bodyParser: {
+      sizeLimit: '50mb',
+    },
+  },
 }
