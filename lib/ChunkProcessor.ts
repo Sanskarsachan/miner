@@ -78,22 +78,31 @@ export class ChunkProcessor {
         body: JSON.stringify({ text, filename, apiKey: this.apiKey }),  // Send API key
       })
 
-      if (!response.ok) {
-        let error: any = {}
-        let responseText = ''
-        
-        // Always read as text first (to avoid "body stream already read" error)
-        try {
-          responseText = await response.text()
-          // Try to parse as JSON
-          if (responseText) {
-            error = JSON.parse(responseText)
-          }
-        } catch (parseError) {
-          // If JSON parse fails, just use raw text
-          console.error('Failed to parse response as JSON:', parseError)
-          error = { error: responseText || 'Unknown error' }
+      // Always read as text first (to avoid "body stream already read" error)
+      let responseText = ''
+      try {
+        responseText = await response.text()
+      } catch (textError) {
+        console.error('[ChunkProcessor] ❌ Failed to read response text:', textError)
+        throw new Error('Failed to read API response')
+      }
+
+      // Try to parse response as JSON
+      let data: any = []
+      try {
+        if (responseText) {
+          data = JSON.parse(responseText)
         }
+      } catch (parseError) {
+        console.error('[ChunkProcessor] ❌ Failed to parse response as JSON:', parseError)
+        console.error('[ChunkProcessor] Response text was:', responseText.substring(0, 300))
+        throw new Error(`Invalid API response: ${responseText.substring(0, 100)}`)
+      }
+
+      // Handle error responses (HTTP errors, API errors)
+      if (!response.ok) {
+        console.error(`[ChunkProcessor] ⚠️ API returned HTTP ${response.status}`)
+        console.error('[ChunkProcessor] Response:', JSON.stringify(data).substring(0, 300))
 
         // Handle rate limiting with exponential backoff
         if (response.status === 429) {
@@ -109,36 +118,44 @@ export class ChunkProcessor {
             await new Promise((r) => setTimeout(r, delay))
             return this.processChunk(text, filename, attempt + 1)
           } else {
-            // Extract reset time from error response if available
-            const resetTime = error?.resetTime || 'in 1 hour'
             throw new Error(
-              `Rate limit exceeded. Maximum 5 documents per hour. You can try again ${resetTime}.`
+              `Rate limit exceeded. Maximum 5 documents per hour. Please try again later.`
             )
           }
         }
 
-        // Log detailed error for debugging
-        console.error(`ChunkProcessor API Error (${response.status}):`, error, 'Response text:', responseText.substring(0, 200))
-        
+        // For 500 errors, server returns empty array to avoid crashing client
+        // Log but continue with empty result
+        if (response.status === 500) {
+          console.error('[ChunkProcessor] ⚠️ API returned 500 error. Check server logs for details.')
+          // Return empty array - client will show "0 courses extracted"
+          return []
+        }
+
+        // For other errors, throw
         throw new Error(
-          error?.error || 
-          error?.message || 
-          `API Error (HTTP ${response.status}): ${responseText.substring(0, 150)}`
+          `API Error (HTTP ${response.status}): ${typeof data === 'string' ? data.substring(0, 100) : JSON.stringify(data).substring(0, 100)}`
         )
       }
 
-      const data = await response.json()
-      const courses = this.extractCoursesFromResponse(data)
+      // Data should be an array of courses
+      if (!Array.isArray(data)) {
+        console.error('[ChunkProcessor] ❌ API response is not an array:', typeof data)
+        return []
+      }
 
+      const courses = this.extractCoursesFromResponse(data)
       return courses
     } catch (error) {
       // Retry on network errors, but not on validation errors
       if (attempt < this.retryAttempts && !(error instanceof SyntaxError)) {
         const delay = this.retryDelay * Math.pow(2, attempt - 1)
+        console.log(`[ChunkProcessor] 🔄 Retrying (attempt ${attempt + 1}/${this.retryAttempts}) after ${delay}ms`)
         await new Promise((r) => setTimeout(r, delay))
         return this.processChunk(text, filename, attempt + 1)
       }
 
+      // If we've exhausted retries or it's a non-retryable error, throw
       throw error
     }
   }

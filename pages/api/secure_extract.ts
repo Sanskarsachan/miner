@@ -87,7 +87,18 @@ ${text.substring(0, 80000)}`
 
     if (!response.ok) {
       console.error('[secure_extract] ❌ Gemini error response:', responseText.substring(0, 500))
-      throw new Error(`Gemini API error: ${response.status}`)
+      
+      // Try to extract error details from Gemini response
+      let errorDetail = 'Unknown error'
+      try {
+        const errorData = JSON.parse(responseText)
+        errorDetail = errorData.error?.message || errorData.message || JSON.stringify(errorData).substring(0, 200)
+      } catch (e) {
+        errorDetail = responseText.substring(0, 200)
+      }
+      
+      console.error('[secure_extract] ❌ Gemini error details:', errorDetail)
+      throw new Error(`Gemini API error (${response.status}): ${errorDetail}`)
     }
 
     let geminiData
@@ -138,7 +149,9 @@ ${text.substring(0, 80000)}`
   } catch (error) {
     const errorMsg = error instanceof Error ? error.message : String(error)
     console.error('[secure_extract] ❌ Fatal error:', errorMsg)
-    return res.status(500).json({ error: errorMsg })
+    // Return empty array instead of error object to avoid client parsing issues
+    // Client will receive empty array and user will see "0 courses extracted" instead of crash
+    return res.status(500).json([])
   }
 }
 
