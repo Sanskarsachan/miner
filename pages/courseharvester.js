@@ -35,18 +35,6 @@ export default function CourseHarvester(){
   const [fileHistory, setFileHistory] = useState([])    // History of processed files
   const [searchQ, setSearchQ] = useState('')            // Search query filter
   const fileInputRef = useRef()                         // Reference to hidden file input
-  const [apiKey, setApiKey] = useState('')
-  const [remember, setRemember] = useState(false)
-  const [selectedFile, setSelectedFile] = useState(null)
-  const [status, setStatus] = useState('')
-  const [verified, setVerified] = useState(false)
-  const [modelsList, setModelsList] = useState([])
-  const [tokenUsage, setTokenUsage] = useState(0)
-  const [rawResponse, setRawResponse] = useState('')
-  const [allCourses, setAllCourses] = useState([])
-  const [fileHistory, setFileHistory] = useState([])
-  const [searchQ, setSearchQ] = useState('')
-  const fileInputRef = useRef()
 
   useEffect(()=>{
     const saved = localStorage.getItem('gh_api_key');
