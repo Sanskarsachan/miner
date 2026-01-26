@@ -90,8 +90,7 @@ Once deployed, you'll get:
 - Automatic deployments on git push
 
 Your app will be at:
-- React version: `https://course-harvester-xxxxx.vercel.app/courseharvester`
-- Standalone HTML: `https://course-harvester-xxxxx.vercel.app/public/courseharvester.html`
+- **Main App**: `https://course-harvester-xxxxx.vercel.app/courseharvester`
 
 ## Performance Optimization on Vercel
 

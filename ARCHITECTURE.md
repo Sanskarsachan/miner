@@ -39,15 +39,15 @@ CourseHarvester is a production-ready, client-side curriculum extraction tool bu
 - Status messages with semantic colors
 - Mobile-responsive design
 
-#### Standalone HTML App (`public/courseharvester.html`)
+#### Next.js Page Route (`pages/courseharvester.tsx`)
 
-**Purpose**: Fallback single-file app for quick deployments without Node.js build step
+**Purpose**: Full-featured TypeScript React component with server-side capabilities
 
 **Advantages**:
-- Zero build dependencies
-- Can be served from any static host (S3, Netlify, GitHub Pages)
-- Identical functionality to React version
-- ~480 lines, self-contained
+- Server-side rendering support
+- API route integration
+- Full type safety with TypeScript
+- Optimized production builds
 
 **Disadvantages**:
 - Not integrated with Next.js ecosystem
@@ -408,9 +408,6 @@ CDN Libraries: PDF.js, Mammoth.js (jsDelivr)
   "version": 2,
   "builds": [
     { "src": "package.json", "use": "@vercel/next" }
-  ],
-  "routes": [
-    { "src": "/courseharvester", "dest": "/courseharvester.html" }
   ]
 }
 ```

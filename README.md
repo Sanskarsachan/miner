@@ -13,7 +13,7 @@ A powerful, client-side web application that extracts structured course data fro
 - **Intelligent Chunking**: Automatically splits large documents into manageable chunks to prevent API timeouts
 - **Live Results**: See extracted courses appear in real-time as each chunk is processed
 - **Dual Interface**: 
-  - Standalone HTML app (`public/courseharvester.html`) for quick deployments
+  - TypeScript/React app with modern architecture
   - Full Next.js React app (`pages/courseharvester.js`) for integrated workflows
 - **Smart Parsing**: Robust JSON extraction that tolerates imperfect Gemini responses
 - **Export Data**: Download results as CSV or JSON
@@ -70,7 +70,7 @@ course-harvester/
 │       ├── upload_file.js          # Multipart upload (experimental)
 │       └── list_models.js          # Lists Gemini models
 ├── public/
-│   └── courseharvester.html        # Standalone app
+│   └── courseharvester.tsx         # Main application (TypeScript)
 ├── package.json
 ├── next.config.js
 ├── vercel.json
@@ -224,7 +224,7 @@ Then import your GitHub repo to [vercel.com](https://vercel.com). It will auto-d
 
 ### Deploy to Other Platforms
 
-- **Netlify**: Copy `public/courseharvester.html` to static site
+- **Netlify**: Deploy as Next.js app (requires Node runtime)
 - **AWS S3**: Host the standalone HTML
 - **Docker**: Build container image and deploy
 
