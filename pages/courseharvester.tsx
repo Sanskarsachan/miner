@@ -1,6 +1,8 @@
 import Head from 'next/head'
 import Script from 'next/script'
 import { useEffect, useRef, useState } from 'react'
+import { ChunkProcessor } from '@/lib/ChunkProcessor'
+import { DocumentCache } from '@/lib/DocumentCache'
 
 interface Course {
   Category?: string
@@ -93,6 +95,7 @@ export default function CourseHarvester() {
   const [fileHistory, setFileHistory] = useState<FileHistory[]>([])
   const [searchQ, setSearchQ] = useState('')
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const cacheRef = useRef<DocumentCache | null>(null)
 
   useEffect(() => {
     const saved = localStorage.getItem('gh_api_key')
@@ -100,6 +103,9 @@ export default function CourseHarvester() {
       setApiKey(saved)
       setRemember(true)
     }
+
+    // Initialize document cache
+    cacheRef.current = new DocumentCache()
   }, [])
 
   useEffect(() => {
@@ -189,85 +195,6 @@ export default function CourseHarvester() {
     }
   }
 
-  const processChunk = async (
-    textChunk: string,
-    retryCount = 0,
-    maxRetries = 3
-  ): Promise<number> => {
-    try {
-      const r = await fetch('/api/generate', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          apiKey,
-          payload: {
-            contents: [{ parts: [{ text: buildPrompt(textChunk) }] }],
-            generationConfig: { temperature: 0.1, maxOutputTokens: 8192 },
-          },
-        }),
-      })
-
-      const txt = await r.text()
-      setRawResponse(txt)
-
-      if (r.status === 429 && retryCount < maxRetries) {
-        const seconds = Math.pow(2, retryCount + 1) // Exponential backoff: 2s, 4s, 8s
-        setStatus(
-          `⏳ Rate limited. Waiting ${seconds}s before retry (${retryCount + 1}/${maxRetries})...`
-        )
-        await new Promise((resolve) => setTimeout(resolve, seconds * 1000))
-        return processChunk(textChunk, retryCount + 1, maxRetries)
-      }
-
-      if (!r.ok) {
-        if (txt.includes('exceeded your current quota')) {
-          setStatus(
-            '❌ QUOTA EXHAUSTED! Regenerate API key and enable billing: https://console.cloud.google.com/billing'
-          )
-        } else if (txt.includes('CONSUMER_SUSPENDED')) {
-          setStatus(
-            '❌ API KEY SUSPENDED! Delete old key and generate new one: https://aistudio.google.com/app/apikey'
-          )
-        }
-        throw new Error('Server error')
-      }
-
-      const parsed = JSON.parse(txt)
-      const respText = parsed.candidates?.[0]?.content?.parts?.[0]?.text || txt
-
-      if (!respText) {
-        console.warn('⚠️ Invalid API response')
-        setStatus('⚠️ API returned empty response')
-        return 0
-      }
-
-      const courses = parseCoursesFromText(respText)
-
-      setAllCourses((prev) => {
-        const merged = [...prev]
-        courses.forEach((c) => {
-          c.SourceFile = selectedFile?.name || 'unknown'
-          if (!merged.some((ex) => ex.CourseName === c.CourseName))
-            merged.push(c)
-        })
-        return merged
-      })
-
-      return courses.length
-    } catch (e) {
-      console.error('chunk api error', e)
-      setStatus(`API error: ${e instanceof Error ? e.message : 'Unknown error'}`)
-      return 0
-    }
-  }
-
-  // Add delay between requests to stay within rate limits
-  const delayBetweenChunks = async (index: number, total: number) => {
-    if (index < total - 1) {
-      await new Promise((resolve) => setTimeout(resolve, 2000)) // 2s delay between chunks
-    }
-  }
-
   const extract = async () => {
     if (!selectedFile) return setStatus('Select a file first')
     if (!apiKey) return setStatus('Enter your Gemini API key')
@@ -276,33 +203,32 @@ export default function CourseHarvester() {
     const ext = detectFileType(selectedFile).extension
 
     try {
-      let payloadBody: any = null
+      let textContent = ''
 
-      if (['pdf', 'html', 'htm', 'doc', 'docx', 'txt'].includes(ext)) {
-        if (ext === 'pdf') {
-          const ab = await selectedFile.arrayBuffer()
-          const pdf = await (window as any).pdfjsLib.getDocument({
-            data: ab,
-          }).promise
+      // Extract text from file
+      if (ext === 'pdf') {
+        const ab = await selectedFile.arrayBuffer()
+        const pdf = await (window as any).pdfjsLib.getDocument({
+          data: ab,
+        }).promise
 
-          const pages: string[] = []
-          for (let i = 1; i <= pdf.numPages; i++) {
-            const page = await pdf.getPage(i)
-            const tc = await page.getTextContent()
-            pages.push(tc.items.map((it: any) => it.str).join(' '))
-          }
-          payloadBody = { __pages: pages }
-        } else if (ext === 'doc' || ext === 'docx') {
-          const ab = await selectedFile.arrayBuffer()
-          const res = await (window as any).mammoth.extractRawText({
-            arrayBuffer: ab,
-          })
-          payloadBody = { __text: res.value }
-        } else {
-          const content = await selectedFile.text()
-          payloadBody = { __text: content }
+        const pages: string[] = []
+        for (let i = 1; i <= pdf.numPages; i++) {
+          const page = await pdf.getPage(i)
+          const tc = await page.getTextContent()
+          pages.push(tc.items.map((it: any) => it.str).join(' '))
         }
+        textContent = pages.join('\n\n')
+      } else if (ext === 'doc' || ext === 'docx') {
+        const ab = await selectedFile.arrayBuffer()
+        const res = await (window as any).mammoth.extractRawText({
+          arrayBuffer: ab,
+        })
+        textContent = res.value
+      } else if (['html', 'htm', 'txt'].includes(ext)) {
+        textContent = await selectedFile.text()
       } else if (['ppt', 'pptx'].includes(ext)) {
+        // For PPTX, keep original logic
         const ab = await selectedFile.arrayBuffer()
         let binary = ''
         const bytes = new Uint8Array(ab)
@@ -317,96 +243,125 @@ export default function CourseHarvester() {
 
         const b64 = btoa(binary)
         const prompt = buildPrompt('Attached file: ' + selectedFile.name)
-        payloadBody = {
-          contents: [
-            {
-              parts: [
+
+        const r = await fetch('/api/generate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            apiKey,
+            payload: {
+              contents: [
                 {
-                  inline_data: {
-                    mime_type:
-                      selectedFile.type ||
-                      'application/vnd.openxmlformats-officedocument.presentationml.presentation',
-                    data: b64,
-                  },
+                  parts: [
+                    {
+                      inline_data: {
+                        mime_type:
+                          selectedFile.type ||
+                          'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+                        data: b64,
+                      },
+                    },
+                    { text: prompt },
+                  ],
                 },
-                { text: prompt },
               ],
+              generationConfig: { temperature: 0.1, maxOutputTokens: 8192 },
             },
-          ],
-          generationConfig: { temperature: 0.1, maxOutputTokens: 8192 },
-        }
+          }),
+        })
+
+        if (!r.ok) throw new Error('Failed to process PPTX')
+
+        const txt = await r.text()
+        const parsed = JSON.parse(txt)
+        const respText = parsed.candidates?.[0]?.content?.parts?.[0]?.text || txt
+        const courses = parseCoursesFromText(respText)
+
+        setAllCourses((prev) => {
+          const merged = [...prev]
+          courses.forEach((c) => {
+            c.SourceFile = selectedFile.name
+            if (!merged.some((ex) => ex.CourseName === c.CourseName))
+              merged.push(c)
+          })
+          return merged
+        })
+
+        setFileHistory((prev) => [
+          ...prev,
+          {
+            filename: selectedFile.name,
+            coursesFound: courses.length,
+            timestamp: new Date().toISOString(),
+          },
+        ])
+
+        setStatus(`✅ Complete — ${courses.length} courses extracted`)
+        return
       } else {
         throw new Error('Unsupported file type')
       }
 
-      setStatus('Processing...')
-      const isPages = payloadBody && payloadBody.__pages
-      const isText = payloadBody && payloadBody.__text
+      // Check cache first
+      const fileHash = await cacheRef.current!.hashFile(selectedFile)
+      const cached = await cacheRef.current!.get(fileHash)
 
-      let total = 0
-
-      if (isPages) {
-        const pages = payloadBody.__pages
-        const batchSize = 12 // Optimized: process 12 pages per API call (reduces calls by 69%)
-        const totalChunks = Math.ceil(pages.length / batchSize)
-
-        for (let i = 0; i < pages.length; i += batchSize) {
-          const batch = pages.slice(i, i + batchSize).join('\n\n')
-          const chunkNum = Math.floor(i / batchSize) + 1
-
-          setStatus(
-            `Processing pages ${i + 1}-${Math.min(i + batchSize, pages.length)}/${pages.length}... [Chunk ${chunkNum}/${totalChunks}]`
-          )
-
-          const added = await processChunk(batch)
-          total += added
-          setTokenUsage((prev) => prev + estimateTokens(batch))
-
-          // Add delay between requests to prevent rate limiting (2s per chunk)
-          await delayBetweenChunks(chunkNum - 1, totalChunks)
-
-          if (chunkNum >= 20) {
-            setStatus(`❌ Quota limit reached. ${total} courses extracted.`)
-            break
-          }
-        }
-      } else if (isText) {
-        const textContent = payloadBody.__text || ''
-        const maxSize = 12000 // Optimized: larger chunks (reduced from 5000 to 12000)
-        const totalChunks = Math.ceil(textContent.length / maxSize)
-
-        for (let i = 0; i < textContent.length; i += maxSize) {
-          const chunk = textContent.slice(i, i + maxSize)
-          const chunkNum = Math.floor(i / maxSize) + 1
-
-          setStatus(
-            `Processing text chunk ${chunkNum}/${totalChunks}... [${Math.floor((chunkNum / totalChunks) * 100)}% done]`
-          )
-
-          const added = await processChunk(chunk)
-          total += added
-          setTokenUsage((prev) => prev + estimateTokens(chunk))
-
-          // Add delay between requests to prevent rate limiting (2s per chunk)
-          await delayBetweenChunks(chunkNum - 1, totalChunks)
-
-          if (chunkNum >= 20) {
-            setStatus(`❌ Quota limit reached. ${total} courses extracted.`)
-            break
-          }
-        }
+      if (cached) {
+        setAllCourses(cached.map((c) => ({ ...c, SourceFile: selectedFile.name })))
+        setFileHistory((prev) => [
+          ...prev,
+          {
+            filename: selectedFile.name,
+            coursesFound: cached.length,
+            timestamp: new Date().toISOString(),
+          },
+        ])
+        setStatus(`✅ Loaded from cache — ${cached.length} courses`)
+        return
       }
+
+      // Process with ChunkProcessor
+      const processor = new ChunkProcessor(
+        (progress) => {
+          if (progress.status === 'processing') {
+            setStatus(progress.message)
+          } else if (progress.status === 'chunk_complete') {
+            setTokenUsage((prev) => prev + 2000) // Rough estimate
+          }
+        },
+        (error) => {
+          console.error('Processing error:', error)
+        }
+      )
+
+      const courses = await processor.processDocument(textContent, selectedFile.name)
+
+      const typedCourses: Course[] = courses.map((c) => ({
+        Category: c.Category || '',
+        CourseName: c.CourseName || 'Untitled',
+        GradeLevel: c.GradeLevel || '',
+        Length: c.Length || '',
+        Prerequisite: c.Prerequisite || '',
+        Credit: c.Credit || '',
+        CourseDescription: c.CourseDescription || '',
+        SourceFile: selectedFile.name,
+      }))
+
+      setAllCourses(typedCourses)
+
+      // Cache results
+      await cacheRef.current!.set(fileHash, courses)
 
       setFileHistory((prev) => [
         ...prev,
         {
           filename: selectedFile.name,
-          coursesFound: total,
+          coursesFound: courses.length,
           timestamp: new Date().toISOString(),
         },
       ])
 
-      setStatus(`✅ Complete — ${total} courses extracted`)
+      setStatus(`✅ Complete — ${courses.length} courses extracted`)
     } catch (e) {
       setStatus(`Error: ${e instanceof Error ? e.message : 'Unknown error'}`)
     }

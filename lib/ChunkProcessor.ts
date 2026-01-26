@@ -1,0 +1,252 @@
+interface ProcessProgress {
+  status: 'processing' | 'chunk_complete' | 'chunk_error' | 'waiting'
+  total: number
+  current: number
+  message: string
+  coursesFound?: number
+}
+
+interface Course {
+  Category?: string
+  CourseName?: string
+  GradeLevel?: string
+  Length?: string
+  Prerequisite?: string
+  Credit?: string
+  CourseDescription?: string
+  SourceFile?: string
+}
+
+export class ChunkProcessor {
+  private maxTokensPerChunk = 100000
+  private retryAttempts = 3
+  private retryDelay = 2000
+
+  constructor(
+    private onProgress: (progress: ProcessProgress) => void = () => {},
+    private onError: (error: Error) => void = console.error
+  ) {}
+
+  estimateTokens(text: string): number {
+    return Math.ceil(text.length / 4)
+  }
+
+  /**
+   * Split text into semantic chunks based on document structure
+   * This reduces API calls by grouping related content
+   */
+  createSemanticChunks(text: string): string[] {
+    const chunks: string[] = []
+
+    // Try to split by common section headers
+    const sectionPattern = /\n(?=[A-Z][A-Z\s]{3,}:|\d+\.\s+[A-Z]|\n\n[A-Z][A-Z\s]+\n)/
+    const sections = text.split(sectionPattern)
+
+    let currentChunk = ''
+    let currentTokens = 0
+
+    for (const section of sections) {
+      const sectionTokens = this.estimateTokens(section)
+
+      // If adding this section would exceed limit, save current chunk and start new one
+      if (currentTokens + sectionTokens > this.maxTokensPerChunk && currentChunk) {
+        chunks.push(currentChunk.trim())
+        currentChunk = section
+        currentTokens = sectionTokens
+      } else {
+        currentChunk += '\n\n' + section
+        currentTokens += sectionTokens
+      }
+    }
+
+    if (currentChunk.trim()) {
+      chunks.push(currentChunk.trim())
+    }
+
+    return chunks.length > 0 ? chunks : [text]
+  }
+
+  /**
+   * Process a single chunk with retry logic and exponential backoff
+   */
+  async processChunk(text: string, filename: string, attempt: number = 1): Promise<Course[]> {
+    try {
+      const response = await fetch('/api/secure_extract', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text, filename }),
+      })
+
+      if (!response.ok) {
+        const error = await response.json()
+
+        // Handle rate limiting with exponential backoff
+        if (response.status === 429) {
+          if (attempt < this.retryAttempts) {
+            const delay = this.retryDelay * Math.pow(2, attempt - 1)
+            this.onProgress({
+              status: 'waiting',
+              total: 0,
+              current: 0,
+              message: `Rate limit reached. Retrying in ${Math.ceil(delay / 1000)}s... (attempt ${attempt}/${this.retryAttempts})`,
+            })
+
+            await new Promise((r) => setTimeout(r, delay))
+            return this.processChunk(text, filename, attempt + 1)
+          } else {
+            throw new Error(
+              'Rate limit exceeded after retries. Please wait before trying again.'
+            )
+          }
+        }
+
+        throw new Error(error.error || `HTTP ${response.status}: Processing failed`)
+      }
+
+      const data = await response.json()
+      const courses = this.extractCoursesFromResponse(data)
+
+      return courses
+    } catch (error) {
+      // Retry on network errors, but not on validation errors
+      if (attempt < this.retryAttempts && !(error instanceof SyntaxError)) {
+        const delay = this.retryDelay * Math.pow(2, attempt - 1)
+        await new Promise((r) => setTimeout(r, delay))
+        return this.processChunk(text, filename, attempt + 1)
+      }
+
+      throw error
+    }
+  }
+
+  /**
+   * Extract JSON array from API response text
+   */
+  extractCoursesFromResponse(data: any): Course[] {
+    const text = data.candidates?.[0]?.content?.parts?.[0]?.text || ''
+
+    if (!text) {
+      console.warn('API returned empty response')
+      return []
+    }
+
+    // Find JSON array using bracket matching
+    const firstBracket = text.indexOf('[')
+    if (firstBracket === -1) {
+      console.warn('No JSON array found in response:', text.substring(0, 200))
+      return []
+    }
+
+    let depth = 0
+    for (let i = firstBracket; i < text.length; i++) {
+      if (text[i] === '[') {
+        depth++
+      } else if (text[i] === ']') {
+        depth--
+        if (depth === 0) {
+          try {
+            const jsonStr = text.slice(firstBracket, i + 1)
+            const courses = JSON.parse(jsonStr)
+            return Array.isArray(courses) ? courses : []
+          } catch (e) {
+            console.error('JSON parse error:', e)
+            console.error('Attempted to parse:', text.slice(firstBracket, i + 1).substring(0, 500))
+            return []
+          }
+        }
+      }
+    }
+
+    console.warn('Unmatched brackets in response')
+    return []
+  }
+
+  /**
+   * Process entire document with progress tracking
+   */
+  async processDocument(text: string, filename: string): Promise<Course[]> {
+    const chunks = this.createSemanticChunks(text)
+    const totalChunks = chunks.length
+
+    this.onProgress({
+      status: 'processing',
+      total: totalChunks,
+      current: 0,
+      message: `Split into ${totalChunks} chunk${totalChunks === 1 ? '' : 's'}`,
+    })
+
+    const allCourses: Course[] = []
+
+    for (let i = 0; i < chunks.length; i++) {
+      const chunkNum = i + 1
+
+      this.onProgress({
+        status: 'processing',
+        total: totalChunks,
+        current: chunkNum,
+        message: `Processing chunk ${chunkNum} of ${totalChunks}...`,
+      })
+
+      try {
+        const courses = await this.processChunk(chunks[i], filename)
+        allCourses.push(...courses)
+
+        this.onProgress({
+          status: 'chunk_complete',
+          total: totalChunks,
+          current: chunkNum,
+          coursesFound: courses.length,
+          message: `✓ Found ${courses.length} course${courses.length === 1 ? '' : 's'} in chunk ${chunkNum}`,
+        })
+
+        // Small delay between chunks to avoid rate limiting
+        if (i < chunks.length - 1) {
+          await new Promise((r) => setTimeout(r, 1000))
+        }
+      } catch (error) {
+        const errorMsg = error instanceof Error ? error.message : 'Unknown error'
+        this.onError(error instanceof Error ? error : new Error(errorMsg))
+
+        this.onProgress({
+          status: 'chunk_error',
+          total: totalChunks,
+          current: chunkNum,
+          message: `❌ Error in chunk ${chunkNum}: ${errorMsg}`,
+        })
+
+        // Continue with next chunk instead of failing entire document
+      }
+    }
+
+    // Deduplicate courses
+    const deduplicated = this.deduplicateCourses(allCourses)
+
+    this.onProgress({
+      status: 'processing',
+      total: totalChunks,
+      current: totalChunks,
+      coursesFound: deduplicated.length,
+      message: `✓ Extraction complete! Found ${deduplicated.length} unique course${deduplicated.length === 1 ? '' : 's'}`,
+    })
+
+    return deduplicated
+  }
+
+  /**
+   * Remove duplicate courses based on category, name, and grade level
+   */
+  private deduplicateCourses(courses: Course[]): Course[] {
+    const seen = new Map<string, boolean>()
+
+    return courses.filter((course) => {
+      const key = `${course.Category}|${course.CourseName}|${course.GradeLevel}`.toLowerCase()
+
+      if (seen.has(key)) {
+        return false
+      }
+
+      seen.set(key, true)
+      return true
+    })
+  }
+}

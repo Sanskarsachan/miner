@@ -8,14 +8,15 @@
     "start": "next start"
   },
   "dependencies": {
+    "micro-ratelimit": "^0.4.0",
     "next": "^15.1.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1"
   },
   "devDependencies": {
-    "typescript": "^5.3.3",
     "@types/node": "^20.10.0",
     "@types/react": "^18.2.37",
-    "@types/react-dom": "^18.2.15"
+    "@types/react-dom": "^18.2.15",
+    "typescript": "^5.3.3"
   }
 }
