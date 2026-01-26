@@ -1,0 +1,480 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>CourseHarvester - Extract Course Data</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root{
+      --primary:#2563eb; --secondary:#10b981; --accent:#8b5cf6;
+      --bg:#f8fafc; --card:#ffffff; --muted:#6b7280; --danger:#ef4444;
+      font-family: Inter, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial;
+    }
+    *{box-sizing:border-box}
+    body{margin:0;background:linear-gradient(180deg,#f8fafc, #ffffff);color:#0f172a}
+    header{background:linear-gradient(90deg,var(--primary),var(--accent));color:#fff;padding:28px 20px}
+    .container{max-width:1100px;margin:-40px auto 80px;background:var(--card);border-radius:12px;box-shadow:0 10px 30px rgba(16,24,40,0.08);overflow:hidden}
+    .header-inner{display:flex;align-items:center;justify-content:space-between;gap:16px}
+    h1{margin:0;font-size:20px;font-weight:700}
+    .tagline{color:rgba(255,255,255,0.9);margin-top:6px;font-size:13px}
+    .content{padding:28px}
+    .row{display:flex;gap:20px}
+    .left{flex:1}
+    .card{background:var(--card);padding:16px;border-radius:8px;border:1px solid #eef2ff}
+    .upload-zone{border:2px dashed rgba(37,99,235,0.12);padding:26px;text-align:center;border-radius:8px;cursor:pointer}
+    .upload-zone.dragover{background:linear-gradient(90deg,rgba(37,99,235,0.03),rgba(139,92,246,0.03));border-color:var(--primary)}
+    .muted{color:var(--muted);font-size:13px}
+    .controls{display:flex;gap:8px;margin-top:12px}
+    button{background:var(--primary);color:#fff;border:none;padding:10px 12px;border-radius:8px;cursor:pointer}
+    button.secondary{background:#eef2ff;color:var(--primary)}
+    .file-info{display:flex;align-items:center;gap:12px;margin-top:12px}
+    .icon{width:36px;height:36px;border-radius:6px;display:inline-flex;align-items:center;justify-content:center;color:#fff;font-weight:700}
+    .pdf{background:#ef4444}.word{background:#3b82f6}.ppt{background:#f97316}.html{background:#22c55e}.txt{background:#6b7280}
+    .progress{height:10px;background:#e6eefc;border-radius:999px;overflow:hidden;margin-top:12px}
+    .progress > i{height:100%;display:block;background:linear-gradient(90deg,var(--primary),var(--accent));width:0%}
+    .stats{display:flex;gap:12px;flex-wrap:wrap;margin-top:12px}
+    .stat{background:#f8fafc;padding:10px;border-radius:8px;border:1px solid #eef2ff;min-width:140px}
+    table{width:100%;border-collapse:collapse;margin-top:12px;font-size:13px}
+    th,td{padding:8px;border-bottom:1px solid #f1f5f9;text-align:left}
+    th{background:#fafafa;cursor:pointer;position:relative}
+    .search{margin-bottom:8px}
+    .footer{padding:12px;text-align:center;color:var(--muted);font-size:13px}
+    .toast{position:fixed;right:18px;bottom:18px;background:#111827;color:#fff;padding:10px 14px;border-radius:8px;box-shadow:0 6px 20px rgba(2,6,23,0.2);display:none}
+    .toast.show{display:block}
+    @media(max-width:900px){.row{flex-direction:column}.header-inner{flex-direction:column;align-items:flex-start}}
+  </style>
+  <!-- Libraries -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js"></script>
+</head>
+<body>
+  <header>
+    <div class="container" style="background:transparent;box-shadow:none;padding:0 0 0 0">
+      <div style="padding:14px 20px">
+        <div class="header-inner">
+          <div>
+            <h1>CourseHarvester</h1>
+            <div class="tagline">Extract course data from PDF • Word • PowerPoint • HTML • TXT</div>
+          </div>
+          <div style="text-align:right">
+            <div style="font-size:12px;opacity:0.9">Powered by Google Gemini</div>
+            <a href="#instructions" style="color:rgba(255,255,255,0.95);font-size:12px;margin-top:8px;display:inline-block">How to get an API key</a>
+          </div>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <main class="container">
+    <div class="content">
+      <div class="row">
+        <div class="left">
+          <div class="card">
+            <label style="display:block;font-weight:600">Gemini API Key</label>
+            <div style="display:flex;gap:8px;align-items:center;margin-top:8px">
+              <input id="apiKey" type="password" placeholder="Paste your Gemini API key" style="flex:1;padding:10px;border-radius:8px;border:1px solid #e6eefc" />
+              <button id="toggleKey" class="secondary">Show</button>
+            </div>
+            <div class="muted" style="margin-top:8px">We store the key in localStorage only if you check "Remember" below. Never sent to any server by this app.</div>
+            <div style="margin-top:8px;display:flex;align-items:center;gap:8px">
+              <label><input id="rememberKey" type="checkbox" /> Remember</label>
+              <a href="https://aistudio.google.com/app/apikey" target="_blank" style="margin-left:auto">Get free Gemini API key</a>
+            </div>
+
+            <hr style="margin:14px 0;border:none;border-top:1px solid #f1f5f9" />
+
+            <div id="dropZone" class="upload-zone" tabindex="0">
+              <div style="font-weight:600">Drag & drop a file here, or click to select</div>
+              <div class="muted" style="margin-top:8px">Accepted: .pdf, .doc, .docx, .ppt, .pptx, .html, .htm, .txt — Max 10MB</div>
+              <input id="fileInput" type="file" accept=".pdf,.doc,.docx,.ppt,.pptx,.html,.htm,.txt" style="display:none" />
+            </div>
+
+            <div class="file-info" id="fileInfo" style="display:none">
+              <div id="fileIcon" class="icon pdf">PDF</div>
+              <div>
+                <div id="fileName" style="font-weight:600"></div>
+                <div id="fileType" class="muted"></div>
+              </div>
+            </div>
+
+            <div class="controls">
+              <button id="extractBtn" disabled>Extract Courses</button>
+              <button id="clearBtn" class="secondary">Clear</button>
+            </div>
+
+            <div class="progress" style="display:none;margin-top:12px"><i></i></div>
+            <div id="status" style="margin-top:10px"></div>
+            <details id="debugPanel" style="margin-top:10px">
+              <summary style="cursor:pointer">Debug: Raw Gemini / Server Response</summary>
+              <pre id="debugResponse" style="max-height:300px;overflow:auto;background:#0f172a;color:#fff;padding:10px;border-radius:6px;margin-top:8px;white-space:pre-wrap;word-break:break-word">No response yet.</pre>
+            </details>
+
+            <div class="stats" style="margin-top:12px">
+              <div class="stat"><div style="font-size:12px;color:var(--muted)">Files processed</div><div id="statFiles">0</div></div>
+              <div class="stat"><div style="font-size:12px;color:var(--muted)">Courses extracted</div><div id="statCourses">0</div></div>
+              <div class="stat"><div style="font-size:12px;color:var(--muted)">Last file</div><div id="statLast">—</div></div>
+            </div>
+          </div>
+
+          <div class="card" style="margin-top:12px">
+            <div style="display:flex;justify-content:space-between;align-items:center">
+              <div style="font-weight:600">Results</div>
+              <div>
+                <input id="searchBox" class="search" placeholder="Search courses" style="padding:8px;border-radius:8px;border:1px solid #eef2ff" />
+                <button id="downloadCSV" class="secondary">Download CSV</button>
+                <button id="downloadJSON" class="secondary">Download JSON</button>
+                <button id="clearAll" class="secondary">Clear All</button>
+              </div>
+            </div>
+
+            <div style="overflow:auto;margin-top:8px">
+              <table id="resultsTable">
+                <thead>
+                  <tr>
+                    <th data-key="Category">Category</th>
+                    <th data-key="CourseName">Course Name</th>
+                    <th data-key="GradeLevel">Grade Level</th>
+                    <th data-key="Length">Length</th>
+                    <th data-key="Prerequisite">Prerequisite</th>
+                    <th data-key="Credit">Credit</th>
+                    <th data-key="CourseDescription">Course Description</th>
+                    <th data-key="SourceFile">Source File</th>
+                  </tr>
+                </thead>
+                <tbody></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <div style="width:320px">
+          <div class="card">
+            <div style="font-weight:600">Instructions</div>
+            <div id="instructions" style="margin-top:8px;font-size:13px">
+              <p class="muted">How to get your free Gemini API key: Visit <a href="https://aistudio.google.com/app/apikey" target="_blank">aistudio</a>, create an API key, paste it above.</p>
+              <p class="muted">Tips: Prefer text PDFs (not scanned images). For PPTX, we upload to Gemini when possible.</p>
+            </div>
+          </div>
+
+          <div class="card" style="margin-top:12px">
+            <div style="font-weight:600">File History</div>
+            <ul id="fileHistoryList" style="margin-top:8px;padding-left:16px;font-size:13px;color:var(--muted)"></ul>
+          </div>
+
+        </div>
+      </div>
+
+      <div class="footer" style="margin-top:18px">© CourseHarvester • Powered by Google Gemini</div>
+    </div>
+  </main>
+
+  <div class="toast" id="toast"></div>
+
+  <script>
+    // Utilities
+    function showToast(msg, timeout=4000){
+      const t = document.getElementById('toast'); t.textContent = msg; t.classList.add('show');
+      setTimeout(()=>t.classList.remove('show'), timeout);
+    }
+
+    function detectFileType(file){
+      const extension = (file.name.split('.').pop()||'').toLowerCase();
+      const types = {pdf:'PDF',html:'HTML',htm:'HTML',doc:'Word',docx:'Word',ppt:'PPT',pptx:'PPT',txt:'TXT'};
+      return {extension,displayName:types[extension]||'Unknown'};
+    }
+
+    // State
+    let selectedFile = null; let allCourses = []; let fileHistory = [];
+
+    // Elements
+    const drop = document.getElementById('dropZone');
+    const input = document.getElementById('fileInput');
+    const fileInfo = document.getElementById('fileInfo');
+    const fileIcon = document.getElementById('fileIcon');
+    const fileNameEl = document.getElementById('fileName');
+    const fileTypeEl = document.getElementById('fileType');
+    const extractBtn = document.getElementById('extractBtn');
+    const clearBtn = document.getElementById('clearBtn');
+    const progressBar = document.querySelector('.progress');
+    const progressFill = progressBar.querySelector('i');
+    const status = document.getElementById('status');
+    const statFiles = document.getElementById('statFiles');
+    const statCourses = document.getElementById('statCourses');
+    const statLast = document.getElementById('statLast');
+    const tableBody = document.querySelector('#resultsTable tbody');
+    const searchBox = document.getElementById('searchBox');
+    const downloadCSVBtn = document.getElementById('downloadCSV');
+    const downloadJSONBtn = document.getElementById('downloadJSON');
+    const clearAllBtn = document.getElementById('clearAll');
+    const apiKeyInput = document.getElementById('apiKey');
+    const rememberKey = document.getElementById('rememberKey');
+    const toggleKey = document.getElementById('toggleKey');
+    const fileHistoryList = document.getElementById('fileHistoryList');
+
+    // Restore key
+    if(localStorage.getItem('gh_api_key')){apiKeyInput.value = localStorage.getItem('gh_api_key');rememberKey.checked = true}
+
+    toggleKey.addEventListener('click', ()=>{
+      if(apiKeyInput.type==='password'){apiKeyInput.type='text';toggleKey.textContent='Hide'}else{apiKeyInput.type='password';toggleKey.textContent='Show'}
+    });
+
+    // Drag and drop
+    ['dragenter','dragover'].forEach(ev=>drop.addEventListener(ev,e=>{e.preventDefault();e.stopPropagation();drop.classList.add('dragover')}));
+    ['dragleave','drop'].forEach(ev=>drop.addEventListener(ev,e=>{e.preventDefault();e.stopPropagation();drop.classList.remove('dragover')}));
+    drop.addEventListener('drop', e=>{const f = e.dataTransfer.files[0]; if(f) handleFileSelect(f)});
+    drop.addEventListener('click', ()=>input.click());
+    input.addEventListener('change', e=>{const f = e.target.files[0]; if(f) handleFileSelect(f)});
+
+    function resetSelection(){selectedFile=null;fileInfo.style.display='none';extractBtn.disabled=true;status.innerHTML='';progressBar.style.display='none';progressFill.style.width='0%'}
+    clearBtn.addEventListener('click', ()=>resetSelection());
+
+    function handleFileSelect(file){
+      if(file.size > 10 * 1024 * 1024){showToast('File too large. Max 10MB.');return}
+      selectedFile = file; const {extension,displayName}=detectFileType(file);
+      fileInfo.style.display='flex';fileNameEl.textContent = file.name;fileTypeEl.textContent = displayName+' • '+(file.size/1024|0)+' KB';
+      fileIcon.className='icon '+(extension==='pdf'?'pdf':extension==='doc'||extension==='docx'?'word':extension==='ppt'||extension==='pptx'?'ppt':extension==='html'||extension==='htm'?'html':'txt');
+      fileIcon.textContent = extension.toUpperCase();
+      extractBtn.disabled=false; showToast('File selected: '+file.name,3000);
+    }
+
+    // File processing routines
+    async function extractFromPDF(file){
+      const ab = await file.arrayBuffer();
+      const loading = pdfjsLib.getDocument({data:ab});
+      const pdf = await loading.promise;
+      const pages = [];
+      for(let i=1;i<=pdf.numPages;i++){
+        const page = await pdf.getPage(i);
+        const txt = await page.getTextContent();
+        pages.push(txt.items.map(it=>it.str).join(' '));
+      }
+      return pages; // return array of per-page text
+    }
+
+    async function extractFromHTML(file){
+      const text = await file.text();
+      // send HTML directly; but also provide stripped text
+      const parser = new DOMParser(); const doc = parser.parseFromString(text,'text/html');
+      return doc.body.textContent || doc.body.innerText || text;
+    }
+
+    async function extractFromWord(file){
+      const ab = await file.arrayBuffer();
+      try{const result = await mammoth.extractRawText({arrayBuffer:ab}); return result.value}catch(e){console.error(e);throw new Error('Word parsing failed')}
+    }
+
+    async function extractFromPowerPoint(file){
+      // return base64 inline data for Gemini
+      const ab = await file.arrayBuffer(); let binary=''; const bytes = new Uint8Array(ab);
+      const chunk = 0x8000; for (let i=0;i<bytes.length;i+=chunk){ binary += String.fromCharCode.apply(null, bytes.subarray(i, Math.min(i+chunk, bytes.length))); }
+      const b64 = btoa(binary);
+      return {type:'base64',data:b64,mimeType:file.type||'application/vnd.openxmlformats-officedocument.presentationml.presentation'};
+    }
+
+    async function extractFromText(file){ return await file.text(); }
+
+    async function processFile(file){
+      const {extension} = detectFileType(file);
+      if(['pdf','html','htm','doc','docx','txt'].includes(extension)){
+        if(extension==='pdf') return await extractFromPDF(file);
+        if(['html','htm'].includes(extension)) return await extractFromHTML(file);
+        if(['doc','docx'].includes(extension)) return await extractFromWord(file);
+        if(extension==='txt') return await extractFromText(file);
+      }
+      if(['ppt','pptx'].includes(extension)) return await extractFromPowerPoint(file);
+      throw new Error('Unsupported file format');
+    }
+
+    // Gemini integration
+    function buildPrompt(content){
+      return `Extract ALL course information from the following curriculum document.\n\nReturn ONLY a valid JSON array with no markdown formatting, no code blocks, no preamble, and no explanation. Each course must be an object with these EXACT field names:\n- Category\n- CourseName\n- GradeLevel\n- Length\n- Prerequisite\n- Credit\n- CourseDescription\n\nIMPORTANT: Return ONLY the JSON array starting with [ and ending with ]. No other text.\n\nDocument content:\n${content}`;
+    }
+
+    async function callGeminiAPI(content, apiKey){
+      const prompt = buildPrompt(content);
+        const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
+      const body = {
+        contents:[{parts:[{text:prompt}]}],
+        generationConfig:{temperature:0.1,maxOutputTokens:8192}
+      };
+      const res = await fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+      if(!res.ok){const txt=await res.text();throw new Error('API Error: '+res.status+' '+txt)}
+      const data = await res.json();
+      // navigate candidate content
+      try{
+        const text = data.candidates?.[0]?.content?.parts?.[0]?.text || JSON.stringify(data);
+        return text;
+      }catch(e){throw new Error('Unexpected API response')}
+    }
+
+    async function callGeminiWithFileInline(base64Data,mimeType,apiKey,filename){
+      const prompt = buildPrompt('Attached file: '+filename+' (binary provided)');
+        const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
+      const body = {
+        contents:[{parts:[{inline_data:{mime_type:mimeType,data:base64Data}},{text:prompt}]}],
+        generationConfig:{temperature:0.1,maxOutputTokens:8192}
+      };
+      const res = await fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+      if(!res.ok){const txt=await res.text();throw new Error('API Error: '+res.status+' '+txt)}
+      const data = await res.json();
+      const text = data.candidates?.[0]?.content?.parts?.find(p=>p.text)?.text || JSON.stringify(data);
+      return text;
+    }
+
+    function parseCoursesFromText(text){
+      // Robustly extract a JSON array from free-form text response.
+      function extractJsonArray(s){
+        const first = s.indexOf('[');
+        if(first === -1) return null;
+        let depth = 0;
+        for(let i=first;i<s.length;i++){
+          const ch = s[i];
+          if(ch === '[') depth++;
+          else if(ch === ']'){
+            depth--;
+            if(depth === 0) return s.slice(first, i+1);
+          }
+        }
+        return null;
+      }
+
+      const arrText = extractJsonArray(text);
+      if(!arrText){
+        console.error('Invalid JSON response from Gemini — no JSON array found', text.slice(0,1000));
+        throw new Error('Invalid JSON response from Gemini');
+      }
+
+      try{
+        const parsed = JSON.parse(arrText);
+        if(!Array.isArray(parsed)) throw new Error('Parsed value is not an array');
+        return parsed;
+      }catch(err){
+        console.error('Failed to parse JSON array from Gemini response', err, arrText.slice(0,1000));
+        throw new Error('Could not parse JSON from Gemini');
+      }
+    }
+
+    function addCourses(courses, filename){
+      if(!Array.isArray(courses)) return;
+      courses.forEach(c=>{c.SourceFile = filename; if(!allCourses.some(ex=>ex.CourseName===c.CourseName && ex.SourceFile===c.SourceFile)) allCourses.push(c)});
+      fileHistory.push({filename,coursesFound:courses.length,timestamp:new Date().toISOString()});
+      updateUI();
+    }
+
+    function updateUI(){
+      statFiles.textContent = fileHistory.length; statCourses.textContent = allCourses.length; statLast.textContent = fileHistory.length?fileHistory[fileHistory.length-1].filename:'—';
+      // render file history
+      fileHistoryList.innerHTML = fileHistory.map(f=>`<li>${f.filename} — ${f.coursesFound} courses</li>`).join('')
+      // render table filter
+      const q = (searchBox.value||'').toLowerCase();
+      const visible = allCourses.filter(c=>{return Object.values(c).join(' ').toLowerCase().includes(q)});
+      tableBody.innerHTML = visible.map(c=>`<tr>${['Category','CourseName','GradeLevel','Length','Prerequisite','Credit','CourseDescription','SourceFile'].map(k=>`<td>${(c[k]||'').toString().replace(/</g,'&lt;')}</td>`).join('')}</tr>`).join('')
+    }
+
+    // Extraction flow
+    extractBtn.addEventListener('click', async ()=>{
+      if(!selectedFile){showToast('Select a file first');return}
+      const apiKey = apiKeyInput.value.trim(); if(!apiKey){showToast('Enter your Gemini API key');return}
+      if(rememberKey.checked) localStorage.setItem('gh_api_key', apiKey); else localStorage.removeItem('gh_api_key');
+      extractBtn.disabled=true; progressBar.style.display='block'; progressFill.style.width='10%'; status.textContent='Processing file...';
+      try{
+        const processed = await processFile(selectedFile);
+        progressFill.style.width='35%'
+
+        // Helper to process a single chunk of text and add courses incrementally
+        async function processChunk(textChunk, chunkLabel){
+          try{
+            const resp = await callGeminiAPI(textChunk, apiKey);
+            try{ document.getElementById('debugResponse').textContent = `Chunk: ${chunkLabel}\n\n` + resp }catch(e){}
+            try{
+              const courses = parseCoursesFromText(resp);
+              addCourses(courses, selectedFile.name);
+              return courses.length;
+            }catch(parseErr){
+              console.warn('parse error for chunk', parseErr);
+              return 0;
+            }
+          }catch(apiErr){
+            console.error('API error for chunk', apiErr);
+            try{ document.getElementById('debugResponse').textContent = apiErr.message }catch(e){}
+            return 0;
+          }
+        }
+
+        // If processed is an array (PDF per-page), process pages in batches
+        if(Array.isArray(processed)){
+          const pages = processed;
+          const batchSize = 3; // pages per request
+          let extractedTotal = 0;
+          for(let i=0;i<pages.length;i+=batchSize){
+            const batch = pages.slice(i, i+batchSize).join('\n\n');
+            const label = `pages ${i+1}-${Math.min(i+batchSize,pages.length)}`;
+            status.textContent = `Processing ${label}...`;
+            const added = await processChunk(batch, label);
+            extractedTotal += added;
+            progressFill.style.width = `${35 + Math.round(60*(i/pages.length))}%`;
+          }
+          progressFill.style.width='100%'; status.innerHTML = `<span style='color:green'>Success — ${extractedTotal} total courses extracted</span>`;
+        }
+        else if(typeof processed === 'string'){
+          // split very large text into chunks (~20k chars)
+          const maxSize = 20000;
+          const text = processed;
+          let extractedTotal = 0;
+          for(let i=0;i<text.length;i+=maxSize){
+            const chunk = text.slice(i, i+maxSize);
+            const label = `chars ${i}-${i+chunk.length}`;
+            status.textContent = `Processing ${label}...`;
+            const added = await processChunk(chunk, label);
+            extractedTotal += added;
+            progressFill.style.width = `${35 + Math.round(60*(i/text.length))}%`;
+          }
+          progressFill.style.width='100%'; status.innerHTML = `<span style='color:green'>Success — ${extractedTotal} total courses extracted</span>`;
+        }
+        else if(processed && processed.type==='base64'){
+          // PPTX inline handling (single request)
+          const responseText = await callGeminiWithFileInline(processed.data, processed.mimeType, apiKey, selectedFile.name);
+          try{ document.getElementById('debugResponse').textContent = responseText }catch(e){}
+          try{ const courses = parseCoursesFromText(responseText); addCourses(courses, selectedFile.name); status.innerHTML = `<span style='color:green'>Success — ${courses.length} courses extracted</span>`; }catch(e){ throw e }
+        } else {
+          throw new Error('Unknown processed file result');
+        }
+      }catch(err){
+        console.error(err);
+        try{ document.getElementById('debugResponse').textContent = err.message + '\n\n' + (err.responseText || '') }catch(e){}
+        status.innerHTML = `<span style='color:${err.message.includes('API')?"var(--danger)":"#d97706"}'>${err.message}</span>`;
+        showToast(err.message,6000)
+      }
+      finally{extractBtn.disabled=false; setTimeout(()=>{progressBar.style.display='none';progressFill.style.width='0%'},900)}
+    });
+
+    // Exports
+    function downloadCSV(){
+      const headers = ['Category','CourseName','GradeLevel','Length','Prerequisite','Credit','CourseDescription','SourceFile'];
+      const escape = s=>{ if(s==null) return ''; s = s.toString().replace(/"/g,'""'); return (s.includes(',')||s.includes('"')||s.includes('\n'))?`"${s}"`:s }
+      const rows=[headers.join(',')].concat(allCourses.map(c=>headers.map(h=>escape(c[h]||'')).join(',')));
+      const blob = new Blob([rows.join('\n')],{type:'text/csv;charset=utf-8;'}); const url=URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download=`course_data_${new Date().toISOString().slice(0,10)}.csv`; a.click(); URL.revokeObjectURL(url);
+    }
+    function downloadJSON(){ const blob=new Blob([JSON.stringify(allCourses,null,2)],{type:'application/json'}); const url=URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download=`course_data_${new Date().toISOString().slice(0,10)}.json`; a.click(); URL.revokeObjectURL(url);} 
+
+    downloadCSVBtn.addEventListener('click', ()=>{ if(!allCourses.length){showToast('No data to export');return} downloadCSV(); });
+    downloadJSONBtn.addEventListener('click', ()=>{ if(!allCourses.length){showToast('No data to export');return} downloadJSON(); });
+    clearAllBtn.addEventListener('click', ()=>{ if(!confirm('Clear all extracted data?')) return; allCourses=[]; fileHistory=[]; updateUI(); showToast('Cleared'); });
+    searchBox.addEventListener('input', updateUI);
+
+    // Sortable columns
+    document.querySelectorAll('#resultsTable th').forEach(th=>{
+      th.addEventListener('click', ()=>{
+        const key = th.getAttribute('data-key'); if(!key) return;
+        allCourses.sort((a,b)=>{ const A=(a[key]||'').toString().toLowerCase(); const B=(b[key]||'').toString().toLowerCase(); return A>B?1:(A<B?-1:0); }); updateUI();
+      })
+    })
+
+    // Initial UI
+    updateUI();
+  </script>
+</body>
+</html>
