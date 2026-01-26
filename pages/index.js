@@ -11,7 +11,7 @@ export default function Home() {
         <h1>CourseHarvester</h1>
         <p>
           This site serves the standalone CourseHarvester app. Open the app directly:
-          <a href="/courseharvester.html" style={{marginLeft:8}}>Open CourseHarvester</a>
+          <a href="/courseharvester" style={{marginLeft:8}}>Open CourseHarvester</a>
         </p>
         <p>
           To deploy: push this repo to Git and deploy with Vercel.
