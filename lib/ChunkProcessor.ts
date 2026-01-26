@@ -80,13 +80,19 @@ export class ChunkProcessor {
 
       if (!response.ok) {
         let error: any = {}
+        let responseText = ''
+        
+        // Always read as text first (to avoid "body stream already read" error)
         try {
-          error = await response.json()
+          responseText = await response.text()
+          // Try to parse as JSON
+          if (responseText) {
+            error = JSON.parse(responseText)
+          }
         } catch (parseError) {
-          const text = await response.text()
-          console.error('Failed to parse error response:', parseError)
-          console.error('Response text:', text.substring(0, 300))
-          error = { error: text.substring(0, 200) }
+          // If JSON parse fails, just use raw text
+          console.error('Failed to parse response as JSON:', parseError)
+          error = { error: responseText || 'Unknown error' }
         }
 
         // Handle rate limiting with exponential backoff
@@ -112,12 +118,12 @@ export class ChunkProcessor {
         }
 
         // Log detailed error for debugging
-        console.error(`ChunkProcessor API Error (${response.status}):`, error)
+        console.error(`ChunkProcessor API Error (${response.status}):`, error, 'Response text:', responseText.substring(0, 200))
         
         throw new Error(
           error?.error || 
           error?.message || 
-          `API Error (HTTP ${response.status}): ${JSON.stringify(error).substring(0, 150)}`
+          `API Error (HTTP ${response.status}): ${responseText.substring(0, 150)}`
         )
       }
 
