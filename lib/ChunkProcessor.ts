@@ -24,7 +24,8 @@ export class ChunkProcessor {
 
   constructor(
     private onProgress: (progress: ProcessProgress) => void = () => {},
-    private onError: (error: Error) => void = console.error
+    private onError: (error: Error) => void = console.error,
+    private apiKey: string = ''  // NEW: Accept API key from client
   ) {}
 
   estimateTokens(text: string): number {
@@ -74,7 +75,7 @@ export class ChunkProcessor {
       const response = await fetch('/api/secure_extract', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text, filename }),
+        body: JSON.stringify({ text, filename, apiKey: this.apiKey }),  // Send API key
       })
 
       if (!response.ok) {

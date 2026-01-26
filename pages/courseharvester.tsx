@@ -472,7 +472,8 @@ export default function CourseHarvester() {
         },
         (error) => {
           console.error('Processing error:', error)
-        }
+        },
+        apiKey  // CRITICAL: Pass the API key
       )
 
       const courses = await processor.processDocument(textContent, selectedFile.name)

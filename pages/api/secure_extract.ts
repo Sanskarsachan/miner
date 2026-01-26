@@ -1,7 +1,8 @@
 import type { NextApiRequest, NextApiResponse } from 'next'
 import rateLimit from 'micro-ratelimit'
 
-const GEMINI_API_KEY = process.env.GEMINI_API_KEY
+// Allow env var as fallback, but prefer client-provided key
+const ENV_GEMINI_API_KEY = process.env.GEMINI_API_KEY
 const MAX_REQUESTS_PER_HOUR = 5
 
 // Rate limiter using IP address
@@ -13,6 +14,7 @@ const limiter = rateLimit({
 interface ExtractRequest {
   text: string
   filename?: string
+  apiKey?: string  // NEW: Accept API key from client
 }
 
 interface Course {
@@ -56,31 +58,20 @@ export default async function handler(
     return res.status(405).json({ error: 'Method not allowed' })
   }
 
-  // Verify API key is configured
-  if (!GEMINI_API_KEY) {
-    console.error('GEMINI_API_KEY not configured')
-    return res.status(500).json({ error: 'Service not properly configured' })
-  }
-
-  // Apply rate limiting
   try {
+    const { text, filename, apiKey: clientApiKey } = req.body as ExtractRequest
+
+    // Use client-provided key or fallback to env var
+    const GEMINI_API_KEY = clientApiKey || ENV_GEMINI_API_KEY
+
+    // Verify API key is available (from client or env)
+    if (!GEMINI_API_KEY) {
+      console.error('GEMINI_API_KEY not configured - not provided by client and not in env')
+      return res.status(500).json({ error: 'Service not properly configured' })
+    }
+
+    // Apply rate limiting
     await limiter(req, res)
-  } catch (error) {
-    return res.status(429).json({
-      error:
-        'Rate limit exceeded. You can process 5 documents per hour. Please try again later.',
-      retryAfter: 3600, // seconds
-    })
-  }
-
-  // Validate content length
-  const payloadStr = JSON.stringify(req.body)
-  if (payloadStr.length > 50 * 1024 * 1024) {
-    return res.status(413).json({ error: 'Payload too large (max 50MB)' })
-  }
-
-  try {
-    const { text, filename } = req.body as ExtractRequest
 
     // Validate request
     if (!text || typeof text !== 'string') {
