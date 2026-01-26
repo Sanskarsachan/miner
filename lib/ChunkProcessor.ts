@@ -79,7 +79,15 @@ export class ChunkProcessor {
       })
 
       if (!response.ok) {
-        const error = await response.json()
+        let error: any = {}
+        try {
+          error = await response.json()
+        } catch (parseError) {
+          const text = await response.text()
+          console.error('Failed to parse error response:', parseError)
+          console.error('Response text:', text.substring(0, 300))
+          error = { error: text.substring(0, 200) }
+        }
 
         // Handle rate limiting with exponential backoff
         if (response.status === 429) {
@@ -95,13 +103,22 @@ export class ChunkProcessor {
             await new Promise((r) => setTimeout(r, delay))
             return this.processChunk(text, filename, attempt + 1)
           } else {
+            // Extract reset time from error response if available
+            const resetTime = error?.resetTime || 'in 1 hour'
             throw new Error(
-              'Rate limit exceeded after retries. Please wait before trying again.'
+              `Rate limit exceeded. Maximum 5 documents per hour. You can try again ${resetTime}.`
             )
           }
         }
 
-        throw new Error(error.error || `HTTP ${response.status}: Processing failed`)
+        // Log detailed error for debugging
+        console.error(`ChunkProcessor API Error (${response.status}):`, error)
+        
+        throw new Error(
+          error?.error || 
+          error?.message || 
+          `API Error (HTTP ${response.status}): ${JSON.stringify(error).substring(0, 150)}`
+        )
       }
 
       const data = await response.json()

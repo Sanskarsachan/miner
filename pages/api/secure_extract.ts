@@ -38,6 +38,9 @@ interface GeminiResponse {
 interface ErrorResponse {
   error: string
   retryAfter?: number
+  resetTime?: string
+  type?: string
+  timestamp?: string
 }
 
 export default async function handler(
@@ -70,8 +73,18 @@ export default async function handler(
       return res.status(500).json({ error: 'Service not properly configured' })
     }
 
-    // Apply rate limiting
-    await limiter(req, res)
+    // Apply rate limiting (wrapped in try-catch)
+    try {
+      await limiter(req, res)
+    } catch (rateLimitError) {
+      console.error('Rate limit error:', rateLimitError)
+      const resetTime = new Date(Date.now() + 3600 * 1000).toLocaleTimeString()
+      return res.status(429).json({
+        error: `Rate limit exceeded. Maximum 5 documents per hour. You can try again after ${resetTime} UTC.`,
+        retryAfter: 3600,
+        resetTime,
+      })
+    }
 
     // Validate request
     if (!text || typeof text !== 'string') {
@@ -120,8 +133,16 @@ export default async function handler(
       clearTimeout(timeout)
 
       if (!response.ok) {
-        const errorData = await response.json()
-        console.error('Gemini API Error:', errorData)
+        let errorData: { error?: string } = {}
+        try {
+          errorData = await response.json()
+        } catch (e) {
+          console.error('Failed to parse error response:', e)
+          const text = await response.text()
+          console.error('Response text:', text.substring(0, 500))
+        }
+        
+        console.error(`Gemini API Error (${response.status}):`, errorData)
 
         // User-friendly error messages
         if (response.status === 429) {
@@ -148,7 +169,7 @@ export default async function handler(
         }
 
         return res.status(response.status).json({
-          error: 'Failed to process document. Please try again.',
+          error: errorData?.error || 'Failed to process document. Please try again.',
         })
       }
 
@@ -175,12 +196,22 @@ export default async function handler(
     }
   } catch (error) {
     const errorMsg = error instanceof Error ? error.message : String(error)
-    console.error('Server error in secure_extract:', errorMsg, error)
+    const errorStack = error instanceof Error ? error.stack : ''
+    const errorType = error instanceof Error ? error.constructor.name : typeof error
     
-    // Return error
-    return res.status(500).json({ 
-      error: 'Internal server error'
-    })
+    console.error('=== SECURE_EXTRACT ERROR ===')
+    console.error('Error Message:', errorMsg)
+    console.error('Error Type:', errorType)
+    console.error('Error Stack:', errorStack)
+    console.error('=============================')
+    
+    // Return detailed error for debugging
+    const response: ErrorResponse = { 
+      error: `Internal server error: ${errorMsg}`,
+      type: errorType,
+      timestamp: new Date().toISOString(),
+    }
+    return res.status(500).json(response)
   }
 }
 
