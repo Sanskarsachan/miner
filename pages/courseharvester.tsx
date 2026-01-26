@@ -402,6 +402,16 @@ export default function CourseHarvester() {
         if (incrementalCache) {
           cachedResults = incrementalCache.cachedCourses || []
           
+          // CRITICAL FIX: If cached results are empty, skip cache and process fresh
+          if (cachedResults.length === 0) {
+            console.warn('⚠️ Cache returned empty results, ignoring cache and processing fresh')
+            cachedResults = []
+            usingCache = false
+            incrementalCache.needsProcessing = true
+            incrementalCache.cachedPageStart = undefined
+            incrementalCache.cachedPageEnd = undefined
+          }
+          
           if (incrementalCache.needsProcessing) {
             // We have partial cache, continue from next page
             startPage = incrementalCache.nextPageToProcess || numPagesToProcess + 1
@@ -1103,6 +1113,23 @@ export default function CourseHarvester() {
                 <div className="controls">
                   <button onClick={extract} disabled={!selectedFile || !apiKey}>
                     Extract Courses
+                  </button>
+                  <button
+                    onClick={async () => {
+                      // Clear IndexedDB cache completely
+                      try {
+                        await cacheRef.current?.clearAll()
+                        setCachedPageRange(null)
+                        setStatus('🧹 Cache cleared!')
+                      } catch (e) {
+                        console.error('Failed to clear cache:', e)
+                        setStatus('Error clearing cache')
+                      }
+                    }}
+                    className="secondary"
+                    title="Clear all cached data from browser storage"
+                  >
+                    Clear Cache
                   </button>
                   <button
                     onClick={() => {

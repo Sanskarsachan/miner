@@ -315,6 +315,14 @@ export class DocumentCache {
           console.log(
             `Cache hit for ${fileHash} (pages ${result.pageStart}-${result.pageEnd})`
           )
+          
+          // VALIDATION: Check if courses array is valid and not empty
+          if (!result.courses || !Array.isArray(result.courses) || result.courses.length === 0) {
+            console.warn(`⚠️ Cache corrupted for ${fileHash}: empty or invalid courses array`)
+            this.delete(fileHash).catch(console.error)
+            resolve(null)
+            return
+          }
 
           const cachedStart = result.pageStart || 1
           const cachedEnd = result.pageEnd || result.totalPages || requestedPageEnd
@@ -325,6 +333,7 @@ export class DocumentCache {
 
           if (hasAllPages) {
             // We have all requested pages, no need to process
+            console.log(`✓ Cache covers pages ${requestedPageStart}-${requestedPageEnd} (have ${cachedStart}-${cachedEnd}, ${result.courses.length} courses)`)
             resolve({
               cachedCourses: result.courses,
               cachedPageStart: cachedStart,
@@ -334,6 +343,7 @@ export class DocumentCache {
           } else {
             // We have partial cache, need to process remaining pages
             const nextPageToProcess = Math.max(cachedEnd + 1, requestedPageStart)
+            console.log(`⚠ Cache partial: have ${cachedStart}-${cachedEnd}, need ${requestedPageStart}-${requestedPageEnd}, will process from ${nextPageToProcess}`)
             resolve({
               cachedCourses: result.courses,
               cachedPageStart: cachedStart,
@@ -344,9 +354,11 @@ export class DocumentCache {
           }
         } else if (result) {
           // Cache is stale, delete it
+          console.log(`Cache stale for ${fileHash}, deleting`)
           this.delete(fileHash).catch(console.error)
           resolve(null)
         } else {
+          console.log(`No cache found for ${fileHash}`)
           resolve(null)
         }
       }
@@ -369,6 +381,33 @@ export class DocumentCache {
         merged.push(course)
       }
     })
+    console.log(`✓ Merged ${cached.length} cached + ${newCourses.length} new = ${merged.length} total courses`)
     return merged
+  }
+
+  /**
+   * Clear ALL cache entries (nuclear option for cache corruption)
+   * This is a hard reset that clears IndexedDB completely
+   */
+  async clearAll(): Promise<void> {
+    if (!this.db) {
+      return
+    }
+
+    return new Promise((resolve, reject) => {
+      const transaction = this.db!.transaction([this.storeName], 'readwrite')
+      const store = transaction.objectStore(this.storeName)
+      const request = store.clear()
+
+      request.onsuccess = () => {
+        console.log('🧹 All cache entries cleared from IndexedDB')
+        resolve()
+      }
+
+      request.onerror = () => {
+        console.error('Cache clear error:', request.error)
+        reject(request.error)
+      }
+    })
   }
 }
