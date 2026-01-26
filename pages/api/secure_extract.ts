@@ -19,14 +19,18 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const { text, apiKey } = req.body
 
     if (!apiKey) {
-      console.error('[extract] No API key provided')
+      console.error('[secure_extract] ❌ No API key provided')
       return res.status(400).json({ error: 'API key required' })
     }
 
     if (!text || typeof text !== 'string' || text.length === 0) {
-      console.error('[extract] No text provided')
+      console.error('[secure_extract] ❌ No text provided')
       return res.status(400).json({ error: 'Text is required' })
     }
+
+    console.log('[secure_extract] ✓ Input validation passed')
+    console.log('[secure_extract] Text length:', text.length)
+    console.log('[secure_extract] First 100 chars:', text.substring(0, 100))
 
     // Build prompt that explicitly asks for JSON
     const prompt = `You are a course data extraction expert. Extract all course information from the provided document.
@@ -51,11 +55,8 @@ Example format:
 DOCUMENT TO EXTRACT FROM:
 ${text.substring(0, 80000)}`
 
-    console.log('[extract] Calling Gemini API...')
+    console.log('[secure_extract] ✓ Prompt built, length:', prompt.length)
     const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`
-
-    const controller = new AbortController()
-    const timeoutId = setTimeout(() => controller.abort(), 60000) // 60 second timeout
 
     let response
     try {
@@ -70,27 +71,22 @@ ${text.substring(0, 80000)}`
           ],
           generationConfig: {
             temperature: 0.1,
-            maxOutputTokens: 8192,
+            // No maxOutputTokens limit - let Gemini return complete JSON
           },
         }),
-        signal: controller.signal,
       })
     } catch (fetchError) {
-      clearTimeout(timeoutId)
-      if (fetchError instanceof Error && fetchError.name === 'AbortError') {
-        console.error('[extract] Request timed out')
-        return res.status(504).json({ error: 'Request timed out - Gemini API took too long' })
-      }
+      console.error('[secure_extract] ❌ Fetch error:', fetchError instanceof Error ? fetchError.message : String(fetchError))
       throw fetchError
     }
-
-    clearTimeout(timeoutId)
     const responseText = await response.text()
 
-    console.log('[extract] Gemini status:', response.status)
+    console.log('[secure_extract] 📬 Gemini response status:', response.status)
+    console.log('[secure_extract] Response length:', responseText.length)
+    console.log('[secure_extract] First 300 chars:', responseText.substring(0, 300))
 
     if (!response.ok) {
-      console.error('[extract] Gemini error response:', responseText.substring(0, 500))
+      console.error('[secure_extract] ❌ Gemini error response:', responseText.substring(0, 500))
       throw new Error(`Gemini API error: ${response.status}`)
     }
 
@@ -98,8 +94,8 @@ ${text.substring(0, 80000)}`
     try {
       geminiData = JSON.parse(responseText)
     } catch (e) {
-      console.error('[extract] Failed to parse Gemini response as JSON')
-      console.error('[extract] Response was:', responseText.substring(0, 300))
+      console.error('[secure_extract] ❌ Failed to parse Gemini response as JSON')
+      console.error('[secure_extract] Response was:', responseText.substring(0, 300))
       throw new Error('Invalid response from Gemini')
     }
 
@@ -107,13 +103,13 @@ ${text.substring(0, 80000)}`
     const responseContent = geminiData.candidates?.[0]?.content?.parts?.[0]?.text
     
     if (!responseContent) {
-      console.error('[extract] No text content in Gemini response')
-      console.error('[extract] Full response:', JSON.stringify(geminiData).substring(0, 500))
+      console.error('[secure_extract] ❌ No text content in Gemini response')
+      console.error('[secure_extract] Full response:', JSON.stringify(geminiData).substring(0, 500))
       return res.status(200).json([])
     }
 
-    console.log('[extract] Gemini returned text, length:', responseContent.length)
-    console.log('[extract] First 200 chars:', responseContent.substring(0, 200))
+    console.log('[secure_extract] ✓ Gemini returned text, length:', responseContent.length)
+    console.log('[secure_extract] First 200 chars:', responseContent.substring(0, 200))
 
     // Extract JSON array from response
     let courses: Course[] = []
@@ -122,26 +118,26 @@ ${text.substring(0, 80000)}`
       const jsonMatch = responseContent.match(/\[[\s\S]*\]/)
       
       if (!jsonMatch) {
-        console.error('[extract] Could not find JSON array in response')
-        console.error('[extract] Response text:', responseContent)
+        console.error('[secure_extract] ❌ Could not find JSON array in response')
+        console.error('[secure_extract] Response text:', responseContent)
         return res.status(200).json([])
       }
 
       const jsonStr = jsonMatch[0]
-      console.log('[extract] Found JSON, parsing...')
+      console.log('[secure_extract] 📋 Found JSON, parsing...')
       
       courses = JSON.parse(jsonStr)
-      console.log('[extract] Successfully parsed', courses.length, 'courses')
+      console.log('[secure_extract] ✅ Successfully parsed', courses.length, 'courses')
     } catch (parseError) {
-      console.error('[extract] JSON parse error:', parseError instanceof Error ? parseError.message : String(parseError))
-      console.error('[extract] Attempted to parse:', responseContent.substring(0, 300))
+      console.error('[secure_extract] ❌ JSON parse error:', parseError instanceof Error ? parseError.message : String(parseError))
+      console.error('[secure_extract] Attempted to parse:', responseContent.substring(0, 300))
       return res.status(200).json([])
     }
 
     return res.status(200).json(courses)
   } catch (error) {
     const errorMsg = error instanceof Error ? error.message : String(error)
-    console.error('[extract] Fatal error:', errorMsg)
+    console.error('[secure_extract] ❌ Fatal error:', errorMsg)
     return res.status(500).json({ error: errorMsg })
   }
 }

@@ -6,9 +6,9 @@ interface ProcessProgress {
   coursesFound?: number
 }
 
-interface Course {
+export interface Course {
   Category?: string
-  CourseName?: string
+  CourseName: string
   GradeLevel?: string
   Length?: string
   Prerequisite?: string
@@ -147,17 +147,27 @@ export class ChunkProcessor {
    * Extract JSON array from API response text
    */
   extractCoursesFromResponse(data: any): Course[] {
-    const text = data.candidates?.[0]?.content?.parts?.[0]?.text || ''
+    console.log('[ChunkProcessor] extractCoursesFromResponse received:', JSON.stringify(data).substring(0, 300))
+    
+    // If data is already an array, return it (backend already parsed)
+    if (Array.isArray(data)) {
+      console.log('[ChunkProcessor] Data is already an array, length:', data.length)
+      return data
+    }
+
+    // Otherwise try to extract from Gemini response structure
+    const text = data.candidates?.[0]?.content?.parts?.[0]?.text || data.text || ''
 
     if (!text) {
-      console.warn('API returned empty response')
+      console.warn('[ChunkProcessor] API returned empty response')
+      console.warn('[ChunkProcessor] Data structure:', typeof data, Object.keys(data || {}))
       return []
     }
 
     // Find JSON array using bracket matching
     const firstBracket = text.indexOf('[')
     if (firstBracket === -1) {
-      console.warn('No JSON array found in response:', text.substring(0, 200))
+      console.warn('[ChunkProcessor] No JSON array found in response:', text.substring(0, 200))
       return []
     }
 
@@ -170,18 +180,20 @@ export class ChunkProcessor {
         if (depth === 0) {
           try {
             const jsonStr = text.slice(firstBracket, i + 1)
+            console.log('[ChunkProcessor] Found and parsing JSON, length:', jsonStr.length)
             const courses = JSON.parse(jsonStr)
+            console.log('[ChunkProcessor] Successfully extracted', courses.length, 'courses')
             return Array.isArray(courses) ? courses : []
           } catch (e) {
-            console.error('JSON parse error:', e)
-            console.error('Attempted to parse:', text.slice(firstBracket, i + 1).substring(0, 500))
+            console.error('[ChunkProcessor] JSON parse error:', e)
+            console.error('[ChunkProcessor] Attempted to parse:', text.slice(firstBracket, i + 1).substring(0, 500))
             return []
           }
         }
       }
     }
 
-    console.warn('Unmatched brackets in response')
+    console.warn('[ChunkProcessor] Unmatched brackets in response')
     return []
   }
 

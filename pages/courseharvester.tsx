@@ -1,20 +1,8 @@
 import Head from 'next/head'
 import Script from 'next/script'
 import { useEffect, useRef, useState } from 'react'
-import { ChunkProcessor } from '@/lib/ChunkProcessor'
+import { ChunkProcessor, type Course } from '@/lib/ChunkProcessor'
 import { DocumentCache } from '@/lib/DocumentCache'
-
-interface Course {
-  Category?: string
-  CourseName: string
-  GradeLevel?: string
-  Length?: string
-  Prerequisite?: string
-  Credit?: string
-  CourseDescription?: string
-  SourceFile: string
-  [key: string]: any
-}
 
 interface FileHistory {
   filename: string
@@ -462,12 +450,20 @@ export default function CourseHarvester() {
       }
 
       // Process with ChunkProcessor
+      let accumulatedCourses: Course[] = []
+      
       const processor = new ChunkProcessor(
         (progress) => {
           if (progress.status === 'processing') {
             setStatus(progress.message)
           } else if (progress.status === 'chunk_complete') {
             setTokenUsage((prev) => prev + 2000) // Rough estimate
+            // Show page progress: "Page 2 of 51 done"
+            setStatus(
+              `📄 Page ${progress.current} of ${progress.total} done — ${
+                accumulatedCourses.length
+              } courses found`
+            )
           }
         },
         (error) => {
@@ -477,6 +473,7 @@ export default function CourseHarvester() {
       )
 
       const courses = await processor.processDocument(textContent, selectedFile.name)
+      accumulatedCourses = courses
 
       // Clean and filter extracted courses
       const typedCourses: Course[] = courses

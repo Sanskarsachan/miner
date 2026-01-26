@@ -38,7 +38,22 @@ export default async function handler(
     for (const base of endpoints) {
       try {
         const r = await fetch(base + encodeURIComponent(apiKey))
-        const body = await r.json()
+        let body: any = {}
+        
+        // Only try to parse as JSON if response is OK and has content-type
+        const contentType = r.headers.get('content-type')
+        if (r.ok && contentType?.includes('application/json')) {
+          try {
+            body = await r.json()
+          } catch (parseError) {
+            console.error(`Failed to parse JSON from ${base}:`, parseError)
+            body = { error: 'Invalid JSON response' }
+          }
+        } else {
+          const text = await r.text()
+          body = r.ok ? { status: 'ok', message: text } : { error: text }
+        }
+        
         results.push({
           endpoint: base,
           status: r.status,
@@ -49,7 +64,7 @@ export default async function handler(
         results.push({
           endpoint: base,
           status: 0,
-          body: { error: 'Failed to query' },
+          body: { error: e instanceof Error ? e.message : 'Failed to query' },
         })
       }
     }
