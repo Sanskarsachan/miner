@@ -43,10 +43,12 @@ function parseCoursesFromText(text: string): Course[] {
     return parsed.map((c: any) => ({
       Category: c.Category || '',
       CourseName: c.CourseName || '',
+      CourseCode: c.CourseCode || '',
       GradeLevel: c.GradeLevel || '',
       Length: c.Length || '',
       Prerequisite: c.Prerequisite || '',
       Credit: c.Credit || '',
+      Details: c.Details || '',
       CourseDescription: c.CourseDescription || '',
       SourceFile: '',
     }))
@@ -86,10 +88,12 @@ function cleanCourseData(course: any): any {
   return {
     Category: clean(course.Category) || 'Uncategorized',
     CourseName: courseName,
+    CourseCode: clean(course.CourseCode) || null,
     GradeLevel: clean(course.GradeLevel) || 'N/A',
     Length: clean(course.Length) || 'N/A',
     Prerequisite: clean(course.Prerequisite) || 'None',
     Credit: clean(course.Credit) || 'N/A',
+    Details: clean(course.Details) || null,
     CourseDescription: clean(course.CourseDescription) || '',
     SourceFile: clean(course.SourceFile) || '',
   }
@@ -1188,7 +1192,7 @@ export default function CourseHarvester() {
             <div className="right">
               <div className="card">
                 <div className="results-header">
-                  <div className="header-title">Results ({allCourses.length})</div>
+                  <div className="header-title">Results ({filteredCourses.length}/{allCourses.length})</div>
                   <div className="buttons-group">
                     <input
                       type="text"
@@ -1250,10 +1254,12 @@ export default function CourseHarvester() {
                         <th>S.No</th>
                         <th>Category</th>
                         <th>Course Name</th>
+                        <th>Code</th>
                         <th>Grade Level</th>
                         <th>Length</th>
                         <th>Prerequisite</th>
                         <th>Credit</th>
+                        <th>Details</th>
                         <th>Description</th>
                         <th>Source</th>
                       </tr>
@@ -1266,10 +1272,12 @@ export default function CourseHarvester() {
                             <td style={{ fontWeight: 600, color: 'var(--primary)' }}>{allIdx + 1}</td>
                             <td>{course.Category}</td>
                             <td>{course.CourseName}</td>
+                            <td>{course.CourseCode || '-'}</td>
                             <td>{course.GradeLevel}</td>
                             <td>{course.Length}</td>
                             <td>{course.Prerequisite}</td>
                             <td>{course.Credit}</td>
+                            <td>{course.Details || '-'}</td>
                             <td
                               style={{
                                 fontSize: '12px',
