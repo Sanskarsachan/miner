@@ -26,14 +26,22 @@ export default async function handler(
       return res.status(400).json({ error: 'payload required in body' })
     }
 
+    // Validate payload size (prevent abuse)
+    const payloadStr = JSON.stringify(payload)
+    if (payloadStr.length > 50 * 1024 * 1024) { // 50MB max
+      return res.status(413).json({ error: 'Payload too large (max 50MB)' })
+    }
+
     // Forward to Gemini's v1beta generateContent endpoint
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${encodeURIComponent(
-      apiKey
-    )}`
+    // ⚠️ CRITICAL: API key in Authorization header, NOT in URL
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent`
 
     const r = await fetch(url, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Goog-Api-Key': apiKey, // Use header instead of URL parameter
+      },
       body: JSON.stringify(payload),
     })
 

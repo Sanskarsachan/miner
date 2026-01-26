@@ -29,9 +29,13 @@ export default async function handler(
       return res.status(400).json({ error: 'base64 file required' })
     }
 
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${encodeURIComponent(
-      apiKey
-    )}`
+    // Validate base64 size (prevent abuse)
+    if (base64.length > 50 * 1024 * 1024) { // 50MB max
+      return res.status(413).json({ error: 'File too large (max 50MB)' })
+    }
+
+    // ⚠️ CRITICAL: API key in Authorization header, NOT in URL
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent`
 
     const payload = {
       contents: [
@@ -55,7 +59,10 @@ export default async function handler(
 
     const r = await fetch(url, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Goog-Api-Key': apiKey, // Use header instead of URL parameter
+      },
       body: JSON.stringify(payload),
     })
 
