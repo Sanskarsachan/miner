@@ -176,14 +176,20 @@ export default async function handler(
 
       clearTimeout(timeout)
 
+      // Log response status for debugging
+      console.log(`[secure_extract] Gemini response status: ${response.status}, ok: ${response.ok}`)
+
       if (!response.ok) {
         let errorData: { error?: string } = {}
+        let responseText = ''
         try {
-          errorData = await response.json()
+          responseText = await response.text()
+          if (responseText) {
+            errorData = JSON.parse(responseText)
+          }
         } catch (e) {
           console.error('Failed to parse error response:', e)
-          const text = await response.text()
-          console.error('Response text:', text.substring(0, 500))
+          console.error('Response text:', responseText.substring(0, 500))
         }
         
         console.error(`Gemini API Error (${response.status}):`, errorData)
@@ -217,7 +223,10 @@ export default async function handler(
         })
       }
 
+      console.log('[secure_extract] Parsing successful Gemini response')
       const data = (await response.json()) as GeminiResponse
+      
+      console.log('[secure_extract] Response data candidates:', data.candidates?.length || 0)
 
       // Log usage for monitoring (don't expose to client)
       console.log(
