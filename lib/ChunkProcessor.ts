@@ -9,10 +9,12 @@ interface ProcessProgress {
 export interface Course {
   Category?: string
   CourseName: string
+  CourseCode?: string
   GradeLevel?: string
   Length?: string
   Prerequisite?: string
   Credit?: string
+  Details?: string
   CourseDescription?: string
   SourceFile?: string
 }

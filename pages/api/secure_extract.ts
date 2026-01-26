@@ -3,10 +3,12 @@ import type { NextApiRequest, NextApiResponse } from 'next'
 interface Course {
   Category?: string
   CourseName?: string
+  CourseCode?: string
   GradeLevel?: string
   Length?: string
   Prerequisite?: string
   Credit?: string
+  Details?: string
   CourseDescription?: string
 }
 
@@ -40,59 +42,77 @@ Return ONLY a valid JSON array with NO additional text or markdown. Start with [
 For each course found, create an object with these fields:
 - Category (string or null)
 - CourseName (string)
+- CourseCode (string or null) - course code/number if available
 - GradeLevel (string or null)
 - Length (string or null)
 - Prerequisite (string or null)  
 - Credit (string or null)
+- Details (string or null) - additional course details/notes
 - CourseDescription (string or null)
 
 Example format:
 [
-  {"Category":"Science","CourseName":"Biology 101","GradeLevel":"9-12","Length":"1 year","Prerequisite":null,"Credit":"1.0","CourseDescription":"Study of living organisms"},
-  {"Category":"Math","CourseName":"Algebra","GradeLevel":"9-10","Length":"1 year","Prerequisite":null,"Credit":"1.0","CourseDescription":"Basic algebra concepts"}
+  {"Category":"Science","CourseName":"Biology 101","CourseCode":"BIO101","GradeLevel":"9-12","Length":"1 year","Prerequisite":null,"Credit":"1.0","Details":"Laboratory included","CourseDescription":"Study of living organisms"},
+  {"Category":"Math","CourseName":"Algebra","CourseCode":"MATH101","GradeLevel":"9-10","Length":"1 year","Prerequisite":null,"Credit":"1.0","Details":null,"CourseDescription":"Basic algebra concepts"}
 ]
 
 DOCUMENT TO EXTRACT FROM:
-${text.substring(0, 80000)}`
+${text}`
 
     console.log('[secure_extract] ✓ Prompt built, length:', prompt.length)
     const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`
 
     let response
-    try {
-      response = await fetch(url, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          contents: [
-            {
-              parts: [{ text: prompt }],
+    let retryCount = 0
+    const maxRetries = 3
+    
+    while (retryCount < maxRetries) {
+      try {
+        response = await fetch(url, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            contents: [
+              {
+                parts: [{ text: prompt }],
+              },
+            ],
+            generationConfig: {
+              temperature: 0.1,
             },
-          ],
-          generationConfig: {
-            temperature: 0.1,
-            // No maxOutputTokens limit - let Gemini return complete JSON
-          },
-        }),
-      })
-    } catch (fetchError) {
-      console.error('[secure_extract] ❌ Fetch error:', fetchError instanceof Error ? fetchError.message : String(fetchError))
-      throw fetchError
+          }),
+        })
+        break // Success, exit retry loop
+      } catch (fetchError) {
+        retryCount++
+        if (retryCount >= maxRetries) {
+          console.error('[secure_extract] ❌ Fetch error:', fetchError instanceof Error ? fetchError.message : String(fetchError))
+          throw fetchError
+        }
+      }
     }
+
     const responseText = await response.text()
 
     console.log('[secure_extract] 📬 Gemini response status:', response.status)
-    console.log('[secure_extract] Response length:', responseText.length)
-    console.log('[secure_extract] First 300 chars:', responseText.substring(0, 300))
 
     if (!response.ok) {
-      console.error('[secure_extract] ❌ Gemini error response:', responseText.substring(0, 500))
-      
       // Try to extract error details from Gemini response
       let errorDetail = 'Unknown error'
+      let retryAfter = 0
+      
       try {
         const errorData = JSON.parse(responseText)
         errorDetail = errorData.error?.message || errorData.message || JSON.stringify(errorData).substring(0, 200)
+        
+        // Check for rate limit and extract retry-after
+        if (errorData.error?.code === 429 && errorData.error?.message?.includes('Please retry in')) {
+          const match = errorData.error.message.match(/Please retry in ([\d.]+)s/)
+          if (match) {
+            retryAfter = Math.ceil(parseFloat(match[1]) * 1000) // Convert to milliseconds
+            console.log(`[secure_extract] ⏱️ Rate limited. Retry after ${retryAfter}ms`)
+          }
+        }
       } catch (e) {
         errorDetail = responseText.substring(0, 200)
       }
