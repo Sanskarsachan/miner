@@ -155,13 +155,14 @@ export default async function handler(
     const timeout = setTimeout(() => controller.abort(), 30000) // 30 second timeout
 
     try {
-      const response = await fetch(
-        'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent',
-        {
+      const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`
+      
+      console.log('[secure_extract] Calling Gemini API with key:', GEMINI_API_KEY.substring(0, 10) + '...')
+      
+      const response = await fetch(geminiUrl, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'x-goog-api-key': GEMINI_API_KEY,
           },
           body: JSON.stringify({
             contents: [{ parts: [{ text: prompt }] }],
