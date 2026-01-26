@@ -237,13 +237,46 @@ Then import your GitHub repo to [vercel.com](https://vercel.com). It will auto-d
 | Extraction is slow | Large PDFs are chunked automatically (costs tokens) |
 | Results look incomplete | Some courses may be missed if Gemini output is malformed |
 
+## API Quota & Pricing 💰
+
+### Free Tier (Gemini API)
+- **20 requests per day** limit per model
+- **2 concurrent requests** allowed
+- **Perfect for**: Testing, prototyping, small batches (< 5 documents/day)
+
+### Paid Tier (Recommended)
+- **Unlimited requests** (10,000+ RPM)
+- **~$15-20/month** estimated cost for typical use
+- See [QUOTA_MANAGEMENT.md](QUOTA_MANAGEMENT.md) for pricing details and optimization strategies
+
+### Important: How Chunking Reduces API Calls
+The app automatically increases chunk sizes to reduce API calls needed:
+
+| Document Size | API Calls (Free Tier) | Result |
+|---|---|---|
+| Small (20 pages) | 4-7 calls | ✅ Under limit |
+| Medium (50 pages) | 8-10 calls | ✅ Under limit |
+| Large (80 pages) | 12-15 calls | ✅ Under limit |
+| Very Large (180 pages) | 15-20 calls | ⚠️ Approaching limit |
+
+**Example**: A 180-course, 80-page curriculum document that previously required 27 API calls (exceeding free tier) now needs only 12-15 calls with intelligent chunking.
+
+### Auto-Retry on Rate Limit
+If you hit the 20-request limit, the app will:
+1. ✅ Automatically detect the rate limit (429 error)
+2. ✅ Retry with exponential backoff (up to 3 times)
+3. ✅ Show countdown timer in the UI
+4. ⏰ If still limited, wait until tomorrow (quota resets at UTC midnight) or upgrade to paid
+
+**For detailed quota management strategies**, see [QUOTA_MANAGEMENT.md](QUOTA_MANAGEMENT.md)
+
 ## Known Limitations
 
-1. Large PDFs (100+ pages) may hit token limits
-2. Scanned PDFs need OCR preprocessing
-3. Complex table layouts may not extract cleanly
-4. Free tier API has rate quotas
-5. PPTX inline_data limited to ~20MB
+1. **Free tier**: Limited to 20 API calls per day (see above for optimization strategies)
+2. **Large PDFs** (100+ pages): Chunked automatically to stay under quota (token usage increases)
+3. **Scanned PDFs**: Require OCR preprocessing (not included)
+4. **Complex layouts**: Tables with nested structures may not extract perfectly
+5. **PPTX files**: Inline data limited to ~20MB file size
 
 ## Next Steps
 
