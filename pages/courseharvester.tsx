@@ -273,43 +273,6 @@ export default function CourseHarvester() {
     if (!selectedFile) return setStatus('Select a file first')
     if (!apiKey) return setStatus('Enter your Gemini API key')
 
-    // Estimate API requests and warn if it might hit rate limit
-    let estimatedRequests = 0
-    const ext = detectFileType(selectedFile).extension
-    
-    if (ext === 'pdf') {
-      estimatedRequests = pageLimit > 0 ? Math.min(pageLimit, totalPages) : totalPages
-    } else {
-      // Other file types typically take 1-2 requests
-      estimatedRequests = 2
-    }
-
-    // Check if estimated requests exceed the limit (5 per hour)
-    if (estimatedRequests > 5) {
-      const confirmed = window.confirm(
-        `⚠️ Rate Limit Warning\n\n` +
-        `Estimated API requests: ${estimatedRequests}\n` +
-        `Rate limit: 5 requests per hour\n\n` +
-        `Processing this file may exceed your hourly limit.\n\n` +
-        `Options:\n` +
-        `• Click "OK" to continue anyway (may hit rate limit)\n` +
-        `• Click "Cancel" to reduce page range and try again`
-      )
-      
-      if (!confirmed) return setStatus('Extraction cancelled. Try with fewer pages.')
-    } else if (estimatedRequests > 3) {
-      // Warning if close to limit but not exceeding
-      const confirmed = window.confirm(
-        `⚠️ Rate Limit Caution\n\n` +
-        `Estimated API requests: ${estimatedRequests}\n` +
-        `Rate limit: 5 requests per hour\n\n` +
-        `You have limited requests remaining.\n\n` +
-        `Continue extraction?`
-      )
-      
-      if (!confirmed) return setStatus('Extraction cancelled.')
-    }
-
     setStatus('Preparing file...')
 
     try {
@@ -317,6 +280,7 @@ export default function CourseHarvester() {
       let startPage = 1
       let cachedResults: any[] = []
       let usingCache = false
+      const ext = detectFileType(selectedFile).extension
 
       // Check incremental cache for PDFs FIRST (before extracting text)
       if (ext === 'pdf') {
@@ -1147,49 +1111,6 @@ export default function CourseHarvester() {
                         {pageLimit > 0 ? `Will process ${pageLimit} page${pageLimit !== 1 ? 's' : ''} (~${Math.ceil(pageLimit / 12)} API calls)` : `Will process all ${totalPages} page${totalPages !== 1 ? 's' : ''} (~${Math.ceil(totalPages / 12)} API calls)`}
                       </div>
                     </div>
-                  </div>
-                )}
-
-                {selectedFile && (
-                  <div className="rate-limit-info" style={{
-                    padding: '12px 16px',
-                    marginBottom: '16px',
-                    borderRadius: '6px',
-                    backgroundColor: (() => {
-                      const ext = detectFileType(selectedFile).extension
-                      const est = ext === 'pdf' 
-                        ? (pageLimit > 0 ? Math.min(pageLimit, totalPages) : totalPages)
-                        : 2
-                      if (est > 5) return '#fff3cd' // warning yellow
-                      if (est > 3) return '#fff9e6' // light warning
-                      return '#e8f5e9' // safe green
-                    })(),
-                    border: (() => {
-                      const ext = detectFileType(selectedFile).extension
-                      const est = ext === 'pdf' 
-                        ? (pageLimit > 0 ? Math.min(pageLimit, totalPages) : totalPages)
-                        : 2
-                      if (est > 5) return '1px solid #ff9800'
-                      if (est > 3) return '1px solid #fbc02d'
-                      return '1px solid #4caf50'
-                    })(),
-                    fontSize: '13px',
-                    lineHeight: '1.5',
-                  }}>
-                    {(() => {
-                      const ext = detectFileType(selectedFile).extension
-                      const est = ext === 'pdf' 
-                        ? (pageLimit > 0 ? Math.min(pageLimit, totalPages) : totalPages)
-                        : 2
-                      
-                      if (est > 5) {
-                        return `⚠️ <strong>Warning:</strong> ~${est} API requests estimated. Rate limit is 5/hour. You may hit the limit.`
-                      } else if (est > 3) {
-                        return `📊 <strong>Caution:</strong> ~${est} API requests estimated. ${5 - est} request${5 - est !== 1 ? 's' : ''} remaining in hourly limit.`
-                      } else {
-                        return `✅ <strong>Safe:</strong> ~${est} API request${est !== 1 ? 's' : ''} estimated. Plenty of requests available.`
-                      }
-                    })()}
                   </div>
                 )}
 
