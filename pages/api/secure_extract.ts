@@ -82,72 +82,105 @@ export default async function handler(
       return res.status(400).json({ error: 'Text cannot be empty' })
     }
 
-    // Build optimized prompt
-    const prompt = buildOptimizedPrompt(text)
-
-    // Call Gemini API with secure headers
-    const response = await fetch(
-      'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent',
-      {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-goog-api-key': GEMINI_API_KEY,
-        },
-        body: JSON.stringify({
-          contents: [{ parts: [{ text: prompt }] }],
-          generationConfig: {
-            temperature: 0.1,
-            maxOutputTokens: 8192,
-          },
-        }),
-      }
-    )
-
-    if (!response.ok) {
-      const errorData = await response.json()
-      console.error('Gemini API Error:', errorData)
-
-      // User-friendly error messages
-      if (response.status === 429) {
-        return res.status(429).json({
-          error:
-            'Gemini API rate limit reached. Please wait a moment and try again.',
-          retryAfter: 60,
-        })
-      }
-
-      if (response.status === 403) {
-        console.error('API key error - may be suspended or invalid')
-        return res.status(500).json({
-          error:
-            'API authentication failed. Please contact support or regenerate your API key.',
-        })
-      }
-
-      if (response.status === 401) {
-        return res.status(500).json({
-          error:
-            'API key is invalid or expired. Please regenerate at https://aistudio.google.com/app/apikey',
-        })
-      }
-
-      return res.status(response.status).json({
-        error: 'Failed to process document. Please try again.',
+    // Validate API key format
+    if (!GEMINI_API_KEY || GEMINI_API_KEY.length < 10) {
+      console.error('Invalid API key provided, length:', GEMINI_API_KEY?.length || 0)
+      return res.status(400).json({ 
+        error: 'Invalid API key. Please check your Gemini API key.'
       })
     }
 
-    const data = (await response.json()) as GeminiResponse
+    // Build optimized prompt
+    const prompt = buildOptimizedPrompt(text)
 
-    // Log usage for monitoring (don't expose to client)
-    console.log(
-      `[${new Date().toISOString()}] Extraction: ${filename || 'unknown'}, tokens: ~${Math.ceil(text.length / 4)}`
-    )
+    // Call Gemini API with secure headers and timeout
+    const controller = new AbortController()
+    const timeout = setTimeout(() => controller.abort(), 30000) // 30 second timeout
 
-    return res.status(200).json(data)
+    try {
+      const response = await fetch(
+        'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent',
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-goog-api-key': GEMINI_API_KEY,
+          },
+          body: JSON.stringify({
+            contents: [{ parts: [{ text: prompt }] }],
+            generationConfig: {
+              temperature: 0.1,
+              maxOutputTokens: 8192,
+            },
+          }),
+          signal: controller.signal,
+        }
+      )
+
+      clearTimeout(timeout)
+
+      if (!response.ok) {
+        const errorData = await response.json()
+        console.error('Gemini API Error:', errorData)
+
+        // User-friendly error messages
+        if (response.status === 429) {
+          return res.status(429).json({
+            error:
+              'Gemini API rate limit reached. Please wait a moment and try again.',
+            retryAfter: 60,
+          })
+        }
+
+        if (response.status === 403) {
+          console.error('API key error - may be suspended or invalid')
+          return res.status(500).json({
+            error:
+              'API authentication failed. Please contact support or regenerate your API key.',
+          })
+        }
+
+        if (response.status === 401) {
+          return res.status(500).json({
+            error:
+              'API key is invalid or expired. Please regenerate at https://aistudio.google.com/app/apikey',
+          })
+        }
+
+        return res.status(response.status).json({
+          error: 'Failed to process document. Please try again.',
+        })
+      }
+
+      const data = (await response.json()) as GeminiResponse
+
+      // Log usage for monitoring (don't expose to client)
+      console.log(
+        `[${new Date().toISOString()}] Extraction: ${filename || 'unknown'}, tokens: ~${Math.ceil(text.length / 4)}`
+      )
+
+      return res.status(200).json(data)
+    } catch (fetchError) {
+      clearTimeout(timeout)
+      
+      // Handle timeout
+      if (fetchError instanceof Error && fetchError.name === 'AbortError') {
+        console.error('Gemini API call timed out after 30 seconds')
+        return res.status(504).json({
+          error: 'Request timed out. The Gemini API took too long to respond. Please try with a smaller chunk.',
+        })
+      }
+      
+      throw fetchError
+    }
   } catch (error) {
-    console.error('Server error:', error)
-    return res.status(500).json({ error: 'Internal server error' })
+    const errorMsg = error instanceof Error ? error.message : String(error)
+    console.error('Server error in secure_extract:', errorMsg, error)
+    
+    // Return error
+    return res.status(500).json({ 
+      error: 'Internal server error'
+    })
   }
 }
 
