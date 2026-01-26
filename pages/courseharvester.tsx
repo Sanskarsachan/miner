@@ -77,6 +77,68 @@ No markdown, no code blocks, no extra text.
 Document:\n${content}`
 }
 
+function cleanCourseData(course: any): any {
+  // Clean and trim all string fields
+  const clean = (val: any) => {
+    if (!val) return ''
+    let str = String(val).trim()
+    // Remove extra whitespace, special characters, and control characters
+    str = str.replace(/[\x00-\x1F\x7F]/g, '') // Remove control characters
+      .replace(/\s+/g, ' ') // Collapse multiple spaces
+      .replace(/["\\]/g, '') // Remove quotes and backslashes
+      .trim()
+    return str
+  }
+
+  const courseName = clean(course.CourseName)
+  
+  // Skip courses with empty names or very short names (likely junk data)
+  if (!courseName || courseName.length < 2) return null
+  
+  return {
+    Category: clean(course.Category) || 'Uncategorized',
+    CourseName: courseName,
+    GradeLevel: clean(course.GradeLevel) || 'N/A',
+    Length: clean(course.Length) || 'N/A',
+    Prerequisite: clean(course.Prerequisite) || 'None',
+    Credit: clean(course.Credit) || 'N/A',
+    CourseDescription: clean(course.CourseDescription) || '',
+    SourceFile: clean(course.SourceFile) || '',
+  }
+}
+
+function copyToClipboard(courses: any[]) {
+  if (courses.length === 0) {
+    alert('No courses to copy')
+    return
+  }
+
+  // Create tab-separated values with S.No (for Google Sheets)
+  const headers = ['S.No', 'Category', 'CourseName', 'GradeLevel', 'Length', 'Prerequisite', 'Credit', 'CourseDescription']
+  const rows = [headers.join('\t')]
+  
+  courses.forEach((course: any, idx: number) => {
+    const row = [
+      String(idx + 1),
+      course.Category || '',
+      course.CourseName || '',
+      course.GradeLevel || '',
+      course.Length || '',
+      course.Prerequisite || '',
+      course.Credit || '',
+      course.CourseDescription || '',
+    ]
+    rows.push(row.join('\t'))
+  })
+
+  const text = rows.join('\n')
+  navigator.clipboard.writeText(text).then(() => {
+    alert(`✅ Copied ${courses.length} courses to clipboard!\nPaste directly into Google Sheets.`)
+  }).catch(() => {
+    alert('Failed to copy to clipboard')
+  })
+}
+
 function detectFileType(file: File): { extension: string } {
   const extension = (file.name.split('.').pop() || '').toLowerCase()
   return { extension }
@@ -94,6 +156,8 @@ export default function CourseHarvester() {
   const [allCourses, setAllCourses] = useState<Course[]>([])
   const [fileHistory, setFileHistory] = useState<FileHistory[]>([])
   const [searchQ, setSearchQ] = useState('')
+  const [totalPages, setTotalPages] = useState(0)
+  const [pageLimit, setPageLimit] = useState(0) // 0 = all pages
   const fileInputRef = useRef<HTMLInputElement>(null)
   const cacheRef = useRef<DocumentCache | null>(null)
 
@@ -121,30 +185,35 @@ export default function CourseHarvester() {
     }
 
     setSelectedFile(file)
+    setPageLimit(0) // Reset page limit when new file selected
     setStatus('File selected: ' + file.name)
 
     try {
       const ext = detectFileType(file).extension
       let previewText = ''
+      let pages = 0
 
-      if (['pdf', 'doc', 'docx', 'html', 'htm', 'txt'].includes(ext)) {
-        const txt = await (ext === 'pdf'
-          ? (async () => {
-              const ab = await file.arrayBuffer()
-              const pdf = await (window as any).pdfjsLib.getDocument({
-                data: ab,
-              }).promise
-              const page = await pdf.getPage(1)
-              const tc = await page.getTextContent()
-              return tc.items.map((it: any) => it.str).join(' ')
-            })()
-          : file.text())
-
-        previewText = (txt || '').slice(0, 20000)
+      if (ext === 'pdf') {
+        const ab = await file.arrayBuffer()
+        const pdf = await (window as any).pdfjsLib.getDocument({
+          data: ab,
+        }).promise
+        pages = pdf.numPages
+        setTotalPages(pages)
+        
+        const page = await pdf.getPage(1)
+        const tc = await page.getTextContent()
+        previewText = tc.items.map((it: any) => it.str).join(' ')
+      } else if (['doc', 'docx', 'html', 'htm', 'txt'].includes(ext)) {
+        const txt = await file.text()
+        previewText = txt
+        setTotalPages(0) // Not applicable for non-PDF
       }
 
+      previewText = (previewText || '').slice(0, 20000)
       const est = estimateTokens(previewText)
-      setStatus(`File selected: ${file.name} — est. tokens: ${est}`)
+      const pageInfo = pages > 0 ? ` (${pages} pages)` : ''
+      setStatus(`File selected: ${file.name}${pageInfo} — est. tokens: ${est}`)
     } catch (e) {
       console.warn('preview token estimate failed', e)
     }
@@ -213,11 +282,18 @@ export default function CourseHarvester() {
         }).promise
 
         const pages: string[] = []
-        for (let i = 1; i <= pdf.numPages; i++) {
+        const numPagesToProcess = pageLimit > 0 ? Math.min(pageLimit, pdf.numPages) : pdf.numPages
+        
+        for (let i = 1; i <= numPagesToProcess; i++) {
           const page = await pdf.getPage(i)
           const tc = await page.getTextContent()
           pages.push(tc.items.map((it: any) => it.str).join(' '))
         }
+        
+        if (pageLimit > 0 && numPagesToProcess < pdf.numPages) {
+          setStatus(`Processing first ${numPagesToProcess} pages (out of ${pdf.numPages} total)...`)
+        }
+        
         textContent = pages.join('\n\n')
       } else if (ext === 'doc' || ext === 'docx') {
         const ab = await selectedFile.arrayBuffer()
@@ -336,16 +412,10 @@ export default function CourseHarvester() {
 
       const courses = await processor.processDocument(textContent, selectedFile.name)
 
-      const typedCourses: Course[] = courses.map((c) => ({
-        Category: c.Category || '',
-        CourseName: c.CourseName || 'Untitled',
-        GradeLevel: c.GradeLevel || '',
-        Length: c.Length || '',
-        Prerequisite: c.Prerequisite || '',
-        Credit: c.Credit || '',
-        CourseDescription: c.CourseDescription || '',
-        SourceFile: selectedFile.name,
-      }))
+      // Clean and filter extracted courses
+      const typedCourses: Course[] = courses
+        .map((c) => cleanCourseData({ ...c, SourceFile: selectedFile.name }))
+        .filter((c): c is Course => c !== null)
 
       setAllCourses(typedCourses)
 
@@ -369,6 +439,7 @@ export default function CourseHarvester() {
 
   const downloadCSV = () => {
     const headers = [
+      'S.No',
       'Category',
       'CourseName',
       'GradeLevel',
@@ -376,7 +447,6 @@ export default function CourseHarvester() {
       'Prerequisite',
       'Credit',
       'CourseDescription',
-      'SourceFile',
     ]
     const escape = (s: any) => {
       if (s == null) return ''
@@ -386,13 +456,22 @@ export default function CourseHarvester() {
         : s
     }
     const rows = [headers.join(',')].concat(
-      allCourses.map((c) => headers.map((h) => escape(c[h as keyof Course] || '')).join(','))
+      allCourses.map((c, idx) => [
+        String(idx + 1),
+        escape(c.Category || ''),
+        escape(c.CourseName || ''),
+        escape(c.GradeLevel || ''),
+        escape(c.Length || ''),
+        escape(c.Prerequisite || ''),
+        escape(c.Credit || ''),
+        escape(c.CourseDescription || ''),
+      ].join(','))
     )
-    const blob = new Blob([rows.join('\n')], { type: 'text/csv' })
+    const blob = new Blob([rows.join('\n')], { type: 'text/csv; charset=utf-8;' })
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
     a.href = url
-    a.download = `course_data_${new Date().toISOString().slice(0, 10)}.csv`
+    a.download = `courses_${new Date().toISOString().slice(0, 10)}.csv`
     a.click()
     URL.revokeObjectURL(url)
   }
@@ -896,6 +975,43 @@ export default function CourseHarvester() {
                   </div>
                 )}
 
+                {totalPages > 0 && (
+                  <div style={{ 
+                    padding: '12px', 
+                    backgroundColor: 'rgba(37, 99, 235, 0.05)',
+                    borderRadius: '8px',
+                    marginBottom: '12px',
+                    fontSize: '13px'
+                  }}>
+                    <div style={{ marginBottom: '8px', fontWeight: 600 }}>
+                      📄 Page Range ({totalPages} total pages)
+                    </div>
+                    <div style={{ display: 'flex', gap: '12px', alignItems: 'center', flexWrap: 'wrap' }}>
+                      <select
+                        value={pageLimit}
+                        onChange={(e) => setPageLimit(Number(e.target.value))}
+                        style={{
+                          padding: '6px 10px',
+                          borderRadius: '4px',
+                          border: '1px solid #cbd5e1',
+                          fontSize: '13px',
+                          fontFamily: 'Inter, sans-serif',
+                          cursor: 'pointer',
+                        }}
+                      >
+                        <option value={0}>All pages ({totalPages})</option>
+                        {totalPages > 5 && <option value={5}>First 5 pages</option>}
+                        {totalPages > 10 && <option value={10}>First 10 pages</option>}
+                        {totalPages > 20 && <option value={20}>First 20 pages</option>}
+                        {totalPages > 50 && <option value={50}>First 50 pages</option>}
+                      </select>
+                      <div className="muted">
+                        {pageLimit > 0 ? `Will process ${pageLimit} page${pageLimit !== 1 ? 's' : ''} (~${Math.ceil(pageLimit / 12)} API calls)` : `Will process all ${totalPages} page${totalPages !== 1 ? 's' : ''} (~${Math.ceil(totalPages / 12)} API calls)`}
+                      </div>
+                    </div>
+                  </div>
+                )}
+
                 <div className="controls">
                   <button onClick={extract} disabled={!selectedFile || !apiKey}>
                     Extract Courses
@@ -903,6 +1019,8 @@ export default function CourseHarvester() {
                   <button
                     onClick={() => {
                       setSelectedFile(null)
+                      setTotalPages(0)
+                      setPageLimit(0)
                       setStatus('')
                     }}
                     className="secondary"
@@ -963,6 +1081,14 @@ export default function CourseHarvester() {
                       onChange={(e) => setSearchQ(e.target.value)}
                     />
                     <button
+                      onClick={() => copyToClipboard(filteredCourses)}
+                      className="primary"
+                      disabled={allCourses.length === 0}
+                      title="Copy results as tab-separated values for Google Sheets"
+                    >
+                      📋 Copy
+                    </button>
+                    <button
                       onClick={downloadCSV}
                       className="secondary"
                       disabled={allCourses.length === 0}
@@ -977,7 +1103,7 @@ export default function CourseHarvester() {
                         const url = URL.createObjectURL(blob)
                         const a = document.createElement('a')
                         a.href = url
-                        a.download = `course_data_${new Date().toISOString().slice(0, 10)}.json`
+                        a.download = `courses_${new Date().toISOString().slice(0, 10)}.json`
                         a.click()
                         URL.revokeObjectURL(url)
                       }}
@@ -1004,6 +1130,7 @@ export default function CourseHarvester() {
                   <table>
                     <thead>
                       <tr>
+                        <th>S.No</th>
                         <th>Category</th>
                         <th>Course Name</th>
                         <th>Grade Level</th>
@@ -1015,25 +1142,28 @@ export default function CourseHarvester() {
                       </tr>
                     </thead>
                     <tbody>
-                      {filteredCourses.map((course, idx) => (
-                        <tr key={idx}>
-                          <td>{course.Category}</td>
-                          <td>{course.CourseName}</td>
-                          <td>{course.GradeLevel}</td>
-                          <td>{course.Length}</td>
-                          <td>{course.Prerequisite}</td>
-                          <td>{course.Credit}</td>
-                          <td
-                            style={{
-                              fontSize: '12px',
-                              color: allCourses.length > 10 ? '#6b7280' : '#0f172a',
-                            }}
-                          >
-                            {String(course.CourseDescription || '').slice(0, 60)}...
-                          </td>
-                          <td className="muted">{course.SourceFile}</td>
-                        </tr>
-                      ))}
+                      {filteredCourses.map((course, idx) => {
+                        const allIdx = allCourses.findIndex(c => c.CourseName === course.CourseName)
+                        return (
+                          <tr key={idx}>
+                            <td style={{ fontWeight: 600, color: 'var(--primary)' }}>{allIdx + 1}</td>
+                            <td>{course.Category}</td>
+                            <td>{course.CourseName}</td>
+                            <td>{course.GradeLevel}</td>
+                            <td>{course.Length}</td>
+                            <td>{course.Prerequisite}</td>
+                            <td>{course.Credit}</td>
+                            <td
+                              style={{
+                                fontSize: '12px',
+                                color: allCourses.length > 10 ? '#6b7280' : '#0f172a',
+                              }}
+                            >
+                              {String(course.CourseDescription || '').slice(0, 60)}...
+                            </td>
+                          </tr>
+                        )
+                      })}
                     </tbody>
                   </table>
                 </div>
