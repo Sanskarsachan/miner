@@ -1,15 +1,60 @@
 import type { NextApiRequest, NextApiResponse } from 'next'
-import rateLimit from 'micro-ratelimit'
 
 // Allow env var as fallback, but prefer client-provided key
 const ENV_GEMINI_API_KEY = process.env.GEMINI_API_KEY
 const MAX_REQUESTS_PER_HOUR = 5
 
-// Rate limiter using IP address
-const limiter = rateLimit({
-  window: 60 * 60 * 1000, // 1 hour
-  limit: MAX_REQUESTS_PER_HOUR,
-})
+// Rate limiting per API key (in-memory store)
+// In production, consider using Redis instead
+interface RateLimitStore {
+  [apiKeyHash: string]: {
+    requests: number
+    windowStart: number
+  }
+}
+
+const rateLimitStore: RateLimitStore = {}
+
+// Simple hash function for API key (just use last 8 chars for privacy)
+function getApiKeyIdentifier(apiKey: string): string {
+  return apiKey.slice(-8)
+}
+
+// Check and update rate limit for this API key
+function checkRateLimit(apiKey: string): boolean {
+  const now = Date.now()
+  const keyId = getApiKeyIdentifier(apiKey)
+  const oneHourMs = 60 * 60 * 1000
+
+  if (!rateLimitStore[keyId]) {
+    // New key, initialize
+    rateLimitStore[keyId] = {
+      requests: 1,
+      windowStart: now,
+    }
+    return true // Allow
+  }
+
+  const entry = rateLimitStore[keyId]
+  const windowAge = now - entry.windowStart
+
+  if (windowAge > oneHourMs) {
+    // Window expired, reset
+    rateLimitStore[keyId] = {
+      requests: 1,
+      windowStart: now,
+    }
+    return true // Allow
+  }
+
+  // Still in same window
+  if (entry.requests < MAX_REQUESTS_PER_HOUR) {
+    entry.requests++
+    return true // Allow
+  }
+
+  return false // Deny
+}
 
 interface ExtractRequest {
   text: string
@@ -73,14 +118,13 @@ export default async function handler(
       return res.status(500).json({ error: 'Service not properly configured' })
     }
 
-    // Apply rate limiting (wrapped in try-catch)
-    try {
-      await limiter(req, res)
-    } catch (rateLimitError) {
-      console.error('Rate limit error:', rateLimitError)
+    // Check rate limit per API key (not per IP)
+    const allowedByRateLimit = checkRateLimit(GEMINI_API_KEY)
+    if (!allowedByRateLimit) {
+      console.warn('Rate limit exceeded for API key:', getApiKeyIdentifier(GEMINI_API_KEY))
       const resetTime = new Date(Date.now() + 3600 * 1000).toLocaleTimeString()
       return res.status(429).json({
-        error: `Rate limit exceeded. Maximum 5 documents per hour. You can try again after ${resetTime} UTC.`,
+        error: `Rate limit exceeded. Maximum 5 documents per hour per API key. You can try again after ${resetTime} UTC.`,
         retryAfter: 3600,
         resetTime,
       })
