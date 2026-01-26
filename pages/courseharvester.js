@@ -1,8 +1,40 @@
+/**
+ * CourseHarvester - React Page
+ * 
+ * Main application component for extracting course information from curriculum documents.
+ * Supports multiple formats: PDF, DOCX, PPTX, HTML, TXT
+ * 
+ * Features:
+ * - Client-side file extraction using PDF.js and Mammoth.js
+ * - Intelligent chunking for large documents
+ * - Real-time API calls to Gemini via serverless proxies
+ * - Robust JSON parsing with bracket-depth matching
+ * - Token usage tracking and estimation
+ * - Beautiful responsive UI with live results
+ * - Debug panel for raw Gemini responses
+ * 
+ * Architecture:
+ * User Document → Extract Text → Chunk → Gemini API → Parse JSON → Display Results
+ */
+
 import Head from 'next/head'
 import Script from 'next/script'
 import { useEffect, useRef, useState } from 'react'
 
 export default function CourseHarvester(){
+  // State management
+  const [apiKey, setApiKey] = useState('')              // User's Gemini API key
+  const [remember, setRemember] = useState(false)       // Persist key to localStorage
+  const [selectedFile, setSelectedFile] = useState(null) // Currently selected file
+  const [status, setStatus] = useState('')              // UI status message
+  const [verified, setVerified] = useState(false)       // API key verification flag
+  const [modelsList, setModelsList] = useState([])      // Available Gemini models
+  const [tokenUsage, setTokenUsage] = useState(0)       // Estimated tokens used
+  const [rawResponse, setRawResponse] = useState('')    // Last Gemini response (for debugging)
+  const [allCourses, setAllCourses] = useState([])      // Extracted courses array
+  const [fileHistory, setFileHistory] = useState([])    // History of processed files
+  const [searchQ, setSearchQ] = useState('')            // Search query filter
+  const fileInputRef = useRef()                         // Reference to hidden file input
   const [apiKey, setApiKey] = useState('')
   const [remember, setRemember] = useState(false)
   const [selectedFile, setSelectedFile] = useState(null)

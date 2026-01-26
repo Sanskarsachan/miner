@@ -1,3 +1,22 @@
+/**
+ * API Route: /api/upload_generate
+ * 
+ * Proxies binary file requests (e.g., PPTX) with inline_data to Gemini.
+ * 
+ * This endpoint handles:
+ * 1. Base64-encoded binary files (PPTX presentations)
+ * 2. Converting base64 to inline_data format for Gemini API
+ * 3. Forwarding the request with file + extraction prompt
+ * 4. Returning raw Gemini response
+ * 
+ * Used for: PowerPoint presentations that can't be extracted as text on client
+ * 
+ * Limitation: Max payload ~5MB due to API limits
+ * 
+ * Input: { apiKey, filename, mimeType, base64, prompt }
+ * Output: Raw Gemini API response
+ */
+
 export default async function handler(req, res){
   if(req.method !== 'POST') return res.status(405).send('Method Not Allowed')
   try{
