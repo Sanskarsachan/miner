@@ -1,0 +1,5 @@
+# Force clean build on Vercel
+.next
+.vercel
+node_modules
+.git
