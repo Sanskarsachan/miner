@@ -114,13 +114,85 @@ export default function CourseHarvester(){
       const isPages = payloadBody && payloadBody.__pages
       const isText = payloadBody && payloadBody.__text
 
-      async function processChunk(textChunk){
+      async function processChunk(textChunk, retryCount = 0, maxRetries = 3){
         try{
           const r = await fetch('/api/generate',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({ apiKey, payload: { contents:[{ parts:[{ text: buildPrompt(textChunk) }]}], generationConfig:{ temperature:0.1, maxOutputTokens:8192 } } })})
           const txt = await r.text(); setRawResponse(txt)
-          if(!r.ok) throw new Error('Server error: '+txt)
-          try{ const parsed = JSON.parse(txt); const respText = parsed.candidates?.[0]?.content?.parts?.[0]?.text || txt; const courses = parseCoursesFromText(respText); setAllCourses(prev=>{ const merged=[...prev]; courses.forEach(c=>{ c.SourceFile = selectedFile.name; if(!merged.some(ex=>ex.CourseName===c.CourseName && ex.SourceFile===c.SourceFile)) merged.push(c) }); return merged }); return courses.length }catch(pe){ console.warn('parse error',pe); return 0 }
-        }catch(e){ console.error('chunk api error', e); setStatus('API error: '+e.message); return 0 }
+          
+          // Check for quota information in error response and extract remaining quota
+          if(txt.includes('exceeded your current quota') && txt.includes('Quota exceeded for metric')) {
+            try {
+              const jsonResp = JSON.parse(txt)
+              const quotaInfo = jsonResp.error?.details?.[1]?.violations?.[0]
+              if(quotaInfo) {
+                const quotaValue = quotaInfo.quotaValue
+                console.log(`❌ QUOTA EXHAUSTED: Free tier limit is ${quotaValue} requests/day`)
+                setStatus(`❌ QUOTA EXHAUSTED! Daily limit: ${quotaValue} requests. Upgrade or wait until UTC midnight.`)
+              }
+            } catch(e) { console.error('Could not parse quota info', e) }
+          }
+          
+          // Handle 429 rate limit with retry logic
+          if(r.status === 429 && retryCount < maxRetries){
+            const jsonResp = JSON.parse(txt)
+            const retryAfter = jsonResp.error?.details?.[2]?.retryDelay || `${Math.pow(2, retryCount)}s`
+            const seconds = parseInt(retryAfter) || Math.pow(2, retryCount)
+            console.log(`Rate limited (429). Retrying in ${seconds}s (attempt ${retryCount + 1}/${maxRetries})`)
+            setStatus(`⏳ Rate limited. Retrying in ${seconds}s... (${retryCount + 1}/${maxRetries})`)
+            await new Promise(resolve => setTimeout(resolve, seconds * 1000))
+            return processChunk(textChunk, retryCount + 1, maxRetries)
+          }
+          
+          if(!r.ok) {
+            const errMsg = txt.includes('exceeded your current quota') ? 
+              '❌ Quota exceeded! Free tier: 20 requests/day. Upgrade to paid plan or try tomorrow.' : 
+              'Server error: '+txt
+            throw new Error(errMsg)
+          }
+          
+          try{ 
+            const parsed = JSON.parse(txt); 
+            // Validate API response structure
+            const respText = parsed.candidates?.[0]?.content?.parts?.[0]?.text || txt;
+            if(!respText) {
+              console.warn('⚠️ Invalid API response: No text content in response');
+              setStatus('⚠️ API returned empty response. Check API key and model.');
+              return 0;
+            }
+            
+            // Validate model name in response if available
+            const usedModel = parsed.modelVersion || parsed.name || 'unknown';
+            if(usedModel && !usedModel.includes('gemini')) {
+              console.warn(`⚠️ Unexpected model: ${usedModel}`);
+            }
+            
+            const courses = parseCoursesFromText(respText); 
+            if(courses.length === 0) {
+              console.warn('⚠️ No courses found in response. Response may be incomplete.');
+            }
+            
+            setAllCourses(prev=>{ 
+              const merged=[...prev]; 
+              courses.forEach(c=>{ 
+                c.SourceFile = selectedFile.name; 
+                if(!merged.some(ex=>ex.CourseName===c.CourseName && ex.SourceFile===c.SourceFile)) merged.push(c) 
+              }); 
+              return merged 
+            }); 
+            return courses.length 
+          }catch(pe){ 
+            console.warn('parse error',pe); 
+            return 0 
+          }
+        }catch(e){ 
+          console.error('chunk api error', e)
+          if(e.message.includes('Quota exceeded')) {
+            setStatus('❌ '+e.message)
+          } else {
+            setStatus('API error: '+e.message)
+          }
+          return 0 
+        }
       }
 
       if(isInline){
@@ -132,28 +204,69 @@ export default function CourseHarvester(){
         if(!r.ok){ throw new Error('Server error: '+txt) }
         try{ const data = JSON.parse(txt); const respText = data.candidates?.[0]?.content?.parts?.find(p=>p.text)?.text || txt; const courses = parseCoursesFromText(respText); setAllCourses(prev=>{ const merged=[...prev]; courses.forEach(c=>{ c.SourceFile = selectedFile.name; if(!merged.some(ex=>ex.CourseName===c.CourseName && ex.SourceFile===c.SourceFile)) merged.push(c) }); return merged }); setFileHistory(prev=>[...prev,{ filename:selectedFile.name, coursesFound:courses.length, timestamp:new Date().toISOString() }]); setStatus('Success — '+courses.length+' courses extracted') }catch(e){ throw e }
       } else if(isPages){
-        const pages = payloadBody.__pages; const batchSize = 3; let total=0
+        const pages = payloadBody.__pages
+        // Process 1 page at a time for maximum accuracy and better quota tracking
+        // More API calls but more accurate course extraction and precise quota monitoring
+        const batchSize = 1
+        let total = 0
+        const totalChunks = pages.length
+        
         for(let i=0;i<pages.length;i+=batchSize){
           const batch = pages.slice(i,i+batchSize).join('\n\n')
-          setStatus(`Processing pages ${i+1}-${Math.min(i+batchSize,pages.length)}...`)
+          const chunkNum = Math.floor(i / batchSize) + 1
+          const remainingQuota = Math.max(0, 20 - chunkNum)  // Estimate remaining quota
+          setStatus(`Processing page ${i+1}/${pages.length} (${chunkNum}/${totalChunks}) - Est. Quota Left: ${remainingQuota} calls... [${Math.floor(chunkNum/totalChunks*100)}% done]`)
           const added = await processChunk(batch)
           total += added
           setTokenUsage(prev=>prev + estimateTokens(batch))
+          
+          // Show quota warning and stop if approaching/exceeding limit
+          if(chunkNum >= 18) {
+            setStatus(`⚠️ CRITICAL: Used ${chunkNum} API calls. Free tier limit: 20/day. Only ${20-chunkNum} calls left! Consider upgrading.`)
+          } else if(chunkNum >= 15) {
+            setStatus(`⚠️ Warning: Used ${chunkNum} API calls (${20-chunkNum} left). Free tier: 20/day. Consider upgrading to continue.`)
+          }
+          
+          // Stop if quota likely exhausted
+          if(chunkNum >= 20) {
+            setStatus(`❌ Quota limit reached (20 calls). Extraction halted. ${total} courses extracted so far. Upgrade to paid or retry tomorrow.`)
+            break
+          }
         }
         setFileHistory(prev=>[...prev,{ filename:selectedFile.name, coursesFound:total, timestamp:new Date().toISOString() }])
-        setStatus(`Success — ${total} courses extracted`)
+        setStatus(`✅ Complete — ${total} courses extracted using ${Math.ceil(total/pages.length * 100)}% of available quota`)
       } else if(isText){
         const textContent = payloadBody.__text || '';
-        const maxSize = 20000; let total=0
+        // Use smaller chunks (5KB) for higher accuracy and better quota tracking
+        // More API calls but more accurate course extraction
+        const maxSize = 5000
+        let total = 0
+        const totalChunks = Math.ceil(textContent.length / maxSize)
+        
         for(let i=0;i<textContent.length;i+=maxSize){
           const chunk = textContent.slice(i,i+maxSize)
-          setStatus(`Processing chars ${i}-${i+chunk.length}...`)
+          const chunkNum = Math.floor(i / maxSize) + 1
+          const remainingQuota = Math.max(0, 20 - chunkNum)  // Estimate remaining quota
+          setStatus(`Processing text chunk ${chunkNum}/${totalChunks} - Est. Quota Left: ${remainingQuota} calls... [${Math.floor(chunkNum/totalChunks*100)}% done]`)
           const added = await processChunk(chunk)
           total += added
           setTokenUsage(prev=>prev + estimateTokens(chunk))
+          
+          // Show quota warning and track remaining quota
+          if(chunkNum >= 18) {
+            setStatus(`⚠️ CRITICAL: Used ${chunkNum} API calls. Free tier limit: 20/day. Only ${20-chunkNum} calls left! Consider upgrading.`)
+          } else if(chunkNum >= 15) {
+            setStatus(`⚠️ Warning: Used ${chunkNum} API calls (${20-chunkNum} left). Free tier: 20/day. Consider upgrading.`)
+          }
+          
+          // Stop if quota likely exhausted
+          if(chunkNum >= 20) {
+            setStatus(`❌ Quota limit reached (20 calls). Extraction halted. ${total} courses extracted so far. Upgrade to paid or retry tomorrow.`)
+            break
+          }
         }
         setFileHistory(prev=>[...prev,{ filename:selectedFile.name, coursesFound:total, timestamp:new Date().toISOString() }])
-        setStatus(`Success — ${total} courses extracted`)
+        setStatus(`✅ Complete — ${total} courses extracted using ${Math.ceil(totalChunks/20 * 100)}% of available quota`)
       }
     }catch(err){ console.error(err); setStatus(err.message || 'Extraction failed') }
   }
@@ -172,9 +285,23 @@ export default function CourseHarvester(){
       const found = []
       (data.results||[]).forEach(r=>{ if(r.body && r.body.models) r.body.models.forEach(m=>found.push({ endpoint: r.endpoint, name: m.name })) })
       setModelsList(found)
-      setVerified(found.length>0)
-      setStatus(found.length?`Key OK — ${found.length} models found`:'Key responded but no models listed')
-    }catch(e){ console.error(e); setStatus('Key verification failed: '+e.message); setVerified(false) }
+      const hasGemini25 = found.some(m => m.name.includes('gemini-2.5-flash'))
+      if(hasGemini25) {
+        setStatus(`✅ Key verified! Gemini 2.5 Flash available. Free tier: 20 requests/day. 📈 Upgrade to paid for unlimited.`)
+        setVerified(true)
+      } else {
+        setStatus('⚠️ Key verified but gemini-2.5-flash not found. Check available models.')
+        setVerified(found.length > 0)
+      }
+    }catch(e){ 
+      console.error(e)
+      if(e.message.includes('quota') || e.message.includes('RESOURCE_EXHAUSTED')) {
+        setStatus('❌ Quota exceeded! Free tier: 20 requests/day. Upgrade at https://ai.google.dev/pricing')
+      } else {
+        setStatus('Key verification failed: '+e.message)
+      }
+      setVerified(false) 
+    }
   }
 
   function buildPrompt(content){ return `Extract ALL course information from the following curriculum document.\n\nReturn ONLY a valid JSON array with no markdown formatting, no code blocks, no preamble, and no explanation. Each course must be an object with these EXACT field names:\n- Category\n- CourseName\n- GradeLevel\n- Length\n- Prerequisite\n- Credit\n- CourseDescription\n\nIMPORTANT: Return ONLY the JSON array starting with [ and ending with ]. No other text.\n\nDocument content:\n${content}` }
@@ -352,7 +479,22 @@ export default function CourseHarvester(){
                 </div>
               </div>
 
-              {/* Upload Card */}
+              {/* Quota Info Card */}
+              {verified && (
+                <div className="card" style={{background:'#fffbeb',borderColor:'#fcd34d',marginBottom:12}}>
+                  <div style={{fontWeight:600,fontSize:13,color:'#92400e',marginBottom:8}}>📊 API Quota Info</div>
+                  <div style={{fontSize:12,color:'#78350f',lineHeight:1.6}}>
+                    <div>• <strong>Free Tier:</strong> 20 requests/day</div>
+                    <div>• <strong>Smart Chunking:</strong> Larger batches reduce API calls</div>
+                    <div>• <strong>Tip:</strong> Use 3-5 page batches for PDFs, 30-50KB for text</div>
+                    <div style={{marginTop:8,paddingTop:8,borderTop:'1px solid #fbcfe8'}}>
+                      <a href="https://ai.google.dev/pricing" target="_blank" rel="noopener noreferrer" style={{color:'#b45309',textDecoration:'none',fontWeight:600}}>
+                        📈 Upgrade to Paid Plan for Unlimited Access →
+                      </a>
+                    </div>
+                  </div>
+                </div>
+              )}
               <div className="card">
                 <label style={{display:'block',fontWeight:600,marginBottom:12}}>Select File</label>
                 <div 
