@@ -278,6 +278,64 @@ export default function CourseHarvester() {
 
     try {
       let textContent = ''
+      let startPage = 1
+      let cachedResults: any[] = []
+      let usingCache = false
+
+      // Check incremental cache for PDFs FIRST (before extracting text)
+      if (ext === 'pdf') {
+        const fileHash = await cacheRef.current!.hashFile(selectedFile)
+        const numPagesToProcess =
+          pageLimit > 0 ? Math.min(pageLimit, totalPages) : totalPages
+        const incrementalCache =
+          await cacheRef.current!.getIncremental(
+            fileHash,
+            1,
+            numPagesToProcess
+          )
+
+        if (incrementalCache) {
+          cachedResults = incrementalCache.cachedCourses || []
+          
+          // CRITICAL FIX: If cached results are empty, skip cache and process fresh
+          if (cachedResults.length === 0) {
+            console.warn('⚠️ Cache returned empty results, ignoring cache and processing fresh')
+            cachedResults = []
+            usingCache = false
+          } else if (incrementalCache.needsProcessing) {
+            // We have partial cache, continue from next page
+            startPage = incrementalCache.nextPageToProcess || numPagesToProcess + 1
+            setStatus(
+              `📦 Using cached results from pages ${incrementalCache.cachedPageStart}-${incrementalCache.cachedPageEnd}. Processing pages ${startPage}-${numPagesToProcess}...`
+            )
+            usingCache = true
+          } else if (cachedResults.length > 0) {
+            // We have all pages cached
+            setAllCourses(
+              cachedResults.map((c) => ({
+                ...c,
+                SourceFile: selectedFile.name,
+              }))
+            )
+            setFileHistory((prev) => [
+              ...prev,
+              {
+                filename: selectedFile.name,
+                coursesFound: cachedResults.length,
+                timestamp: new Date().toISOString(),
+              },
+            ])
+            setCachedPageRange({
+              start: incrementalCache.cachedPageStart || 1,
+              end: incrementalCache.cachedPageEnd || totalPages,
+            })
+            setStatus(
+              `✅ Loaded from cache — ${cachedResults.length} courses (pages ${incrementalCache.cachedPageStart}-${incrementalCache.cachedPageEnd})`
+            )
+            return
+          }
+        }
+      }
 
       // Extract text from file
       if (ext === 'pdf') {
@@ -289,7 +347,8 @@ export default function CourseHarvester() {
         const pages: string[] = []
         const numPagesToProcess = pageLimit > 0 ? Math.min(pageLimit, pdf.numPages) : pdf.numPages
         
-        for (let i = 1; i <= numPagesToProcess; i++) {
+        // CRITICAL FIX: Only extract pages we need to process (not from page 1)
+        for (let i = startPage; i <= numPagesToProcess; i++) {
           const page = await pdf.getPage(i)
           const tc = await page.getTextContent()
           pages.push(tc.items.map((it: any) => it.str).join(' '))
@@ -383,72 +442,11 @@ export default function CourseHarvester() {
         throw new Error('Unsupported file type')
       }
 
-      // Check incremental cache for PDFs
+      // For non-PDF files, check simple cache
       const fileHash = await cacheRef.current!.hashFile(selectedFile)
-      let startPage = 1
-      let cachedResults: any[] = []
-      let usingCache = false
-
-      if (ext === 'pdf') {
-        const numPagesToProcess =
-          pageLimit > 0 ? Math.min(pageLimit, totalPages) : totalPages
-        const incrementalCache =
-          await cacheRef.current!.getIncremental(
-            fileHash,
-            startPage,
-            numPagesToProcess
-          )
-
-        if (incrementalCache) {
-          cachedResults = incrementalCache.cachedCourses || []
-          
-          // CRITICAL FIX: If cached results are empty, skip cache and process fresh
-          if (cachedResults.length === 0) {
-            console.warn('⚠️ Cache returned empty results, ignoring cache and processing fresh')
-            cachedResults = []
-            usingCache = false
-            incrementalCache.needsProcessing = true
-            incrementalCache.cachedPageStart = undefined
-            incrementalCache.cachedPageEnd = undefined
-          }
-          
-          if (incrementalCache.needsProcessing) {
-            // We have partial cache, continue from next page
-            startPage = incrementalCache.nextPageToProcess || numPagesToProcess + 1
-            setStatus(
-              `📦 Using cached results from pages ${incrementalCache.cachedPageStart}-${incrementalCache.cachedPageEnd}. Processing pages ${startPage}-${numPagesToProcess}...`
-            )
-            usingCache = true
-          } else if (cachedResults.length > 0) {
-            // We have all pages cached
-            setAllCourses(
-              cachedResults.map((c) => ({
-                ...c,
-                SourceFile: selectedFile.name,
-              }))
-            )
-            setFileHistory((prev) => [
-              ...prev,
-              {
-                filename: selectedFile.name,
-                coursesFound: cachedResults.length,
-                timestamp: new Date().toISOString(),
-              },
-            ])
-            setCachedPageRange({
-              start: incrementalCache.cachedPageStart || 1,
-              end: incrementalCache.cachedPageEnd || totalPages,
-            })
-            setStatus(
-              `✅ Loaded from cache — ${cachedResults.length} courses (pages ${incrementalCache.cachedPageStart}-${incrementalCache.cachedPageEnd})`
-            )
-            return
-          }
-        }
-      } else {
-        // For non-PDF files, use simple cache
+      if (ext !== 'pdf') {
         const cached = await cacheRef.current!.get(fileHash)
-        if (cached) {
+        if (cached && cached.length > 0) {
           setAllCourses(cached.map((c) => ({ ...c, SourceFile: selectedFile.name })))
           setFileHistory((prev) => [
             ...prev,
@@ -495,31 +493,36 @@ export default function CourseHarvester() {
 
       setAllCourses(finalCourses)
 
-      // Cache results with page range for PDFs
-      if (ext === 'pdf') {
-        const numPagesToProcess =
-          pageLimit > 0 ? Math.min(pageLimit, totalPages) : totalPages
-        const cacheStart = usingCache ? startPage : 1
-        const cacheEnd = numPagesToProcess
-        
-        await cacheRef.current!.setIncremental(
-          fileHash,
-          courses,
-          cacheStart,
-          cacheEnd,
-          totalPages
-        )
-        setCachedPageRange({ start: 1, end: cacheEnd })
+      // CRITICAL: Only cache if we have courses to cache
+      if (finalCourses.length > 0) {
+        // Cache cleaned results, not raw ones
+        if (ext === 'pdf') {
+          const numPagesToProcess =
+            pageLimit > 0 ? Math.min(pageLimit, totalPages) : totalPages
+          const cacheStart = usingCache ? startPage : 1
+          const cacheEnd = numPagesToProcess
+          
+          await cacheRef.current!.setIncremental(
+            fileHash,
+            finalCourses,  // Cache cleaned courses, not raw
+            cacheStart,
+            cacheEnd,
+            totalPages
+          )
+          setCachedPageRange({ start: 1, end: cacheEnd })
+        } else {
+          // For non-PDF, use simple cache
+          await cacheRef.current!.set(fileHash, finalCourses)  // Cache cleaned courses
+        }
       } else {
-        // For non-PDF, use simple cache
-        await cacheRef.current!.set(fileHash, courses)
+        console.warn('⚠️ No courses extracted, not caching empty results')
       }
 
       setFileHistory((prev) => [
         ...prev,
         {
           filename: selectedFile.name,
-          coursesFound: courses.length,
+          coursesFound: finalCourses.length,
           timestamp: new Date().toISOString(),
         },
       ])
