@@ -16,6 +16,19 @@ interface FileHistory {
   timestamp: string
 }
 
+interface RequestBody {
+  apiKey: string
+  payload: {
+    contents: Array<{
+      parts: Array<{ text: string } | { inline_data: { mime_type: string; data: string } }>
+    }>
+    generationConfig?: {
+      temperature: number
+      maxOutputTokens: number
+    }
+  }
+}
+
 // Utility functions
 const estimateTokens = (text: string): number => {
   return Math.ceil(text.length / 4)
@@ -487,7 +500,7 @@ const CourseHarvester: NextPage = () => {
           <div style={styles.content}>
             {/* Settings Section */}
             <section style={styles.section}>
-              <h2 style={styles.sectionTitle}>Settings</h2>
+              <h2 style={styles.sectionTitle}>⚙️ Settings</h2>
               <div style={styles.inputGroup}>
                 <input
                   type="password"
@@ -509,7 +522,7 @@ const CourseHarvester: NextPage = () => {
 
             {/* Upload Section */}
             <section style={styles.section}>
-              <h2 style={styles.sectionTitle}>Upload Document</h2>
+              <h2 style={styles.sectionTitle}>📄 Upload Document</h2>
               <input
                 type="file"
                 ref={fileInputRef}
@@ -538,13 +551,14 @@ const CourseHarvester: NextPage = () => {
                 onClick={extract}
                 style={styles.extractButton}
               >
-                Extract Courses
+                🚀 Extract Courses
               </button>
             </section>
 
             {/* Status */}
             {status && (
               <section style={styles.statusSection}>
+                <h3 style={styles.statusTitle}>Status</h3>
                 <p style={styles.status}>{status}</p>
               </section>
             )}
@@ -553,11 +567,11 @@ const CourseHarvester: NextPage = () => {
             {allCourses.length > 0 && (
               <section style={styles.section}>
                 <h2 style={styles.sectionTitle}>
-                  Extracted Courses ({allCourses.length})
+                  📚 Extracted Courses ({filteredCourses.length}/{allCourses.length})
                 </h2>
                 <input
                   type="text"
-                  placeholder="Search courses..."
+                  placeholder="🔍 Search courses..."
                   value={searchQ}
                   onChange={(e) => setSearchQ(e.target.value)}
                   style={styles.searchInput}
@@ -583,6 +597,9 @@ const CourseHarvester: NextPage = () => {
                           {course.Description}
                         </p>
                       )}
+                      <p style={styles.courseSource}>
+                        From: {course.SourceFile}
+                      </p>
                     </div>
                   ))}
                 </div>
@@ -594,7 +611,7 @@ const CourseHarvester: NextPage = () => {
               <section style={styles.section}>
                 <details style={styles.details}>
                   <summary style={styles.summary}>
-                    Debug: Raw API Response
+                    🐛 Debug: Raw API Response
                   </summary>
                   <pre style={styles.pre}>{rawResponse}</pre>
                 </details>
@@ -772,6 +789,13 @@ const styles = {
     lineHeight: '1.4',
   } as React.CSSProperties,
 
+  courseSource: {
+    margin: '8px 0 0 0',
+    fontSize: '0.75rem',
+    color: '#64748b',
+    fontWeight: '500',
+  } as React.CSSProperties,
+
   details: {
     cursor: 'pointer',
   } as React.CSSProperties,
@@ -780,6 +804,7 @@ const styles = {
     color: '#94a3b8',
     fontSize: '0.9rem',
     padding: '8px',
+    cursor: 'pointer',
   } as React.CSSProperties,
 
   pre: {
@@ -791,6 +816,14 @@ const styles = {
     fontSize: '0.8rem',
     color: '#cbd5e1',
     maxHeight: '300px',
+    marginTop: '8px',
+  } as React.CSSProperties,
+
+  statusTitle: {
+    fontSize: '1rem',
+    fontWeight: '600',
+    margin: '0 0 8px 0',
+    color: '#f1f5f9',
   } as React.CSSProperties,
 }
 
