@@ -2,6 +2,9 @@ interface CachedDocument {
   hash: string
   courses: any[]
   timestamp: number
+  pageStart?: number  // Start page of this cached batch (for incremental caching)
+  pageEnd?: number    // End page of this cached batch
+  totalPages?: number // Total pages in source document
 }
 
 export class DocumentCache {
@@ -235,5 +238,137 @@ export class DocumentCache {
 
       request.onerror = () => reject(request.error)
     })
+  }
+
+  /**
+   * Store incremental courses with page range metadata
+   */
+  async setIncremental(
+    fileHash: string,
+    courses: any[],
+    pageStart: number,
+    pageEnd: number,
+    totalPages: number
+  ): Promise<void> {
+    if (!this.db) {
+      return
+    }
+
+    return new Promise((resolve, reject) => {
+      const transaction = this.db!.transaction([this.storeName], 'readwrite')
+      const store = transaction.objectStore(this.storeName)
+
+      const data: CachedDocument = {
+        hash: fileHash,
+        courses,
+        timestamp: Date.now(),
+        pageStart,
+        pageEnd,
+        totalPages,
+      }
+
+      const request = store.put(data)
+
+      request.onsuccess = () => {
+        console.log(
+          `Cached ${courses.length} courses for pages ${pageStart}-${pageEnd} of ${fileHash}`
+        )
+        resolve()
+      }
+
+      request.onerror = () => {
+        console.error('Cache write error:', request.error)
+        reject(request.error)
+      }
+    })
+  }
+
+  /**
+   * Get partial cached results for incremental processing
+   * Returns cached courses and info about which pages are already cached
+   */
+  async getIncremental(
+    fileHash: string,
+    requestedPageStart: number,
+    requestedPageEnd: number
+  ): Promise<{
+    cachedCourses: any[] | null
+    cachedPageStart?: number
+    cachedPageEnd?: number
+    needsProcessing: boolean
+    nextPageToProcess?: number
+  } | null> {
+    if (!this.db) {
+      return null
+    }
+
+    return new Promise((resolve, reject) => {
+      const transaction = this.db!.transaction([this.storeName], 'readonly')
+      const store = transaction.objectStore(this.storeName)
+      const request = store.get(fileHash)
+
+      request.onsuccess = () => {
+        const result = request.result as CachedDocument | undefined
+
+        // Check if cache exists and is still fresh
+        if (result && Date.now() - result.timestamp < this.cacheValidityMs) {
+          console.log(
+            `Cache hit for ${fileHash} (pages ${result.pageStart}-${result.pageEnd})`
+          )
+
+          const cachedStart = result.pageStart || 1
+          const cachedEnd = result.pageEnd || result.totalPages || requestedPageEnd
+
+          // Check if we have the pages we need
+          const hasAllPages =
+            cachedStart <= requestedPageStart && cachedEnd >= requestedPageEnd
+
+          if (hasAllPages) {
+            // We have all requested pages, no need to process
+            resolve({
+              cachedCourses: result.courses,
+              cachedPageStart: cachedStart,
+              cachedPageEnd: cachedEnd,
+              needsProcessing: false,
+            })
+          } else {
+            // We have partial cache, need to process remaining pages
+            const nextPageToProcess = Math.max(cachedEnd + 1, requestedPageStart)
+            resolve({
+              cachedCourses: result.courses,
+              cachedPageStart: cachedStart,
+              cachedPageEnd: cachedEnd,
+              needsProcessing: true,
+              nextPageToProcess,
+            })
+          }
+        } else if (result) {
+          // Cache is stale, delete it
+          this.delete(fileHash).catch(console.error)
+          resolve(null)
+        } else {
+          resolve(null)
+        }
+      }
+
+      request.onerror = () => {
+        console.error('Cache read error:', request.error)
+        reject(request.error)
+      }
+    })
+  }
+
+  /**
+   * Merge cached courses with newly processed courses
+   */
+  mergeCourses(cached: any[], newCourses: any[]): any[] {
+    // Avoid duplicates by checking CourseName
+    const merged = [...cached]
+    newCourses.forEach((course) => {
+      if (!merged.some((c) => c.CourseName === course.CourseName)) {
+        merged.push(course)
+      }
+    })
+    return merged
   }
 }

@@ -158,6 +158,10 @@ export default function CourseHarvester() {
   const [searchQ, setSearchQ] = useState('')
   const [totalPages, setTotalPages] = useState(0)
   const [pageLimit, setPageLimit] = useState(0) // 0 = all pages
+  const [cachedPageRange, setCachedPageRange] = useState<{
+    start: number
+    end: number
+  } | null>(null) // Track which pages are cached
   const fileInputRef = useRef<HTMLInputElement>(null)
   const cacheRef = useRef<DocumentCache | null>(null)
 
@@ -186,6 +190,7 @@ export default function CourseHarvester() {
 
     setSelectedFile(file)
     setPageLimit(0) // Reset page limit when new file selected
+    setCachedPageRange(null) // Reset cached page range for new file
     setStatus('File selected: ' + file.name)
 
     try {
@@ -378,22 +383,74 @@ export default function CourseHarvester() {
         throw new Error('Unsupported file type')
       }
 
-      // Check cache first
+      // Check incremental cache for PDFs
       const fileHash = await cacheRef.current!.hashFile(selectedFile)
-      const cached = await cacheRef.current!.get(fileHash)
+      let startPage = 1
+      let cachedResults: any[] = []
+      let usingCache = false
 
-      if (cached) {
-        setAllCourses(cached.map((c) => ({ ...c, SourceFile: selectedFile.name })))
-        setFileHistory((prev) => [
-          ...prev,
-          {
-            filename: selectedFile.name,
-            coursesFound: cached.length,
-            timestamp: new Date().toISOString(),
-          },
-        ])
-        setStatus(`✅ Loaded from cache — ${cached.length} courses`)
-        return
+      if (ext === 'pdf') {
+        const numPagesToProcess =
+          pageLimit > 0 ? Math.min(pageLimit, totalPages) : totalPages
+        const incrementalCache =
+          await cacheRef.current!.getIncremental(
+            fileHash,
+            startPage,
+            numPagesToProcess
+          )
+
+        if (incrementalCache) {
+          cachedResults = incrementalCache.cachedCourses || []
+          
+          if (incrementalCache.needsProcessing) {
+            // We have partial cache, continue from next page
+            startPage = incrementalCache.nextPageToProcess || numPagesToProcess + 1
+            setStatus(
+              `📦 Using cached results from pages ${incrementalCache.cachedPageStart}-${incrementalCache.cachedPageEnd}. Processing pages ${startPage}-${numPagesToProcess}...`
+            )
+            usingCache = true
+          } else if (cachedResults.length > 0) {
+            // We have all pages cached
+            setAllCourses(
+              cachedResults.map((c) => ({
+                ...c,
+                SourceFile: selectedFile.name,
+              }))
+            )
+            setFileHistory((prev) => [
+              ...prev,
+              {
+                filename: selectedFile.name,
+                coursesFound: cachedResults.length,
+                timestamp: new Date().toISOString(),
+              },
+            ])
+            setCachedPageRange({
+              start: incrementalCache.cachedPageStart || 1,
+              end: incrementalCache.cachedPageEnd || totalPages,
+            })
+            setStatus(
+              `✅ Loaded from cache — ${cachedResults.length} courses (pages ${incrementalCache.cachedPageStart}-${incrementalCache.cachedPageEnd})`
+            )
+            return
+          }
+        }
+      } else {
+        // For non-PDF files, use simple cache
+        const cached = await cacheRef.current!.get(fileHash)
+        if (cached) {
+          setAllCourses(cached.map((c) => ({ ...c, SourceFile: selectedFile.name })))
+          setFileHistory((prev) => [
+            ...prev,
+            {
+              filename: selectedFile.name,
+              coursesFound: cached.length,
+              timestamp: new Date().toISOString(),
+            },
+          ])
+          setStatus(`✅ Loaded from cache — ${cached.length} courses`)
+          return
+        }
       }
 
       // Process with ChunkProcessor
@@ -417,10 +474,36 @@ export default function CourseHarvester() {
         .map((c) => cleanCourseData({ ...c, SourceFile: selectedFile.name }))
         .filter((c): c is Course => c !== null)
 
-      setAllCourses(typedCourses)
+      // Merge with cached courses if using incremental cache
+      let finalCourses = typedCourses
+      if (usingCache && cachedResults.length > 0) {
+        finalCourses = cacheRef.current!.mergeCourses(
+          cachedResults.map((c) => ({ ...c, SourceFile: selectedFile.name })),
+          typedCourses
+        )
+      }
 
-      // Cache results
-      await cacheRef.current!.set(fileHash, courses)
+      setAllCourses(finalCourses)
+
+      // Cache results with page range for PDFs
+      if (ext === 'pdf') {
+        const numPagesToProcess =
+          pageLimit > 0 ? Math.min(pageLimit, totalPages) : totalPages
+        const cacheStart = usingCache ? startPage : 1
+        const cacheEnd = numPagesToProcess
+        
+        await cacheRef.current!.setIncremental(
+          fileHash,
+          courses,
+          cacheStart,
+          cacheEnd,
+          totalPages
+        )
+        setCachedPageRange({ start: 1, end: cacheEnd })
+      } else {
+        // For non-PDF, use simple cache
+        await cacheRef.current!.set(fileHash, courses)
+      }
 
       setFileHistory((prev) => [
         ...prev,
@@ -985,6 +1068,11 @@ export default function CourseHarvester() {
                   }}>
                     <div style={{ marginBottom: '8px', fontWeight: 600 }}>
                       📄 Page Range ({totalPages} total pages)
+                      {cachedPageRange && (
+                        <span style={{ marginLeft: '8px', fontSize: '12px', color: '#059669' }}>
+                          ✓ Cached: pages {cachedPageRange.start}-{cachedPageRange.end}
+                        </span>
+                      )}
                     </div>
                     <div style={{ display: 'flex', gap: '12px', alignItems: 'center', flexWrap: 'wrap' }}>
                       <select
@@ -1021,6 +1109,7 @@ export default function CourseHarvester() {
                       setSelectedFile(null)
                       setTotalPages(0)
                       setPageLimit(0)
+                      setCachedPageRange(null)
                       setStatus('')
                     }}
                     className="secondary"
