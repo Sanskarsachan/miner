@@ -169,9 +169,9 @@ ${text}`
   } catch (error) {
     const errorMsg = error instanceof Error ? error.message : String(error)
     console.error('[secure_extract] ❌ Fatal error:', errorMsg)
-    // Return empty array instead of error object to avoid client parsing issues
+    // Return empty array with 200 status (not 500) to avoid client parsing issues
     // Client will receive empty array and user will see "0 courses extracted" instead of crash
-    return res.status(500).json([])
+    return res.status(200).json([])
   }
 }
 
