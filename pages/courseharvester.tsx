@@ -535,12 +535,21 @@ export default function CourseHarvester() {
             setStatus(progress.message)
           } else if (progress.status === 'chunk_complete') {
             setTokenUsage((prev) => prev + 2000) // Rough estimate
-            // Show page progress: "Page 2 of 51 done"
+            // Update both status and extraction progress state
+            const coursesInChunk = progress.coursesFound || 0
+            accumulatedCourses = (accumulatedCourses || []).slice() // Ensure it's an array
+            
             setStatus(
-              `📄 Page ${progress.current} of ${progress.total} done — ${
-                accumulatedCourses.length
-              } courses found`
+              `📄 Page ${progress.current} of ${progress.total} done — ${coursesInChunk} course${coursesInChunk !== 1 ? 's' : ''} in this chunk`
             )
+            
+            // Update extraction progress with real-time course count
+            setExtractionProgress(prev => ({
+              ...prev,
+              pagesProcessed: progress.current,
+              totalPages: progress.total,
+              coursesFound: accumulatedCourses.length + coursesInChunk,
+            }))
           }
         },
         (error) => {
@@ -568,7 +577,7 @@ export default function CourseHarvester() {
 
       setAllCourses(finalCourses)
       
-      // Update progress with final course count
+      // Update progress with final course count and completion status
       const elapsedTime = Date.now() - extractionProgress.startTime
       setExtractionProgress(prev => ({
         ...prev,
@@ -1362,11 +1371,24 @@ export default function CourseHarvester() {
                         }}
                       >
                         <option value={0}>All pages ({totalPages})</option>
-                        {totalPages > 5 && <option value={5}>First 5 pages</option>}
-                        {totalPages > 10 && <option value={10}>First 10 pages</option>}
-                        {totalPages > 20 && <option value={20}>First 20 pages</option>}
-                        {totalPages > 50 && <option value={50}>First 50 pages</option>}
+                        {totalPages >= 5 && <option value={5}>Pages 1-5</option>}
+                        {totalPages >= 10 && <option value={10}>Pages 5-10</option>}
+                        {totalPages >= 15 && <option value={15}>Pages 10-15</option>}
+                        {totalPages >= 20 && <option value={20}>Pages 15-20</option>}
+                        {totalPages > 20 && <option value={totalPages - 20}>Remaining pages</option>}
                       </select>
+                      <button
+                        onClick={() => {
+                          setAllCourses([])
+                          setPageLimit(5)
+                          setStatus('Ready to recheck 5 pages')
+                        }}
+                        className="secondary"
+                        style={{ fontSize: '12px', padding: '6px 8px' }}
+                        title="Clear results and recheck first 5 pages to catch any missed courses"
+                      >
+                        🔄 Recheck 5 Pages
+                      </button>
                       <div className="muted">
                         {pageLimit > 0 ? `Will process ${pageLimit} page${pageLimit !== 1 ? 's' : ''} (~${Math.ceil(pageLimit / 12)} API calls)` : `Will process all ${totalPages} page${totalPages !== 1 ? 's' : ''} (~${Math.ceil(totalPages / 12)} API calls)`}
                       </div>
