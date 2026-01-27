@@ -1,8 +1,11 @@
 import { useEffect, useState } from 'react'
-import { Trash2, Download, Edit2, RefreshCw } from 'lucide-react'
+import { Trash2, Download, Edit2, RefreshCw, Eye } from 'lucide-react'
+import ExtractionDetailModal from './ExtractionDetailModal'
 
 export interface SavedExtraction {
   _id: string
+  user_id?: string
+  username?: string
   filename: string
   courses: any[]
   metadata: {
@@ -33,6 +36,8 @@ export default function CourseHarvesterSidebar({
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [deleting, setDeleting] = useState<string | null>(null)
   const [downloading, setDownloading] = useState<string | null>(null)
+  const [viewingExtraction, setViewingExtraction] = useState<SavedExtraction | null>(null)
+  const [showDetailModal, setShowDetailModal] = useState(false)
 
   // Fetch extractions on mount and when refreshTrigger changes
   useEffect(() => {
@@ -345,6 +350,41 @@ export default function CourseHarvesterSidebar({
                   <button
                     onClick={(e) => {
                       e.stopPropagation()
+                      setViewingExtraction(extraction)
+                      setShowDetailModal(true)
+                    }}
+                    style={{
+                      flex: 1,
+                      padding: '4px 6px',
+                      fontSize: '11px',
+                      border: '1px solid #bfdbfe',
+                      backgroundColor: '#eff6ff',
+                      color: '#1e40af',
+                      borderRadius: '4px',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: '4px',
+                      transition: 'all 0.2s',
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.backgroundColor = '#dbeafe'
+                      e.currentTarget.style.borderColor = '#3b82f6'
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.backgroundColor = '#eff6ff'
+                      e.currentTarget.style.borderColor = '#bfdbfe'
+                    }}
+                    title="View extracted courses"
+                  >
+                    <Eye size={12} />
+                    View
+                  </button>
+
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation()
                       // TODO: Implement edit functionality
                       alert('Edit functionality coming soon! You can refine the extracted data.')
                     }}
@@ -430,6 +470,16 @@ export default function CourseHarvesterSidebar({
       }}>
         {extractions.length} file{extractions.length !== 1 ? 's' : ''}
       </div>
+
+      {/* Detail Modal */}
+      <ExtractionDetailModal
+        extraction={viewingExtraction}
+        isOpen={showDetailModal}
+        onClose={() => {
+          setShowDetailModal(false)
+          setViewingExtraction(null)
+        }}
+      />
 
       <style jsx>{`
         @keyframes spin {

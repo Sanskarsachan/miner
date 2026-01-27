@@ -15,7 +15,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       return res.status(503).json({ error: 'Database connection failed' })
     }
 
-    const { file_id, filename, courses, total_pages, extraction_time_ms, api_used, tokens_used } = req.body
+    const { file_id, filename, courses, total_pages, extraction_time_ms, api_used, tokens_used, username } = req.body
 
     // Validation
     if (!file_id || !filename || !courses || !Array.isArray(courses)) {
@@ -47,6 +47,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const extraction: Extraction = {
       file_id,
       user_id: userId,
+      username: username || 'user_guest',
       filename,
       file_size: 0,
       file_type: filename.split('.').pop() || 'unknown',

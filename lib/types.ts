@@ -53,6 +53,7 @@ export interface Extraction {
   _id?: ObjectId
   file_id: string
   user_id: ObjectId | string
+  username?: string
   
   // File Info
   filename: string

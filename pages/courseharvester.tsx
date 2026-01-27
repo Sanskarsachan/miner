@@ -530,6 +530,7 @@ export default function CourseHarvester() {
             file_id: fileHash,
             filename: selectedFile.name,
             courses: finalCourses,
+            username: 'user_guest',
             metadata: {
               file_size: selectedFile.size,
               file_type: ext,
