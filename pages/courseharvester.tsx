@@ -177,6 +177,14 @@ export default function CourseHarvester() {
   const [sidebarRefreshTrigger, setSidebarRefreshTrigger] = useState(0)
   const [selectedSidebarExtraction, setSelectedSidebarExtraction] = useState<SavedExtraction | null>(null)
   const [sidebarOpen, setSidebarOpen] = useState(false)
+  const [extractionProgress, setExtractionProgress] = useState({
+    isExtracting: false,
+    pagesProcessed: 0,
+    totalPages: 0,
+    coursesFound: 0,
+    startTime: 0,
+    estimatedTimeRemaining: 0,
+  })
   const fileInputRef = useRef<HTMLInputElement>(null)
   const cacheRef = useRef<DocumentCache | null>(null)
 
@@ -289,6 +297,17 @@ export default function CourseHarvester() {
     if (!apiKey) return setStatus('Enter your Gemini API key')
 
     setStatus('Preparing file...')
+    
+    // Initialize progress tracking
+    const numPagesToProcess = pageLimit > 0 ? Math.min(pageLimit, totalPages) : totalPages
+    setExtractionProgress({
+      isExtracting: true,
+      pagesProcessed: 0,
+      totalPages: numPagesToProcess || 1,
+      coursesFound: 0,
+      startTime: Date.now(),
+      estimatedTimeRemaining: 0,
+    })
 
     try {
       let textContent = ''
@@ -372,6 +391,13 @@ export default function CourseHarvester() {
           const page = await pdf.getPage(i)
           const tc = await page.getTextContent()
           pages.push(tc.items.map((it: any) => it.str).join(' '))
+          
+          // Update progress
+          setExtractionProgress(prev => ({
+            ...prev,
+            pagesProcessed: i,
+            totalPages: numPagesToProcess,
+          }))
         }
         
         if (pageLimit > 0 && numPagesToProcess < pdf.numPages) {
@@ -523,6 +549,16 @@ export default function CourseHarvester() {
 
       setAllCourses(finalCourses)
       
+      // Update progress with final course count
+      const elapsedTime = Date.now() - extractionProgress.startTime
+      setExtractionProgress(prev => ({
+        ...prev,
+        coursesFound: finalCourses.length,
+        pagesProcessed: prev.totalPages,
+        estimatedTimeRemaining: 0,
+        isExtracting: false,
+      }))
+      
       // Update usage statistics
       const estimatedTokens = finalCourses.length * 100
       setUsageStats(prev => ({
@@ -612,6 +648,7 @@ export default function CourseHarvester() {
       setStatus(`✅ Complete — ${courses.length} courses extracted`)
     } catch (e) {
       setStatus(`Error: ${e instanceof Error ? e.message : 'Unknown error'}`)
+      setExtractionProgress(prev => ({ ...prev, isExtracting: false }))
     }
   }
 
@@ -1292,7 +1329,7 @@ export default function CourseHarvester() {
                         </span>
                       )}
                     </div>
-                    <div style={{ display: 'flex', gap: '12px', alignItems: 'center', flexWrap: 'wrap' }}>
+                    <div style={{ display: 'flex', gap: '12px', alignItems: 'center', flexWrap: 'wrap', marginBottom: '12px' }}>
                       <select
                         value={pageLimit}
                         onChange={(e) => setPageLimit(Number(e.target.value))}
@@ -1313,6 +1350,27 @@ export default function CourseHarvester() {
                       </select>
                       <div className="muted">
                         {pageLimit > 0 ? `Will process ${pageLimit} page${pageLimit !== 1 ? 's' : ''} (~${Math.ceil(pageLimit / 12)} API calls)` : `Will process all ${totalPages} page${totalPages !== 1 ? 's' : ''} (~${Math.ceil(totalPages / 12)} API calls)`}
+                      </div>
+                    </div>
+
+                    {/* Batch Processing Info */}
+                    <div style={{
+                      padding: '10px',
+                      backgroundColor: '#fef3c7',
+                      borderRadius: '6px',
+                      border: '1px solid #fcd34d',
+                      marginBottom: '8px',
+                      fontSize: '12px',
+                      color: '#92400e',
+                    }}>
+                      <div style={{ marginBottom: '6px' }}>
+                        💡 <strong>Batch Processing Strategy:</strong>
+                      </div>
+                      <div style={{ marginLeft: '16px', lineHeight: '1.5' }}>
+                        • Pages 1-5: ~500 tokens (extraction baseline)<br />
+                        • Pages 6-10: ~500 tokens (incremental)<br />
+                        • Pages 11+: ~100 tokens/page<br />
+                        <strong>Est. Cost:</strong> {pageLimit > 0 ? Math.round((pageLimit / 5) * 500) : Math.round((totalPages / 5) * 500)} tokens
                       </div>
                     </div>
                   </div>
@@ -1364,6 +1422,62 @@ export default function CourseHarvester() {
                     }`}
                   >
                     {status}
+                  </div>
+                )}
+
+                {extractionProgress.isExtracting && (
+                  <div style={{
+                    padding: '16px',
+                    backgroundColor: '#f0f9ff',
+                    borderRadius: '8px',
+                    border: '1px solid #bfdbfe',
+                    marginTop: '12px',
+                  }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
+                      <div style={{ fontWeight: 600, fontSize: '13px', color: '#1e40af' }}>
+                        📊 Extraction Progress
+                      </div>
+                      <div style={{ fontSize: '12px', color: '#1e40af' }}>
+                        {extractionProgress.pagesProcessed}/{extractionProgress.totalPages} pages
+                      </div>
+                    </div>
+                    
+                    {/* Progress Bar */}
+                    <div style={{
+                      width: '100%',
+                      height: '8px',
+                      backgroundColor: '#e5e7eb',
+                      borderRadius: '4px',
+                      overflow: 'hidden',
+                      marginBottom: '12px',
+                    }}>
+                      <div style={{
+                        width: `${(extractionProgress.pagesProcessed / Math.max(extractionProgress.totalPages, 1)) * 100}%`,
+                        height: '100%',
+                        backgroundColor: 'linear-gradient(90deg, #3b82f6, #8b5cf6)',
+                        background: 'linear-gradient(90deg, #3b82f6, #8b5cf6)',
+                        borderRadius: '4px',
+                        transition: 'width 0.3s ease',
+                      }} />
+                    </div>
+
+                    {/* Stats */}
+                    <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap', fontSize: '12px', color: '#1f2937' }}>
+                      <div>
+                        <span style={{ color: '#6b7280' }}>Courses Found:</span> <strong>{extractionProgress.coursesFound}</strong>
+                      </div>
+                      <div>
+                        <span style={{ color: '#6b7280' }}>Pages:</span> <strong>{extractionProgress.pagesProcessed}/{extractionProgress.totalPages}</strong>
+                      </div>
+                      <div>
+                        <span style={{ color: '#6b7280' }}>Time Elapsed:</span> <strong>{Math.round((Date.now() - extractionProgress.startTime) / 1000)}s</strong>
+                      </div>
+                      {extractionProgress.estimatedTimeRemaining > 0 && (
+                        <div>
+                          <span style={{ color: '#6b7280' }}>ETA:</span> <strong>{Math.round(extractionProgress.estimatedTimeRemaining / 1000)}s</strong>
+                        </div>
+                      )}
+                    </div>
                   </div>
                 )}
 
