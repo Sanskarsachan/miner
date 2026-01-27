@@ -165,6 +165,7 @@ export default function CourseHarvester() {
   })
   const [sidebarRefreshTrigger, setSidebarRefreshTrigger] = useState(0)
   const [selectedSidebarExtraction, setSelectedSidebarExtraction] = useState<SavedExtraction | null>(null)
+  const [sidebarOpen, setSidebarOpen] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const cacheRef = useRef<DocumentCache | null>(null)
 
@@ -743,9 +744,40 @@ export default function CourseHarvester() {
           flex: 0 0 280px;
           min-width: 280px;
           height: 100vh;
-          position: sticky;
+          position: fixed;
+          right: 0;
           top: 0;
           overflow: hidden;
+          transform: translateX(100%);
+          transition: transform 0.3s ease-in-out;
+          z-index: 100;
+        }
+        .right.open {
+          transform: translateX(0);
+        }
+        .sidebar-toggle {
+          position: fixed;
+          right: 20px;
+          top: 20px;
+          z-index: 105;
+          background: var(--primary);
+          color: white;
+          border: none;
+          border-radius: 50%;
+          width: 44px;
+          height: 44px;
+          cursor: pointer;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          box-shadow: 0 4px 12px rgba(37, 99, 235, 0.3);
+          transition: all 0.3s ease;
+          font-size: 20px;
+          font-weight: bold;
+        }
+        .sidebar-toggle:hover {
+          transform: scale(1.1);
+          box-shadow: 0 6px 16px rgba(37, 99, 235, 0.4);
         }
         .card {
           background: var(--card);
@@ -1499,13 +1531,40 @@ export default function CourseHarvester() {
             </div>
 
             {/* Right Column - Sidebar */}
-            <div className="right">
+            <div className={`right ${sidebarOpen ? 'open' : ''}`}>
               <CourseHarvesterSidebar 
                 refreshTrigger={sidebarRefreshTrigger}
                 onSelectFile={setSelectedSidebarExtraction}
                 onRefresh={() => setSidebarRefreshTrigger(prev => prev + 1)}
+                onClose={() => setSidebarOpen(false)}
               />
             </div>
+
+            {/* Sidebar Toggle Button */}
+            <button 
+              className="sidebar-toggle"
+              onClick={() => setSidebarOpen(!sidebarOpen)}
+              title={sidebarOpen ? 'Close sidebar' : 'Open saved files'}
+            >
+              {sidebarOpen ? '✕' : '📁'}
+            </button>
+
+            {/* Backdrop when sidebar is open on small screens */}
+            {sidebarOpen && (
+              <div
+                style={{
+                  position: 'fixed',
+                  top: 0,
+                  left: 0,
+                  right: 0,
+                  bottom: 0,
+                  backgroundColor: 'rgba(0, 0, 0, 0.5)',
+                  zIndex: 98,
+                  display: 'none',
+                }}
+                onClick={() => setSidebarOpen(false)}
+              />
+            )}
           </div>
         </div>
       </div>

@@ -23,12 +23,14 @@ interface CourseHarvesterSidebarProps {
   onSelectFile?: (extraction: SavedExtraction) => void
   onRefresh?: () => void
   refreshTrigger?: number
+  onClose?: () => void
 }
 
 export default function CourseHarvesterSidebar({
   onSelectFile,
   onRefresh,
   refreshTrigger = 0,
+  onClose,
 }: CourseHarvesterSidebarProps) {
   const [extractions, setExtractions] = useState<SavedExtraction[]>([])
   const [loading, setLoading] = useState(true)
@@ -97,13 +99,34 @@ export default function CourseHarvesterSidebar({
     try {
       setDownloading(extraction._id)
       
-      // Download as JSON
-      const dataStr = JSON.stringify(extraction.courses, null, 2)
-      const dataBlob = new Blob([dataStr], { type: 'application/json' })
-      const url = URL.createObjectURL(dataBlob)
+      // Download as CSV
+      const courses = extraction.courses || []
+      const headers = ['S.No', 'Category', 'CourseName', 'GradeLevel', 'Length', 'Prerequisite', 'Credit', 'CourseDescription']
+      const escape = (s: any) => {
+        if (s == null) return ''
+        s = String(s).replace(/"/g, '""')
+        return s.includes(',') || s.includes('"') || s.includes('\n')
+          ? `"${s}"`
+          : s
+      }
+      const rows = [headers.join(',')].concat(
+        courses.map((c: any, idx: number) => [
+          String(idx + 1),
+          escape(c.Category || ''),
+          escape(c.CourseName || ''),
+          escape(c.GradeLevel || ''),
+          escape(c.Length || ''),
+          escape(c.Prerequisite || ''),
+          escape(c.Credit || ''),
+          escape(c.CourseDescription || ''),
+        ].join(','))
+      )
+      
+      const csvBlob = new Blob([rows.join('\n')], { type: 'text/csv; charset=utf-8;' })
+      const url = URL.createObjectURL(csvBlob)
       const link = document.createElement('a')
       link.href = url
-      link.download = `${extraction.filename.replace(/\.[^.]+$/, '')}_courses.json`
+      link.download = `${extraction.filename.replace(/\.[^.]+$/, '')}_courses.csv`
       link.click()
       URL.revokeObjectURL(url)
     } catch (err) {
@@ -161,32 +184,60 @@ export default function CourseHarvesterSidebar({
         <div style={{ fontWeight: 600, fontSize: '13px' }}>
           📚 Saved Files
         </div>
-        <button
-          onClick={fetchExtractions}
-          style={{
-            background: 'none',
-            border: 'none',
-            cursor: 'pointer',
-            padding: '4px 6px',
-            borderRadius: '4px',
-            color: '#6b7280',
-            display: 'flex',
-            alignItems: 'center',
-            fontSize: '14px',
-            transition: 'all 0.2s',
-          }}
-          onMouseEnter={(e) => {
-            e.currentTarget.style.backgroundColor = '#e5e7eb'
-            e.currentTarget.style.color = '#1f2937'
-          }}
-          onMouseLeave={(e) => {
-            e.currentTarget.style.backgroundColor = 'transparent'
-            e.currentTarget.style.color = '#6b7280'
-          }}
-          title="Refresh list"
-        >
-          <RefreshCw size={14} style={{ animation: loading ? 'spin 1s linear infinite' : 'none' }} />
-        </button>
+        <div style={{ display: 'flex', gap: '6px' }}>
+          <button
+            onClick={fetchExtractions}
+            style={{
+              background: 'none',
+              border: 'none',
+              cursor: 'pointer',
+              padding: '4px 6px',
+              borderRadius: '4px',
+              color: '#6b7280',
+              display: 'flex',
+              alignItems: 'center',
+              fontSize: '14px',
+              transition: 'all 0.2s',
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.backgroundColor = '#e5e7eb'
+              e.currentTarget.style.color = '#1f2937'
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.backgroundColor = 'transparent'
+              e.currentTarget.style.color = '#6b7280'
+            }}
+            title="Refresh list"
+          >
+            <RefreshCw size={14} style={{ animation: loading ? 'spin 1s linear infinite' : 'none' }} />
+          </button>
+          <button
+            onClick={onClose}
+            style={{
+              background: 'none',
+              border: 'none',
+              cursor: 'pointer',
+              padding: '4px 6px',
+              borderRadius: '4px',
+              color: '#6b7280',
+              display: 'flex',
+              alignItems: 'center',
+              fontSize: '18px',
+              transition: 'all 0.2s',
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.backgroundColor = '#e5e7eb'
+              e.currentTarget.style.color = '#1f2937'
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.backgroundColor = 'transparent'
+              e.currentTarget.style.color = '#6b7280'
+            }}
+            title="Close sidebar"
+          >
+            ✕
+          </button>
+        </div>
       </div>
 
       {/* Content */}
@@ -341,10 +392,10 @@ export default function CourseHarvesterSidebar({
                       e.currentTarget.style.backgroundColor = '#ffffff'
                       e.currentTarget.style.borderColor = '#d1d5db'
                     }}
-                    title="Download as JSON"
+                    title="Download as CSV"
                   >
                     <Download size={12} />
-                    JSON
+                    CSV
                   </button>
 
                   <button
@@ -381,41 +432,6 @@ export default function CourseHarvesterSidebar({
                     <Eye size={12} />
                     View
                   </button>
-
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      // TODO: Implement edit functionality
-                      alert('Edit functionality coming soon! You can refine the extracted data.')
-                    }}
-                    style={{
-                      flex: 1,
-                      padding: '4px 6px',
-                      fontSize: '11px',
-                      border: '1px solid #d1d5db',
-                      backgroundColor: '#ffffff',
-                      borderRadius: '4px',
-                      cursor: 'pointer',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      gap: '4px',
-                      transition: 'all 0.2s',
-                    }}
-                    onMouseEnter={(e) => {
-                      e.currentTarget.style.backgroundColor = '#f3f4f6'
-                      e.currentTarget.style.borderColor = '#9ca3af'
-                    }}
-                    onMouseLeave={(e) => {
-                      e.currentTarget.style.backgroundColor = '#ffffff'
-                      e.currentTarget.style.borderColor = '#d1d5db'
-                    }}
-                    title="Edit and update extraction"
-                  >
-                    <Edit2 size={12} />
-                    Edit
-                  </button>
-
                   <button
                     onClick={(e) => {
                       e.stopPropagation()
