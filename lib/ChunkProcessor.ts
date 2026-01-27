@@ -323,15 +323,19 @@ export class ChunkProcessor {
       }
     }
 
-    // Deduplicate courses
+    // Deduplicate courses - log how many are removed
+    const beforeDedup = allCourses.length
     const deduplicated = this.deduplicateCourses(allCourses)
+    const dupesRemoved = beforeDedup - deduplicated.length
+
+    console.log(`[ChunkProcessor] 🔍 Deduplication: ${beforeDedup} → ${deduplicated.length} (removed ${dupesRemoved} duplicates)`)
 
     this.onProgress({
       status: 'processing',
       total: totalChunks,
       current: totalChunks,
       coursesFound: deduplicated.length,
-      message: `✓ Extraction complete! Found ${deduplicated.length} unique course${deduplicated.length === 1 ? '' : 's'}`,
+      message: `✓ Extraction complete! Found ${deduplicated.length} unique course${deduplicated.length === 1 ? '' : 's'} (removed ${dupesRemoved} duplicates)`,
     })
 
     return deduplicated
@@ -339,19 +343,24 @@ export class ChunkProcessor {
 
   /**
    * Remove duplicate courses based on category, name, and grade level
+   * Use fuzzy matching to catch variations in course names
    */
   private deduplicateCourses(courses: Course[]): Course[] {
-    const seen = new Map<string, boolean>()
+    const seen = new Map<string, Course>()
 
-    return courses.filter((course) => {
-      const key = `${course.Category}|${course.CourseName}|${course.GradeLevel}`.toLowerCase()
+    for (const course of courses) {
+      // Normalize course name for comparison (remove extra spaces, lowercase)
+      const normalizedName = (course.CourseName || '').replace(/\s+/g, ' ').toLowerCase().trim()
+      const key = `${(course.Category || '').toLowerCase().trim()}|${normalizedName}|${(course.GradeLevel || '').toLowerCase().trim()}`
 
-      if (seen.has(key)) {
-        return false
+      // Keep first occurrence of each unique course
+      if (!seen.has(key)) {
+        seen.set(key, course)
       }
+    }
 
-      seen.set(key, true)
-      return true
-    })
+    const result = Array.from(seen.values())
+    console.log(`[ChunkProcessor] 📊 Dedup: kept ${result.length}/${courses.length} courses`)
+    return result
   }
 }
