@@ -1502,37 +1502,93 @@ export default function CourseHarvester() {
                     {/* Progress Bar */}
                     <div style={{
                       width: '100%',
-                      height: '8px',
+                      height: '12px',
                       backgroundColor: '#e5e7eb',
-                      borderRadius: '4px',
+                      borderRadius: '6px',
                       overflow: 'hidden',
-                      marginBottom: '12px',
+                      marginBottom: '16px',
+                      boxShadow: 'inset 0 1px 3px rgba(0,0,0,0.1)',
                     }}>
                       <div style={{
                         width: `${(extractionProgress.pagesProcessed / Math.max(extractionProgress.totalPages, 1)) * 100}%`,
                         height: '100%',
-                        backgroundColor: 'linear-gradient(90deg, #3b82f6, #8b5cf6)',
-                        background: 'linear-gradient(90deg, #3b82f6, #8b5cf6)',
-                        borderRadius: '4px',
-                        transition: 'width 0.3s ease',
+                        background: 'linear-gradient(90deg, #3b82f6 0%, #8b5cf6 50%, #ec4899 100%)',
+                        borderRadius: '6px',
+                        transition: 'width 0.4s cubic-bezier(0.4, 0, 0.2, 1)',
+                        boxShadow: '0 0 10px rgba(59, 130, 246, 0.5)',
                       }} />
                     </div>
 
-                    {/* Stats */}
-                    <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap', fontSize: '12px', color: '#1f2937' }}>
-                      <div>
-                        <span style={{ color: '#6b7280' }}>Courses Found:</span> <strong>{extractionProgress.coursesFound}</strong>
+                    {/* Stats Grid */}
+                    <div style={{ 
+                      display: 'grid', 
+                      gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))',
+                      gap: '12px', 
+                      fontSize: '12px', 
+                      marginBottom: '8px',
+                    }}>
+                      <div style={{
+                        padding: '8px',
+                        backgroundColor: '#f0f9ff',
+                        borderRadius: '4px',
+                        borderLeft: '3px solid #3b82f6',
+                      }}>
+                        <div style={{ color: '#6b7280', marginBottom: '2px' }}>📚 Courses Found</div>
+                        <div style={{ fontSize: '16px', fontWeight: 700, color: '#1e40af' }}>{extractionProgress.coursesFound}</div>
                       </div>
-                      <div>
-                        <span style={{ color: '#6b7280' }}>Pages:</span> <strong>{extractionProgress.pagesProcessed}/{extractionProgress.totalPages}</strong>
-                      </div>
-                      <div>
-                        <span style={{ color: '#6b7280' }}>Time Elapsed:</span> <strong>{Math.round((Date.now() - extractionProgress.startTime) / 1000)}s</strong>
-                      </div>
-                      {extractionProgress.estimatedTimeRemaining > 0 && (
-                        <div>
-                          <span style={{ color: '#6b7280' }}>ETA:</span> <strong>{Math.round(extractionProgress.estimatedTimeRemaining / 1000)}s</strong>
+                      
+                      <div style={{
+                        padding: '8px',
+                        backgroundColor: '#fef3c7',
+                        borderRadius: '4px',
+                        borderLeft: '3px solid #f59e0b',
+                      }}>
+                        <div style={{ color: '#6b7280', marginBottom: '2px' }}>📄 Pages Processed</div>
+                        <div style={{ fontSize: '16px', fontWeight: 700, color: '#92400e' }}>
+                          {extractionProgress.pagesProcessed}/{extractionProgress.totalPages}
                         </div>
+                      </div>
+                      
+                      <div style={{
+                        padding: '8px',
+                        backgroundColor: '#f0fdf4',
+                        borderRadius: '4px',
+                        borderLeft: '3px solid #10b981',
+                      }}>
+                        <div style={{ color: '#6b7280', marginBottom: '2px' }}>⏱️ Time Elapsed</div>
+                        <div style={{ fontSize: '16px', fontWeight: 700, color: '#166534' }}>
+                          {Math.round((Date.now() - extractionProgress.startTime) / 1000)}s
+                        </div>
+                      </div>
+                      
+                      {extractionProgress.estimatedTimeRemaining > 0 && (
+                        <div style={{
+                          padding: '8px',
+                          backgroundColor: '#ede9fe',
+                          borderRadius: '4px',
+                          borderLeft: '3px solid #8b5cf6',
+                        }}>
+                          <div style={{ color: '#6b7280', marginBottom: '2px' }}>⏰ Est. Time Remaining</div>
+                          <div style={{ fontSize: '16px', fontWeight: 700, color: '#6d28d9' }}>
+                            {Math.round(extractionProgress.estimatedTimeRemaining / 1000)}s
+                          </div>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Detailed Progress Info */}
+                    <div style={{
+                      padding: '8px',
+                      backgroundColor: '#f3f4f6',
+                      borderRadius: '4px',
+                      fontSize: '11px',
+                      color: '#6b7280',
+                      lineHeight: '1.6',
+                    }}>
+                      <div>Processing page <strong style={{ color: '#1f2937' }}>{extractionProgress.pagesProcessed} of {extractionProgress.totalPages}</strong></div>
+                      <div>Found <strong style={{ color: '#1f2937' }}>{extractionProgress.coursesFound} course{extractionProgress.coursesFound !== 1 ? 's' : ''}</strong> so far</div>
+                      {extractionProgress.pagesProcessed > 0 && (
+                        <div>Average: <strong style={{ color: '#1f2937' }}>{Math.round(extractionProgress.coursesFound / extractionProgress.pagesProcessed)} course{Math.round(extractionProgress.coursesFound / extractionProgress.pagesProcessed) !== 1 ? 's' : ''}/page</strong></div>
                       )}
                     </div>
                   </div>
