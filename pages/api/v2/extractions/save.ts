@@ -1,19 +1,6 @@
-/**
- * V2 API: Save Extraction
- * Saves extraction results to MongoDB
- * 
- * POST /api/v2/extractions/save
- * Body: {
- *   file_id: string (hash),
- *   filename: string,
- *   courses: Course[],
- *   metadata: { pages, time, api, tokens }
- * }
- */
-
 import type { NextApiRequest, NextApiResponse } from 'next'
-import { saveExtraction, getExtractionByFileHash } from '@/lib/extraction.service'
-import { healthCheck } from '@/lib/db'
+import { ObjectId } from 'mongodb'
+import { healthCheck, getDB } from '@/lib/db'
 import { Extraction } from '@/lib/types'
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
@@ -35,24 +22,33 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       return res.status(400).json({ error: 'Missing required fields' })
     }
 
-    // Generate user ID (for now, use a default; will be from auth later)
-    const userId = process.env.DEFAULT_USER_ID || 'user_guest'
+    // Generate user ID consistently (for now, use a default; will be from auth later)
+    const userIdStr = process.env.DEFAULT_USER_ID || 'user_guest'
+    const userId = new ObjectId(Buffer.from(userIdStr.padEnd(12, '\0')).slice(0, 12))
+
+    const db = await getDB()
+    const collection = db.collection('extractions')
 
     // Check if already exists
-    const existing = await getExtractionByFileHash(userId, file_id)
+    const existing = await collection.findOne({
+      user_id: userId,
+      file_id: file_id,
+    })
+    
     if (existing) {
       return res.status(409).json({
         error: 'File already extracted',
-        extraction_id: existing._id,
+        extraction_id: existing._id?.toString(),
         message: 'This file has already been processed. Use the extraction ID to view or refine.',
       })
     }
 
-    // Save extraction
-    const extraction = await saveExtraction(userId, {
+    // Create extraction document
+    const extraction: Extraction = {
       file_id,
+      user_id: userId,
       filename,
-      file_size: 0, // TODO: Get from request
+      file_size: 0,
       file_type: filename.split('.').pop() || 'unknown',
       upload_date: new Date(),
       courses: courses.map((c: any) => ({
@@ -74,13 +70,17 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       status: 'completed',
       current_version: 1,
       is_refined: false,
-    })
+      created_at: new Date(),
+      updated_at: new Date(),
+    }
+
+    const result = await collection.insertOne(extraction as any)
 
     console.log(`[v2/save] ✅ Saved ${courses.length} courses from ${filename}`)
 
     return res.status(200).json({
       success: true,
-      extraction_id: extraction._id,
+      extraction_id: result.insertedId.toString(),
       total_courses: extraction.total_courses,
       message: 'Extraction saved successfully',
     })

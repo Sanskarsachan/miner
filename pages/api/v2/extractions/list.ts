@@ -6,8 +6,9 @@
  */
 
 import type { NextApiRequest, NextApiResponse } from 'next'
-import { getUserExtractions, countUserExtractions } from '@/lib/extraction.service'
+import { ObjectId } from 'mongodb'
 import { healthCheck } from '@/lib/db'
+import { getDB } from '@/lib/db'
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== 'GET') {
@@ -23,19 +24,35 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     const limit = Math.min(parseInt(req.query.limit as string) || 10, 100)
     const skip = parseInt(req.query.skip as string) || 0
-    const sort = (req.query.sort as string) || 'latest'
 
     // For now use default user; will be from auth later
     const userId = process.env.DEFAULT_USER_ID || 'user_guest'
+    
+    // Create a consistent ObjectId from the user ID
+    const userObjectId = new ObjectId(Buffer.from(userId.padEnd(12, '\0')).slice(0, 12))
 
-    const { extractions, total } = await getUserExtractions(userId, limit, skip)
+    const db = await getDB()
+    const collection = db.collection('extractions')
+
+    const total = await collection.countDocuments({
+      user_id: userObjectId,
+    })
+
+    const extractions = (await collection
+      .find({
+        user_id: userObjectId,
+      })
+      .sort({ created_at: -1 })
+      .skip(skip)
+      .limit(limit)
+      .toArray()) as any[]
 
     console.log(`[v2/list] ✅ Retrieved ${extractions.length}/${total} extractions`)
 
     return res.status(200).json({
       success: true,
-      data: extractions.map(ext => ({
-        id: ext._id,
+      data: extractions.map((ext: any) => ({
+        _id: ext._id?.toString(),
         filename: ext.filename,
         total_courses: ext.total_courses,
         total_pages: ext.total_pages,
