@@ -3,6 +3,7 @@ import Script from 'next/script'
 import { useEffect, useRef, useState } from 'react'
 import { ChunkProcessor, type Course } from '@/lib/ChunkProcessor'
 import { DocumentCache } from '@/lib/DocumentCache'
+import CourseHarvesterSidebar, { type SavedExtraction } from '@/components/CourseHarvesterSidebar'
 
 interface FileHistory {
   filename: string
@@ -162,6 +163,9 @@ export default function CourseHarvester() {
     coursesExtracted: 0,
     pagesProcessed: 0,
   })
+  const [sidebarRefreshTrigger, setSidebarRefreshTrigger] = useState(0)
+  const [selectedSidebarExtraction, setSelectedSidebarExtraction] = useState<SavedExtraction | null>(null)
+  const [sidebarOpen, setSidebarOpen] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const cacheRef = useRef<DocumentCache | null>(null)
 
@@ -253,7 +257,7 @@ export default function CourseHarvester() {
       const hasGemini25 = found.some((m) => m.name.includes('gemini-2.5-flash'))
       if (hasGemini25) {
         setStatus(
-          `✅ Key verified! Gemini 2.5 Flash available. Free tier: 20 requests/day. 📈 Upgrade to paid for unlimited.`
+          `Key verified! Gemini 2.5 Flash available. Free tier: 20 requests/day. Upgrade to paid for unlimited.`
         )
         setVerified(true)
       } else {
@@ -518,6 +522,48 @@ export default function CourseHarvester() {
         pagesProcessed: Math.ceil(totalPages / 3) * 3,
       }))
 
+      // Save extraction to MongoDB
+      try {
+        const saveResponse = await fetch('/api/v2/extractions/save', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            file_id: fileHash,
+            filename: selectedFile.name,
+            courses: finalCourses,
+            username: 'user_guest',
+            metadata: {
+              file_size: selectedFile.size,
+              file_type: ext,
+              total_pages: totalPages,
+              pages_processed: Math.ceil(totalPages / 3) * 3,
+            },
+            status: 'completed',
+            tokens_used: estimatedTokens,
+            api_used: 'gemini',
+          }),
+        })
+
+        if (saveResponse.ok) {
+          const { extraction_id } = await saveResponse.json()
+          console.log('✅ Extraction saved to MongoDB:', extraction_id)
+          
+          // Refresh sidebar to show new extraction
+          setSidebarRefreshTrigger(prev => prev + 1)
+          
+          // Show success notification
+          setStatus(
+            `✅ ${finalCourses.length} courses extracted and saved to database (ID: ${extraction_id.slice(0, 8)}...)`
+          )
+        } else {
+          console.error('Failed to save extraction to MongoDB')
+          setStatus(`⚠️ Extraction complete but failed to save to database. ${finalCourses.length} courses extracted.`)
+        }
+      } catch (error) {
+        console.error('Error saving to MongoDB:', error)
+        setStatus(`⚠️ Extraction complete but database save failed. ${finalCourses.length} courses extracted.`)
+      }
+
       // CRITICAL: Only cache if we have courses to cache
       if (finalCourses.length > 0) {
         // Cache cleaned results, not raw ones
@@ -651,10 +697,13 @@ export default function CourseHarvester() {
         .header {
           background: linear-gradient(90deg, var(--primary), var(--accent));
           color: #fff;
-          padding: 28px 20px;
+          padding: 20px 10px;
+          border-bottom-left-radius: 12px;
+          border-bottom-right-radius: 12px;
+          box-shadow: 0 10px 30px rgba(16, 24, 40, 0.08);
         }
         .header-inner {
-          max-width: 1100px;
+          max-width: 1400px;
           margin: 0 auto;
           display: flex;
           align-items: center;
@@ -663,17 +712,17 @@ export default function CourseHarvester() {
         }
         .header h1 {
           margin: 0;
-          font-size: 20px;
+          font-size: 22px;
           font-weight: 700;
         }
         .tagline {
           color: rgba(255, 255, 255, 0.9);
           margin-top: 6px;
-          font-size: 13px;
+          font-size: 14px;
         }
         .container {
           max-width: 1100px;
-          margin: -40px auto 80px;
+          margin: -10px auto 80px;
           background: var(--card);
           border-radius: 12px;
           box-shadow: 0 10px 30px rgba(16, 24, 40, 0.08);
@@ -688,9 +737,51 @@ export default function CourseHarvester() {
         }
         .left {
           flex: 1;
+          min-width: 0;
+        }
+        .middle {
+          flex: 1;
+          min-width: 0;
         }
         .right {
-          flex: 1;
+          width: 25vw;
+          min-width: 250px;
+          max-width: 400px;
+          height: 100vh;
+          position: fixed;
+          right: 0;
+          top: 0;
+          overflow: hidden;
+          transform: translateX(100%);
+          transition: transform 0.3s ease-in-out;
+          z-index: 100;
+        }
+        .right.open {
+          transform: translateX(0);
+        }
+        .sidebar-toggle {
+          position: fixed;
+          right: 20px;
+          top: 20px;
+          z-index: 105;
+          background: var(--primary);
+          color: white;
+          border: none;
+          border-radius: 50%;
+          width: 44px;
+          height: 44px;
+          cursor: pointer;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          box-shadow: 0 4px 12px rgba(37, 99, 235, 0.3);
+          transition: all 0.3s ease;
+          font-size: 20px;
+          font-weight: bold;
+        }
+        .sidebar-toggle:hover {
+          transform: scale(1.1);
+          box-shadow: 0 6px 16px rgba(37, 99, 235, 0.4);
         }
         .card {
           background: var(--card);
@@ -943,8 +1034,14 @@ export default function CourseHarvester() {
           .left {
             flex: 1 1 100%;
           }
+          .middle {
+            flex: 1 1 100%;
+          }
           .right {
             flex: 1 1 100%;
+            height: auto;
+            position: static;
+            min-width: auto;
           }
           .results-header {
             flex-direction: column;
@@ -1104,7 +1201,7 @@ export default function CourseHarvester() {
                   }}
                 >
                   <div style={{ fontWeight: 600, fontSize: 13, color: '#92400e', marginBottom: 8 }}>
-                    📊 API Quota Info
+                    API Quota Info
                   </div>
                   <div style={{ fontSize: 12, color: '#78350f', lineHeight: 1.6 }}>
                     <div>• <strong>Free Tier:</strong> 20 requests/day</div>
@@ -1117,7 +1214,7 @@ export default function CourseHarvester() {
                         rel="noopener noreferrer"
                         style={{ color: '#b45309', textDecoration: 'none', fontWeight: 600 }}
                       >
-                        📈 Upgrade to Paid Plan for Unlimited Access →
+                        Upgrade to Paid Plan for Unlimited Access →
                       </a>
                     </div>
                   </div>
@@ -1283,8 +1380,8 @@ export default function CourseHarvester() {
               </div>
             </div>
 
-            {/* Right Column */}
-            <div className="right">
+            {/* Middle Column - Results Table */}
+            <div className="middle">
               <div className="card">
                 <div className="results-header">
                   <div className="header-title">Results ({filteredCourses.length}/{allCourses.length})</div>
@@ -1297,53 +1394,53 @@ export default function CourseHarvester() {
                       onChange={(e) => setSearchQ(e.target.value)}
                     />
 
-                {/* Free Tier Usage Stats */}
-                <div style={{
-                  padding: '12px 16px',
-                  backgroundColor: '#f0f9ff',
-                  borderRadius: '8px',
-                  marginBottom: '16px',
-                  fontSize: '12px',
-                  border: '1px solid #bfdbfe',
-                }}>
-                  <div style={{ fontWeight: 600, marginBottom: '8px', color: '#1e40af' }}>📊 Free Tier Usage</div>
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '12px', color: '#1f2937' }}>
-                    <div style={{ flex: '1 1 calc(50% - 6px)', minWidth: '150px' }}>
-                      <div style={{ marginBottom: '4px' }}>🔤 Tokens: <span style={{ fontWeight: 600 }}>{Math.min(usageStats.tokensUsedToday, 1000000).toLocaleString()}</span>/{usageStats.tokensLimitPerDay.toLocaleString()}</div>
-                      <div style={{ width: '100%', height: '6px', backgroundColor: '#e5e7eb', borderRadius: '3px' }}>
-                        <div style={{
-                          width: `${Math.min((usageStats.tokensUsedToday / usageStats.tokensLimitPerDay) * 100, 100)}%`,
-                          height: '100%',
-                          backgroundColor: usageStats.tokensUsedToday > usageStats.tokensLimitPerDay * 0.8 ? '#ef4444' : '#3b82f6',
-                          borderRadius: '3px',
-                          transition: 'width 0.3s'
-                        }} />
+                    {/* Free Tier Usage Stats */}
+                    <div style={{
+                      padding: '12px 16px',
+                      backgroundColor: '#f0f9ff',
+                      borderRadius: '8px',
+                      marginBottom: '16px',
+                      fontSize: '12px',
+                      border: '1px solid #bfdbfe',
+                    }}>
+                      <div style={{ fontWeight: 600, marginBottom: '8px', color: '#1e40af' }}>Free Tier Usage</div>
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '12px', color: '#1f2937' }}>
+                        <div style={{ flex: '1 1 calc(50% - 6px)', minWidth: '150px' }}>
+                          <div style={{ marginBottom: '4px' }}>Tokens: <span style={{ fontWeight: 600 }}>{Math.min(usageStats.tokensUsedToday, 1000000).toLocaleString()}</span>/{usageStats.tokensLimitPerDay.toLocaleString()}</div>
+                          <div style={{ width: '100%', height: '6px', backgroundColor: '#e5e7eb', borderRadius: '3px' }}>
+                            <div style={{
+                              width: `${Math.min((usageStats.tokensUsedToday / usageStats.tokensLimitPerDay) * 100, 100)}%`,
+                              height: '100%',
+                              backgroundColor: usageStats.tokensUsedToday > usageStats.tokensLimitPerDay * 0.8 ? '#ef4444' : '#3b82f6',
+                              borderRadius: '3px',
+                              transition: 'width 0.3s'
+                            }} />
+                          </div>
+                        </div>
+                        <div style={{ flex: '1 1 calc(50% - 6px)', minWidth: '150px' }}>
+                          <div style={{ marginBottom: '4px' }}>Requests: <span style={{ fontWeight: 600 }}>{usageStats.requestsUsedToday}</span>/{usageStats.requestsLimitPerDay}</div>
+                          <div style={{ width: '100%', height: '6px', backgroundColor: '#e5e7eb', borderRadius: '3px' }}>
+                            <div style={{
+                              width: `${(usageStats.requestsUsedToday / usageStats.requestsLimitPerDay) * 100}%`,
+                              height: '100%',
+                              backgroundColor: usageStats.requestsUsedToday > usageStats.requestsLimitPerDay * 0.8 ? '#ef4444' : '#10b981',
+                              borderRadius: '3px',
+                              transition: 'width 0.3s'
+                            }} />
+                          </div>
+                        </div>
+                        <div style={{ flex: '1 1 calc(50% - 6px)', minWidth: '150px' }}>Pages: <span style={{ fontWeight: 600 }}>{usageStats.pagesProcessed}</span></div>
+                        <div style={{ flex: '1 1 calc(50% - 6px)', minWidth: '150px' }}>Courses: <span style={{ fontWeight: 600 }}>{usageStats.coursesExtracted}</span></div>
                       </div>
                     </div>
-                    <div style={{ flex: '1 1 calc(50% - 6px)', minWidth: '150px' }}>
-                      <div style={{ marginBottom: '4px' }}>📨 Requests: <span style={{ fontWeight: 600 }}>{usageStats.requestsUsedToday}</span>/{usageStats.requestsLimitPerDay}</div>
-                      <div style={{ width: '100%', height: '6px', backgroundColor: '#e5e7eb', borderRadius: '3px' }}>
-                        <div style={{
-                          width: `${(usageStats.requestsUsedToday / usageStats.requestsLimitPerDay) * 100}%`,
-                          height: '100%',
-                          backgroundColor: usageStats.requestsUsedToday > usageStats.requestsLimitPerDay * 0.8 ? '#ef4444' : '#10b981',
-                          borderRadius: '3px',
-                          transition: 'width 0.3s'
-                        }} />
-                      </div>
-                    </div>
-                    <div style={{ flex: '1 1 calc(50% - 6px)', minWidth: '150px' }}>📚 Pages: <span style={{ fontWeight: 600 }}>{usageStats.pagesProcessed}</span></div>
-                    <div style={{ flex: '1 1 calc(50% - 6px)', minWidth: '150px' }}>✅ Courses: <span style={{ fontWeight: 600 }}>{usageStats.coursesExtracted}</span></div>
-                  </div>
-                </div>
-                    
+
                     <button
                       onClick={() => copyToClipboard(filteredCourses)}
                       className="primary"
                       disabled={allCourses.length === 0}
                       title="Copy results as tab-separated values for Google Sheets"
                     >
-                      📋 Copy
+                      Copy
                     </button>
                     <button
                       onClick={downloadCSV}
@@ -1436,6 +1533,42 @@ export default function CourseHarvester() {
                 )}
               </div>
             </div>
+
+            {/* Right Column - Sidebar */}
+            <div className={`right ${sidebarOpen ? 'open' : ''}`}>
+              <CourseHarvesterSidebar 
+                refreshTrigger={sidebarRefreshTrigger}
+                onSelectFile={setSelectedSidebarExtraction}
+                onRefresh={() => setSidebarRefreshTrigger(prev => prev + 1)}
+                onClose={() => setSidebarOpen(false)}
+              />
+            </div>
+
+            {/* Sidebar Toggle Button */}
+            <button 
+              className="sidebar-toggle"
+              onClick={() => setSidebarOpen(!sidebarOpen)}
+              title={sidebarOpen ? 'Close sidebar' : 'Open saved files'}
+            >
+              {sidebarOpen ? '✕' : '📁'}
+            </button>
+
+            {/* Backdrop when sidebar is open on small screens */}
+            {sidebarOpen && (
+              <div
+                style={{
+                  position: 'fixed',
+                  top: 0,
+                  left: 0,
+                  right: 0,
+                  bottom: 0,
+                  backgroundColor: 'rgba(0, 0, 0, 0.5)',
+                  zIndex: 98,
+                  display: 'none',
+                }}
+                onClick={() => setSidebarOpen(false)}
+              />
+            )}
           </div>
         </div>
       </div>
