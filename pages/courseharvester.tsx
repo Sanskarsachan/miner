@@ -154,6 +154,14 @@ export default function CourseHarvester() {
     start: number
     end: number
   } | null>(null) // Track which pages are cached
+  const [usageStats, setUsageStats] = useState({
+    tokensUsedToday: 0,
+    tokensLimitPerDay: 1000000,
+    requestsUsedToday: 0,
+    requestsLimitPerDay: 20,
+    coursesExtracted: 0,
+    pagesProcessed: 0,
+  })
   const fileInputRef = useRef<HTMLInputElement>(null)
   const cacheRef = useRef<DocumentCache | null>(null)
 
@@ -1201,6 +1209,48 @@ export default function CourseHarvester() {
                       value={searchQ}
                       onChange={(e) => setSearchQ(e.target.value)}
                     />
+
+                {/* Free Tier Usage Stats */}
+                <div style={{
+                  padding: '12px 16px',
+                  backgroundColor: '#f0f9ff',
+                  borderRadius: '8px',
+                  marginBottom: '16px',
+                  fontSize: '12px',
+                  border: '1px solid #bfdbfe',
+                }}>
+                  <div style={{ fontWeight: 600, marginBottom: '8px', color: '#1e40af' }}>📊 Free Tier Usage</div>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', color: '#1f2937' }}>
+                    <div>
+                      🔤 Tokens: <span style={{ fontWeight: 600 }}>{usageStats.tokensUsedToday.toLocaleString()}</span>
+                      /{usageStats.tokensLimitPerDay.toLocaleString()}
+                      <div style={{ width: '100%', height: '4px', backgroundColor: '#e5e7eb', borderRadius: '2px', marginTop: '4px' }}>
+                        <div style={{
+                          width: `${(usageStats.tokensUsedToday / usageStats.tokensLimitPerDay) * 100}%`,
+                          height: '100%',
+                          backgroundColor: usageStats.tokensUsedToday > usageStats.tokensLimitPerDay * 0.8 ? '#ef4444' : '#3b82f6',
+                          borderRadius: '2px',
+                          transition: 'width 0.3s'
+                        }} />
+                      </div>
+                    </div>
+                    <div>
+                      📨 Requests: <span style={{ fontWeight: 600 }}>{usageStats.requestsUsedToday}</span>/{usageStats.requestsLimitPerDay}
+                      <div style={{ width: '100%', height: '4px', backgroundColor: '#e5e7eb', borderRadius: '2px', marginTop: '4px' }}>
+                        <div style={{
+                          width: `${(usageStats.requestsUsedToday / usageStats.requestsLimitPerDay) * 100}%`,
+                          height: '100%',
+                          backgroundColor: usageStats.requestsUsedToday > usageStats.requestsLimitPerDay * 0.8 ? '#ef4444' : '#10b981',
+                          borderRadius: '2px',
+                          transition: 'width 0.3s'
+                        }} />
+                      </div>
+                    </div>
+                    <div>📚 Pages Processed: <span style={{ fontWeight: 600 }}>{usageStats.pagesProcessed}</span></div>
+                    <div>✅ Courses Found: <span style={{ fontWeight: 600 }}>{usageStats.coursesExtracted}</span></div>
+                  </div>
+                </div>
+                    
                     <button
                       onClick={() => copyToClipboard(filteredCourses)}
                       className="primary"

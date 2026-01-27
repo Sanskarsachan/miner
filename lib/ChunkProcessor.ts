@@ -4,6 +4,18 @@ interface ProcessProgress {
   current: number
   message: string
   coursesFound?: number
+  tokensUsed?: number
+  tokensRemaining?: number
+  pagesProcessed?: number
+}
+
+interface APIUsageStats {
+  tokensUsedToday: number
+  tokensLimitPerDay: number
+  requestsUsedToday: number
+  requestsLimitPerDay: number
+  coursesExtracted: number
+  pagesProcessed: number
 }
 
 export interface Course {
@@ -23,12 +35,50 @@ export class ChunkProcessor {
   private maxTokensPerChunk = 100000
   private retryAttempts = 3
   private retryDelay = 2000
+  private batchSize = 3 // Process 3 pages at a time
+  
+  // Free tier limits per day
+  private FREE_TIER_TOKENS_PER_DAY = 1000000 // 1M tokens/day
+  private FREE_TIER_REQUESTS_PER_DAY = 20 // 20 requests/day
+  
+  private usageStats: APIUsageStats = {
+    tokensUsedToday: 0,
+    tokensLimitPerDay: this.FREE_TIER_TOKENS_PER_DAY,
+    requestsUsedToday: 0,
+    requestsLimitPerDay: this.FREE_TIER_REQUESTS_PER_DAY,
+    coursesExtracted: 0,
+    pagesProcessed: 0,
+  }
 
   constructor(
     private onProgress: (progress: ProcessProgress) => void = () => {},
     private onError: (error: Error) => void = console.error,
     private apiKey: string = ''  // NEW: Accept API key from client
   ) {}
+
+  getUsageStats(): APIUsageStats {
+    return { ...this.usageStats }
+  }
+
+  recordTokenUsage(tokens: number, courses: number = 0): void {
+    this.usageStats.tokensUsedToday += tokens
+    this.usageStats.requestsUsedToday += 1
+    this.usageStats.coursesExtracted += courses
+    this.usageStats.pagesProcessed += this.batchSize
+  }
+
+  getTokensRemaining(): number {
+    return Math.max(0, this.usageStats.tokensLimitPerDay - this.usageStats.tokensUsedToday)
+  }
+
+  getRequestsRemaining(): number {
+    return Math.max(0, this.usageStats.requestsLimitPerDay - this.usageStats.requestsUsedToday)
+  }
+
+  canProcessBatch(): boolean {
+    const tokensNeeded = Math.ceil(this.maxTokensPerChunk * 0.5)
+    return this.getTokensRemaining() >= tokensNeeded && this.getRequestsRemaining() >= 1
+  }
 
   estimateTokens(text: string): number {
     return Math.ceil(text.length / 4)
