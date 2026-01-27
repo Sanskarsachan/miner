@@ -257,7 +257,7 @@ export default function CourseHarvester() {
       const hasGemini25 = found.some((m) => m.name.includes('gemini-2.5-flash'))
       if (hasGemini25) {
         setStatus(
-          `✅ Key verified! Gemini 2.5 Flash available. Free tier: 20 requests/day. 📈 Upgrade to paid for unlimited.`
+          `Key verified! Gemini 2.5 Flash available. Free tier: 20 requests/day. Upgrade to paid for unlimited.`
         )
         setVerified(true)
       } else {
@@ -697,10 +697,13 @@ export default function CourseHarvester() {
         .header {
           background: linear-gradient(90deg, var(--primary), var(--accent));
           color: #fff;
-          padding: 28px 20px;
+          padding: 20px 10px;
+          border-bottom-left-radius: 12px;
+          border-bottom-right-radius: 12px;
+          box-shadow: 0 10px 30px rgba(16, 24, 40, 0.08);
         }
         .header-inner {
-          max-width: 1100px;
+          max-width: 1400px;
           margin: 0 auto;
           display: flex;
           align-items: center;
@@ -709,17 +712,17 @@ export default function CourseHarvester() {
         }
         .header h1 {
           margin: 0;
-          font-size: 20px;
+          font-size: 22px;
           font-weight: 700;
         }
         .tagline {
           color: rgba(255, 255, 255, 0.9);
           margin-top: 6px;
-          font-size: 13px;
+          font-size: 14px;
         }
         .container {
           max-width: 1100px;
-          margin: -40px auto 80px;
+          margin: -10px auto 80px;
           background: var(--card);
           border-radius: 12px;
           box-shadow: 0 10px 30px rgba(16, 24, 40, 0.08);
@@ -741,8 +744,9 @@ export default function CourseHarvester() {
           min-width: 0;
         }
         .right {
-          flex: 0 0 280px;
-          min-width: 280px;
+          width: 25vw;
+          min-width: 250px;
+          max-width: 400px;
           height: 100vh;
           position: fixed;
           right: 0;
@@ -1197,7 +1201,7 @@ export default function CourseHarvester() {
                   }}
                 >
                   <div style={{ fontWeight: 600, fontSize: 13, color: '#92400e', marginBottom: 8 }}>
-                    📊 API Quota Info
+                    API Quota Info
                   </div>
                   <div style={{ fontSize: 12, color: '#78350f', lineHeight: 1.6 }}>
                     <div>• <strong>Free Tier:</strong> 20 requests/day</div>
@@ -1210,7 +1214,7 @@ export default function CourseHarvester() {
                         rel="noopener noreferrer"
                         style={{ color: '#b45309', textDecoration: 'none', fontWeight: 600 }}
                       >
-                        📈 Upgrade to Paid Plan for Unlimited Access →
+                        Upgrade to Paid Plan for Unlimited Access →
                       </a>
                     </div>
                   </div>
@@ -1399,10 +1403,10 @@ export default function CourseHarvester() {
                       fontSize: '12px',
                       border: '1px solid #bfdbfe',
                     }}>
-                      <div style={{ fontWeight: 600, marginBottom: '8px', color: '#1e40af' }}>📊 Free Tier Usage</div>
+                      <div style={{ fontWeight: 600, marginBottom: '8px', color: '#1e40af' }}>Free Tier Usage</div>
                       <div style={{ display: 'flex', flexWrap: 'wrap', gap: '12px', color: '#1f2937' }}>
                         <div style={{ flex: '1 1 calc(50% - 6px)', minWidth: '150px' }}>
-                          <div style={{ marginBottom: '4px' }}>🔤 Tokens: <span style={{ fontWeight: 600 }}>{Math.min(usageStats.tokensUsedToday, 1000000).toLocaleString()}</span>/{usageStats.tokensLimitPerDay.toLocaleString()}</div>
+                          <div style={{ marginBottom: '4px' }}>Tokens: <span style={{ fontWeight: 600 }}>{Math.min(usageStats.tokensUsedToday, 1000000).toLocaleString()}</span>/{usageStats.tokensLimitPerDay.toLocaleString()}</div>
                           <div style={{ width: '100%', height: '6px', backgroundColor: '#e5e7eb', borderRadius: '3px' }}>
                             <div style={{
                               width: `${Math.min((usageStats.tokensUsedToday / usageStats.tokensLimitPerDay) * 100, 100)}%`,
@@ -1414,7 +1418,7 @@ export default function CourseHarvester() {
                           </div>
                         </div>
                         <div style={{ flex: '1 1 calc(50% - 6px)', minWidth: '150px' }}>
-                          <div style={{ marginBottom: '4px' }}>📨 Requests: <span style={{ fontWeight: 600 }}>{usageStats.requestsUsedToday}</span>/{usageStats.requestsLimitPerDay}</div>
+                          <div style={{ marginBottom: '4px' }}>Requests: <span style={{ fontWeight: 600 }}>{usageStats.requestsUsedToday}</span>/{usageStats.requestsLimitPerDay}</div>
                           <div style={{ width: '100%', height: '6px', backgroundColor: '#e5e7eb', borderRadius: '3px' }}>
                             <div style={{
                               width: `${(usageStats.requestsUsedToday / usageStats.requestsLimitPerDay) * 100}%`,
@@ -1425,8 +1429,8 @@ export default function CourseHarvester() {
                             }} />
                           </div>
                         </div>
-                        <div style={{ flex: '1 1 calc(50% - 6px)', minWidth: '150px' }}>📚 Pages: <span style={{ fontWeight: 600 }}>{usageStats.pagesProcessed}</span></div>
-                        <div style={{ flex: '1 1 calc(50% - 6px)', minWidth: '150px' }}>✅ Courses: <span style={{ fontWeight: 600 }}>{usageStats.coursesExtracted}</span></div>
+                        <div style={{ flex: '1 1 calc(50% - 6px)', minWidth: '150px' }}>Pages: <span style={{ fontWeight: 600 }}>{usageStats.pagesProcessed}</span></div>
+                        <div style={{ flex: '1 1 calc(50% - 6px)', minWidth: '150px' }}>Courses: <span style={{ fontWeight: 600 }}>{usageStats.coursesExtracted}</span></div>
                       </div>
                     </div>
 
@@ -1436,7 +1440,7 @@ export default function CourseHarvester() {
                       disabled={allCourses.length === 0}
                       title="Copy results as tab-separated values for Google Sheets"
                     >
-                      📋 Copy
+                      Copy
                     </button>
                     <button
                       onClick={downloadCSV}
