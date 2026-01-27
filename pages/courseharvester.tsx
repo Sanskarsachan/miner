@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react'
 import { ChunkProcessor, type Course } from '@/lib/ChunkProcessor'
 import { DocumentCache } from '@/lib/DocumentCache'
 import CourseHarvesterSidebar, { type SavedExtraction } from '@/components/CourseHarvesterSidebar'
+import Toast, { type ToastType } from '@/components/Toast'
 
 interface FileHistory {
   filename: string
@@ -196,6 +197,8 @@ export default function CourseHarvester() {
   const [sidebarRefreshTrigger, setSidebarRefreshTrigger] = useState(0)
   const [selectedSidebarExtraction, setSelectedSidebarExtraction] = useState<SavedExtraction | null>(null)
   const [sidebarOpen, setSidebarOpen] = useState(false)
+  const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'warning' | 'info' } | null>(null)
+  const [courseSearch, setCourseSearch] = useState('')
   const [extractionProgress, setExtractionProgress] = useState({
     isExtracting: false,
     pagesProcessed: 0,
@@ -206,6 +209,11 @@ export default function CourseHarvester() {
   })
   const fileInputRef = useRef<HTMLInputElement>(null)
   const cacheRef = useRef<DocumentCache | null>(null)
+
+  // Helper function to show toast notifications
+  const showToast = (message: string, type: ToastType = 'info') => {
+    setToast({ message, type })
+  }
 
   useEffect(() => {
     const saved = localStorage.getItem('gh_api_key')
@@ -227,6 +235,7 @@ export default function CourseHarvester() {
     if (!file) return
     if (file.size > 10 * 1024 * 1024) {
       setStatus('File too large (max 10MB)')
+      showToast('❌ File too large! Maximum size is 10MB', 'error')
       return
     }
 
@@ -234,6 +243,7 @@ export default function CourseHarvester() {
     setPageLimit(0) // Reset page limit when new file selected
     setCachedPageRange(null) // Reset cached page range for new file
     setStatus('File selected: ' + file.name)
+    showToast(`📄 File selected: ${file.name}`, 'info')
 
     try {
       const ext = detectFileType(file).extension
@@ -271,7 +281,11 @@ export default function CourseHarvester() {
   }
 
   const verifyKey = async () => {
-    if (!apiKey) return setStatus('Enter API key to verify')
+    if (!apiKey) {
+      setStatus('Enter API key to verify')
+      showToast('Please enter an API key', 'warning')
+      return
+    }
     setStatus('Verifying API key...')
     try {
       const r = await fetch('/api/list_models', {
@@ -298,9 +312,11 @@ export default function CourseHarvester() {
           `Key verified! Gemini 2.5 Flash available. Free tier: 20 requests/day. Upgrade to paid for unlimited.`
         )
         setVerified(true)
+        showToast('✅ API key verified successfully!', 'success')
       } else {
         setStatus('⚠️ Key verified but gemini-2.5-flash not found.')
         setVerified(found.length > 0)
+        showToast('API key verified but Gemini 2.5 Flash not available', 'warning')
       }
     } catch (e) {
       console.error(e)
@@ -308,6 +324,7 @@ export default function CourseHarvester() {
         `Key verification failed: ${e instanceof Error ? e.message : 'Unknown error'}`
       )
       setVerified(false)
+      showToast(`❌ Verification failed: ${e instanceof Error ? e.message : 'Unknown error'}`, 'error')
     }
   }
 
@@ -630,13 +647,16 @@ export default function CourseHarvester() {
           setStatus(
             `✅ ${finalCourses.length} courses extracted and saved to database (ID: ${extraction_id.slice(0, 8)}...)`
           )
+          showToast(`🎉 Successfully extracted ${finalCourses.length} courses!`, 'success')
         } else {
           console.error('Failed to save extraction to MongoDB')
           setStatus(`⚠️ Extraction complete but failed to save to database. ${finalCourses.length} courses extracted.`)
+          showToast('⚠️ Extraction complete but database save failed', 'warning')
         }
       } catch (error) {
         console.error('Error saving to MongoDB:', error)
         setStatus(`⚠️ Extraction complete but database save failed. ${finalCourses.length} courses extracted.`)
+        showToast('⚠️ Database save failed', 'warning')
       }
 
       // CRITICAL: Only cache if we have courses to cache
@@ -719,13 +739,21 @@ export default function CourseHarvester() {
     URL.revokeObjectURL(url)
   }
 
-  const filteredCourses = allCourses.filter(
-    (c) =>
-      !searchQ ||
-      Object.values(c).some((v) =>
-        String(v).toLowerCase().includes(searchQ.toLowerCase())
-      )
-  )
+  const filteredCourses = allCourses.filter((c) => {
+    // Apply existing searchQ filter
+    const matchesSearchQ = !searchQ || Object.values(c).some((v) =>
+      String(v).toLowerCase().includes(searchQ.toLowerCase())
+    )
+    
+    // Apply new courseSearch filter
+    const matchesCourseSearch = !courseSearch || 
+      String(c.CourseName || '').toLowerCase().includes(courseSearch.toLowerCase()) ||
+      String(c.CourseCode || '').toLowerCase().includes(courseSearch.toLowerCase()) ||
+      String(c.CourseDescription || '').toLowerCase().includes(courseSearch.toLowerCase()) ||
+      String(c.Category || '').toLowerCase().includes(courseSearch.toLowerCase())
+    
+    return matchesSearchQ && matchesCourseSearch
+  })
 
   return (
     <>
@@ -1694,6 +1722,31 @@ export default function CourseHarvester() {
                       </div>
                     </div>
 
+                    <div style={{ marginBottom: '12px' }}>
+                      <input
+                        type="text"
+                        placeholder="🔍 Search courses by name, code, or description..."
+                        value={courseSearch}
+                        onChange={(e) => setCourseSearch(e.target.value)}
+                        style={{
+                          width: '100%',
+                          padding: '10px 14px',
+                          fontSize: '14px',
+                          border: '2px solid #e5e7eb',
+                          borderRadius: '6px',
+                          outline: 'none',
+                          transition: 'border-color 0.2s',
+                        }}
+                        onFocus={(e) => (e.target.style.borderColor = '#3b82f6')}
+                        onBlur={(e) => (e.target.style.borderColor = '#e5e7eb')}
+                      />
+                      {courseSearch && (
+                        <div style={{ marginTop: '6px', fontSize: '12px', color: '#6b7280' }}>
+                          Found {filteredCourses.length} of {allCourses.length} courses
+                        </div>
+                      )}
+                    </div>
+
                     <button
                       onClick={() => copyToClipboard(filteredCourses)}
                       className="primary"
@@ -1832,6 +1885,15 @@ export default function CourseHarvester() {
           </div>
         </div>
       </div>
+
+      {/* Toast Notifications */}
+      {toast && (
+        <Toast
+          message={toast.message}
+          type={toast.type}
+          onClose={() => setToast(null)}
+        />
+      )}
     </>
   )
 }
