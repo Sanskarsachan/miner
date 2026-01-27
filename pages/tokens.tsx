@@ -285,7 +285,7 @@ export default function TokensPage() {
                 style={{ width: `${Math.min(summary.usage_percentage, 100)}%` }}
               />
             </div>
-            <div style={{ fontSize: '12px', color: var(--muted), marginTop: '6px' }}>
+            <div style={{ fontSize: '12px', color: '#6b7280', marginTop: '6px' }}>
               {summary.tokens_remaining.toLocaleString()} tokens remaining
             </div>
           </div>
@@ -293,7 +293,7 @@ export default function TokensPage() {
           <div className="card">
             <div className="stat-label">Total Courses Extracted</div>
             <div className="stat-value">{summary.total_courses.toLocaleString()}</div>
-            <div style={{ fontSize: '13px', color: var(--muted), marginTop: '8px' }}>
+            <div style={{ fontSize: '13px', color: '#6b7280', marginTop: '8px' }}>
               {summary.total_extractions} extractions
             </div>
           </div>
@@ -301,7 +301,7 @@ export default function TokensPage() {
           <div className="card">
             <div className="stat-label">Total Pages Processed</div>
             <div className="stat-value">{summary.total_pages.toLocaleString()}</div>
-            <div style={{ fontSize: '13px', color: var(--muted), marginTop: '8px' }}>
+            <div style={{ fontSize: '13px', color: '#6b7280', marginTop: '8px' }}>
               {(summary.total_pages / Math.max(summary.total_extractions, 1)).toFixed(1)} avg per extraction
             </div>
           </div>
@@ -312,7 +312,7 @@ export default function TokensPage() {
               {efficiency.avg_tokens_per_course}
               <span className="stat-unit"> tokens/course</span>
             </div>
-            <div style={{ fontSize: '13px', color: var(--muted), marginTop: '8px' }}>
+            <div style={{ fontSize: '13px', color: '#6b7280', marginTop: '8px' }}>
               {efficiency.estimated_extractions_remaining} extractions remaining
             </div>
           </div>
@@ -325,25 +325,25 @@ export default function TokensPage() {
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px' }}>
               <div>
                 <div className="stat-label">Tokens per Course</div>
-                <div style={{ fontSize: '20px', fontWeight: '700', color: var(--primary) }}>
+                <div style={{ fontSize: '20px', fontWeight: '700', color: '#2563eb' }}>
                   {efficiency.avg_tokens_per_course}
                 </div>
               </div>
               <div>
                 <div className="stat-label">Tokens per Page</div>
-                <div style={{ fontSize: '20px', fontWeight: '700', color: var(--primary) }}>
+                <div style={{ fontSize: '20px', fontWeight: '700', color: '#2563eb' }}>
                   {efficiency.avg_tokens_per_page}
                 </div>
               </div>
               <div>
                 <div className="stat-label">Courses per Extraction</div>
-                <div style={{ fontSize: '20px', fontWeight: '700', color: var(--primary) }}>
+                <div style={{ fontSize: '20px', fontWeight: '700', color: '#2563eb' }}>
                   {efficiency.avg_courses_per_extraction}
                 </div>
               </div>
               <div>
                 <div className="stat-label">Usage Rate</div>
-                <div style={{ fontSize: '20px', fontWeight: '700', color: summary.usage_percentage > 80 ? var(--danger) : var(--secondary) }}>
+                <div style={{ fontSize: '20px', fontWeight: '700', color: summary.usage_percentage > 80 ? '#ef4444' : '#10b981' }}>
                   {summary.usage_percentage.toFixed(1)}%
                 </div>
               </div>
