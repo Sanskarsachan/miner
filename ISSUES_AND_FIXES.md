@@ -11,6 +11,11 @@
 ### Active Issues
 None currently blocking development.
 
+### Recently Resolved (This Session)
+- ✅ MongoDB ObjectId conversion error
+- ✅ Empty file list in sidebar
+- ✅ API data loading failures
+
 ### Resolved Issues
 See commit history below.
 

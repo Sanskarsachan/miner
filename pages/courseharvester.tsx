@@ -3,6 +3,7 @@ import Script from 'next/script'
 import { useEffect, useRef, useState } from 'react'
 import { ChunkProcessor, type Course } from '@/lib/ChunkProcessor'
 import { DocumentCache } from '@/lib/DocumentCache'
+import CourseHarvesterSidebar, { type SavedExtraction } from '@/components/CourseHarvesterSidebar'
 
 interface FileHistory {
   filename: string
@@ -162,6 +163,8 @@ export default function CourseHarvester() {
     coursesExtracted: 0,
     pagesProcessed: 0,
   })
+  const [sidebarRefreshTrigger, setSidebarRefreshTrigger] = useState(0)
+  const [selectedSidebarExtraction, setSelectedSidebarExtraction] = useState<SavedExtraction | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const cacheRef = useRef<DocumentCache | null>(null)
 
@@ -543,6 +546,9 @@ export default function CourseHarvester() {
           const { extraction_id } = await saveResponse.json()
           console.log('✅ Extraction saved to MongoDB:', extraction_id)
           
+          // Refresh sidebar to show new extraction
+          setSidebarRefreshTrigger(prev => prev + 1)
+          
           // Show success notification
           setStatus(
             `✅ ${finalCourses.length} courses extracted and saved to database (ID: ${extraction_id.slice(0, 8)}...)`
@@ -726,9 +732,19 @@ export default function CourseHarvester() {
         }
         .left {
           flex: 1;
+          min-width: 0;
+        }
+        .middle {
+          flex: 1;
+          min-width: 0;
         }
         .right {
-          flex: 1;
+          flex: 0 0 280px;
+          min-width: 280px;
+          height: 100vh;
+          position: sticky;
+          top: 0;
+          overflow: hidden;
         }
         .card {
           background: var(--card);
@@ -981,8 +997,14 @@ export default function CourseHarvester() {
           .left {
             flex: 1 1 100%;
           }
+          .middle {
+            flex: 1 1 100%;
+          }
           .right {
             flex: 1 1 100%;
+            height: auto;
+            position: static;
+            min-width: auto;
           }
           .results-header {
             flex-direction: column;
@@ -1321,8 +1343,8 @@ export default function CourseHarvester() {
               </div>
             </div>
 
-            {/* Right Column */}
-            <div className="right">
+            {/* Middle Column - Results Table */}
+            <div className="middle">
               <div className="card">
                 <div className="results-header">
                   <div className="header-title">Results ({filteredCourses.length}/{allCourses.length})</div>
@@ -1335,46 +1357,46 @@ export default function CourseHarvester() {
                       onChange={(e) => setSearchQ(e.target.value)}
                     />
 
-                {/* Free Tier Usage Stats */}
-                <div style={{
-                  padding: '12px 16px',
-                  backgroundColor: '#f0f9ff',
-                  borderRadius: '8px',
-                  marginBottom: '16px',
-                  fontSize: '12px',
-                  border: '1px solid #bfdbfe',
-                }}>
-                  <div style={{ fontWeight: 600, marginBottom: '8px', color: '#1e40af' }}>📊 Free Tier Usage</div>
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '12px', color: '#1f2937' }}>
-                    <div style={{ flex: '1 1 calc(50% - 6px)', minWidth: '150px' }}>
-                      <div style={{ marginBottom: '4px' }}>🔤 Tokens: <span style={{ fontWeight: 600 }}>{Math.min(usageStats.tokensUsedToday, 1000000).toLocaleString()}</span>/{usageStats.tokensLimitPerDay.toLocaleString()}</div>
-                      <div style={{ width: '100%', height: '6px', backgroundColor: '#e5e7eb', borderRadius: '3px' }}>
-                        <div style={{
-                          width: `${Math.min((usageStats.tokensUsedToday / usageStats.tokensLimitPerDay) * 100, 100)}%`,
-                          height: '100%',
-                          backgroundColor: usageStats.tokensUsedToday > usageStats.tokensLimitPerDay * 0.8 ? '#ef4444' : '#3b82f6',
-                          borderRadius: '3px',
-                          transition: 'width 0.3s'
-                        }} />
+                    {/* Free Tier Usage Stats */}
+                    <div style={{
+                      padding: '12px 16px',
+                      backgroundColor: '#f0f9ff',
+                      borderRadius: '8px',
+                      marginBottom: '16px',
+                      fontSize: '12px',
+                      border: '1px solid #bfdbfe',
+                    }}>
+                      <div style={{ fontWeight: 600, marginBottom: '8px', color: '#1e40af' }}>📊 Free Tier Usage</div>
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '12px', color: '#1f2937' }}>
+                        <div style={{ flex: '1 1 calc(50% - 6px)', minWidth: '150px' }}>
+                          <div style={{ marginBottom: '4px' }}>🔤 Tokens: <span style={{ fontWeight: 600 }}>{Math.min(usageStats.tokensUsedToday, 1000000).toLocaleString()}</span>/{usageStats.tokensLimitPerDay.toLocaleString()}</div>
+                          <div style={{ width: '100%', height: '6px', backgroundColor: '#e5e7eb', borderRadius: '3px' }}>
+                            <div style={{
+                              width: `${Math.min((usageStats.tokensUsedToday / usageStats.tokensLimitPerDay) * 100, 100)}%`,
+                              height: '100%',
+                              backgroundColor: usageStats.tokensUsedToday > usageStats.tokensLimitPerDay * 0.8 ? '#ef4444' : '#3b82f6',
+                              borderRadius: '3px',
+                              transition: 'width 0.3s'
+                            }} />
+                          </div>
+                        </div>
+                        <div style={{ flex: '1 1 calc(50% - 6px)', minWidth: '150px' }}>
+                          <div style={{ marginBottom: '4px' }}>📨 Requests: <span style={{ fontWeight: 600 }}>{usageStats.requestsUsedToday}</span>/{usageStats.requestsLimitPerDay}</div>
+                          <div style={{ width: '100%', height: '6px', backgroundColor: '#e5e7eb', borderRadius: '3px' }}>
+                            <div style={{
+                              width: `${(usageStats.requestsUsedToday / usageStats.requestsLimitPerDay) * 100}%`,
+                              height: '100%',
+                              backgroundColor: usageStats.requestsUsedToday > usageStats.requestsLimitPerDay * 0.8 ? '#ef4444' : '#10b981',
+                              borderRadius: '3px',
+                              transition: 'width 0.3s'
+                            }} />
+                          </div>
+                        </div>
+                        <div style={{ flex: '1 1 calc(50% - 6px)', minWidth: '150px' }}>📚 Pages: <span style={{ fontWeight: 600 }}>{usageStats.pagesProcessed}</span></div>
+                        <div style={{ flex: '1 1 calc(50% - 6px)', minWidth: '150px' }}>✅ Courses: <span style={{ fontWeight: 600 }}>{usageStats.coursesExtracted}</span></div>
                       </div>
                     </div>
-                    <div style={{ flex: '1 1 calc(50% - 6px)', minWidth: '150px' }}>
-                      <div style={{ marginBottom: '4px' }}>📨 Requests: <span style={{ fontWeight: 600 }}>{usageStats.requestsUsedToday}</span>/{usageStats.requestsLimitPerDay}</div>
-                      <div style={{ width: '100%', height: '6px', backgroundColor: '#e5e7eb', borderRadius: '3px' }}>
-                        <div style={{
-                          width: `${(usageStats.requestsUsedToday / usageStats.requestsLimitPerDay) * 100}%`,
-                          height: '100%',
-                          backgroundColor: usageStats.requestsUsedToday > usageStats.requestsLimitPerDay * 0.8 ? '#ef4444' : '#10b981',
-                          borderRadius: '3px',
-                          transition: 'width 0.3s'
-                        }} />
-                      </div>
-                    </div>
-                    <div style={{ flex: '1 1 calc(50% - 6px)', minWidth: '150px' }}>📚 Pages: <span style={{ fontWeight: 600 }}>{usageStats.pagesProcessed}</span></div>
-                    <div style={{ flex: '1 1 calc(50% - 6px)', minWidth: '150px' }}>✅ Courses: <span style={{ fontWeight: 600 }}>{usageStats.coursesExtracted}</span></div>
-                  </div>
-                </div>
-                    
+
                     <button
                       onClick={() => copyToClipboard(filteredCourses)}
                       className="primary"
@@ -1473,6 +1495,15 @@ export default function CourseHarvester() {
                   </div>
                 )}
               </div>
+            </div>
+
+            {/* Right Column - Sidebar */}
+            <div className="right">
+              <CourseHarvesterSidebar 
+                refreshTrigger={sidebarRefreshTrigger}
+                onSelectFile={setSelectedSidebarExtraction}
+                onRefresh={() => setSidebarRefreshTrigger(prev => prev + 1)}
+              />
             </div>
           </div>
         </div>
