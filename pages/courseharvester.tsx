@@ -148,6 +148,25 @@ function detectFileType(file: File): { extension: string } {
   return { extension }
 }
 
+function estimateTokenCost(pages: number): { min: number; max: number; recommended: number } {
+  // Token estimation based on batch size
+  // Pages 1-5: ~500 tokens baseline
+  // Pages 6-10: ~400-500 tokens (incremental)
+  // Pages 11+: ~80-100 tokens per page (diminishing returns)
+  
+  if (pages <= 0) return { min: 0, max: 0, recommended: 0 }
+  if (pages <= 5) return { min: 400, max: 600, recommended: 500 }
+  if (pages <= 10) return { min: 800, max: 1100, recommended: 950 }
+  if (pages <= 20) return { min: 1500, max: 2200, recommended: 1850 }
+  if (pages <= 50) return { min: 3500, max: 5500, recommended: 4500 }
+  
+  // For larger documents
+  const extraPages = pages - 50
+  const base = 4500
+  const extraTokens = extraPages * 90
+  return { min: base + extraTokens - 500, max: base + extraTokens + 1000, recommended: base + extraTokens }
+}
+
 export default function CourseHarvester() {
   const [apiKey, setApiKey] = useState('')
   const [remember, setRemember] = useState(false)
@@ -1354,25 +1373,63 @@ export default function CourseHarvester() {
                     </div>
 
                     {/* Batch Processing Info */}
-                    <div style={{
-                      padding: '10px',
-                      backgroundColor: '#fef3c7',
-                      borderRadius: '6px',
-                      border: '1px solid #fcd34d',
-                      marginBottom: '8px',
-                      fontSize: '12px',
-                      color: '#92400e',
-                    }}>
-                      <div style={{ marginBottom: '6px' }}>
-                        💡 <strong>Batch Processing Strategy:</strong>
-                      </div>
-                      <div style={{ marginLeft: '16px', lineHeight: '1.5' }}>
-                        • Pages 1-5: ~500 tokens (extraction baseline)<br />
-                        • Pages 6-10: ~500 tokens (incremental)<br />
-                        • Pages 11+: ~100 tokens/page<br />
-                        <strong>Est. Cost:</strong> {pageLimit > 0 ? Math.round((pageLimit / 5) * 500) : Math.round((totalPages / 5) * 500)} tokens
-                      </div>
-                    </div>
+                    {totalPages > 0 && (() => {
+                      const pagesToProcess = pageLimit > 0 ? pageLimit : totalPages
+                      const costEstimate = estimateTokenCost(pagesToProcess)
+                      const tokensRemaining = usageStats.tokensLimitPerDay - usageStats.tokensUsedToday
+                      const willExceedQuota = costEstimate.max > tokensRemaining
+                      const isWarning = costEstimate.recommended > tokensRemaining * 0.7
+                      
+                      return (
+                        <div style={{
+                          padding: '12px',
+                          backgroundColor: willExceedQuota ? '#fef2f2' : isWarning ? '#fef3c7' : '#f0fdf4',
+                          borderRadius: '8px',
+                          border: `1px solid ${willExceedQuota ? '#fecaca' : isWarning ? '#fcd34d' : '#dcfce7'}`,
+                          marginBottom: '8px',
+                          fontSize: '12px',
+                        }}>
+                          <div style={{
+                            marginBottom: '8px',
+                            fontWeight: 600,
+                            color: willExceedQuota ? '#991b1b' : isWarning ? '#92400e' : '#166534',
+                          }}>
+                            {willExceedQuota ? '⚠️ Warning: Quota Exceeded' : isWarning ? '💡 Batch Processing' : '✅ Sufficient Quota'}
+                          </div>
+                          
+                          <div style={{
+                            marginLeft: '0px',
+                            lineHeight: '1.6',
+                            color: willExceedQuota ? '#7f1d1d' : isWarning ? '#92400e' : '#166534',
+                          }}>
+                            <div style={{ marginBottom: '6px' }}>
+                              <strong>Processing {pagesToProcess} page{pagesToProcess !== 1 ? 's' : ''}:</strong>
+                            </div>
+                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', fontSize: '11px', marginBottom: '8px' }}>
+                              <div>Est. Tokens: <strong>{costEstimate.recommended.toLocaleString()}</strong></div>
+                              <div>Available: <strong>{tokensRemaining.toLocaleString()}</strong></div>
+                              <div>Range: {costEstimate.min.toLocaleString()}-{costEstimate.max.toLocaleString()}</div>
+                              <div>
+                                Remaining: <strong style={{ color: willExceedQuota ? '#dc2626' : '#10b981' }}>
+                                  {willExceedQuota ? `❌ -${(costEstimate.recommended - tokensRemaining).toLocaleString()}` : (tokensRemaining - costEstimate.recommended).toLocaleString()}
+                                </strong>
+                              </div>
+                            </div>
+                            
+                            {willExceedQuota && (
+                              <div style={{
+                                padding: '8px',
+                                backgroundColor: 'rgba(220, 38, 38, 0.1)',
+                                borderRadius: '4px',
+                                marginTop: '8px',
+                              }}>
+                                💡 <strong>Recommendation:</strong> Process in smaller batches (5-10 pages) or upgrade to paid plan
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      )
+                    })()}
                   </div>
                 )}
 
