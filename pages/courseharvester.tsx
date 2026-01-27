@@ -317,6 +317,11 @@ export default function CourseHarvester() {
                 SourceFile: selectedFile.name,
               }))
             )
+            setUsageStats(prev => ({
+              ...prev,
+              coursesExtracted: cachedResults.length,
+              pagesProcessed: totalPages,
+            }))
             setFileHistory((prev) => [
               ...prev,
               {
@@ -502,6 +507,16 @@ export default function CourseHarvester() {
       }
 
       setAllCourses(finalCourses)
+      
+      // Update usage statistics
+      const estimatedTokens = finalCourses.length * 100
+      setUsageStats(prev => ({
+        ...prev,
+        tokensUsedToday: prev.tokensUsedToday + estimatedTokens,
+        requestsUsedToday: prev.requestsUsedToday + 1,
+        coursesExtracted: finalCourses.length,
+        pagesProcessed: Math.ceil(totalPages / 3) * 3,
+      }))
 
       // CRITICAL: Only cache if we have courses to cache
       if (finalCourses.length > 0) {
@@ -925,11 +940,83 @@ export default function CourseHarvester() {
           .row {
             flex-direction: column;
           }
+          .left {
+            flex: 1 1 100%;
+          }
+          .right {
+            flex: 1 1 100%;
+          }
           .results-header {
             flex-direction: column;
             align-items: flex-start;
           }
           .buttons-group {
+            width: 100%;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+          }
+          .search-box {
+            width: 100% !important;
+          }
+          button {
+            width: 100%;
+          }
+          .header-inner {
+            flex-direction: column;
+            align-items: flex-start;
+            gap: 12px;
+          }
+          .container {
+            margin: -20px 10px 40px;
+          }
+          .content {
+            padding: 16px;
+          }
+          table {
+            font-size: 12px;
+          }
+          th, td {
+            padding: 8px !important;
+          }
+        }
+        @media (max-width: 640px) {
+          .header {
+            padding: 20px 16px;
+          }
+          .header h1 {
+            font-size: 18px;
+          }
+          .container {
+            margin: -15px 8px 30px;
+            border-radius: 8px;
+          }
+          .content {
+            padding: 12px;
+          }
+          .card {
+            padding: 12px;
+            margin-bottom: 8px;
+          }
+          table {
+            font-size: 11px;
+          }
+          th, td {
+            padding: 6px !important;
+          }
+          .buttons-group {
+            gap: 6px;
+          }
+          button {
+            padding: 8px 10px;
+            font-size: 12px;
+          }
+          .input-group {
+            flex-direction: column;
+            gap: 8px;
+          }
+          .input-group input,
+          .input-group button {
             width: 100%;
           }
         }
@@ -1220,34 +1307,33 @@ export default function CourseHarvester() {
                   border: '1px solid #bfdbfe',
                 }}>
                   <div style={{ fontWeight: 600, marginBottom: '8px', color: '#1e40af' }}>📊 Free Tier Usage</div>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', color: '#1f2937' }}>
-                    <div>
-                      🔤 Tokens: <span style={{ fontWeight: 600 }}>{usageStats.tokensUsedToday.toLocaleString()}</span>
-                      /{usageStats.tokensLimitPerDay.toLocaleString()}
-                      <div style={{ width: '100%', height: '4px', backgroundColor: '#e5e7eb', borderRadius: '2px', marginTop: '4px' }}>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '12px', color: '#1f2937' }}>
+                    <div style={{ flex: '1 1 calc(50% - 6px)', minWidth: '150px' }}>
+                      <div style={{ marginBottom: '4px' }}>🔤 Tokens: <span style={{ fontWeight: 600 }}>{Math.min(usageStats.tokensUsedToday, 1000000).toLocaleString()}</span>/{usageStats.tokensLimitPerDay.toLocaleString()}</div>
+                      <div style={{ width: '100%', height: '6px', backgroundColor: '#e5e7eb', borderRadius: '3px' }}>
                         <div style={{
-                          width: `${(usageStats.tokensUsedToday / usageStats.tokensLimitPerDay) * 100}%`,
+                          width: `${Math.min((usageStats.tokensUsedToday / usageStats.tokensLimitPerDay) * 100, 100)}%`,
                           height: '100%',
                           backgroundColor: usageStats.tokensUsedToday > usageStats.tokensLimitPerDay * 0.8 ? '#ef4444' : '#3b82f6',
-                          borderRadius: '2px',
+                          borderRadius: '3px',
                           transition: 'width 0.3s'
                         }} />
                       </div>
                     </div>
-                    <div>
-                      📨 Requests: <span style={{ fontWeight: 600 }}>{usageStats.requestsUsedToday}</span>/{usageStats.requestsLimitPerDay}
-                      <div style={{ width: '100%', height: '4px', backgroundColor: '#e5e7eb', borderRadius: '2px', marginTop: '4px' }}>
+                    <div style={{ flex: '1 1 calc(50% - 6px)', minWidth: '150px' }}>
+                      <div style={{ marginBottom: '4px' }}>📨 Requests: <span style={{ fontWeight: 600 }}>{usageStats.requestsUsedToday}</span>/{usageStats.requestsLimitPerDay}</div>
+                      <div style={{ width: '100%', height: '6px', backgroundColor: '#e5e7eb', borderRadius: '3px' }}>
                         <div style={{
                           width: `${(usageStats.requestsUsedToday / usageStats.requestsLimitPerDay) * 100}%`,
                           height: '100%',
                           backgroundColor: usageStats.requestsUsedToday > usageStats.requestsLimitPerDay * 0.8 ? '#ef4444' : '#10b981',
-                          borderRadius: '2px',
+                          borderRadius: '3px',
                           transition: 'width 0.3s'
                         }} />
                       </div>
                     </div>
-                    <div>📚 Pages Processed: <span style={{ fontWeight: 600 }}>{usageStats.pagesProcessed}</span></div>
-                    <div>✅ Courses Found: <span style={{ fontWeight: 600 }}>{usageStats.coursesExtracted}</span></div>
+                    <div style={{ flex: '1 1 calc(50% - 6px)', minWidth: '150px' }}>📚 Pages: <span style={{ fontWeight: 600 }}>{usageStats.pagesProcessed}</span></div>
+                    <div style={{ flex: '1 1 calc(50% - 6px)', minWidth: '150px' }}>✅ Courses: <span style={{ fontWeight: 600 }}>{usageStats.coursesExtracted}</span></div>
                   </div>
                 </div>
                     
