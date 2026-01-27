@@ -95,11 +95,14 @@ ${text}`
     const responseText = await response.text()
 
     console.log('[secure_extract] 📬 Gemini response status:', response.status)
-
+    console.log('[secure_extract] 📊 Response length:', responseText.length)
+    
     if (!response.ok) {
       // Try to extract error details from Gemini response
       let errorDetail = 'Unknown error'
       let retryAfter = 0
+      
+      console.log('[secure_extract] ❌ API Error - Full response:', responseText.substring(0, 500))
       
       try {
         const errorData = JSON.parse(responseText)
@@ -117,6 +120,7 @@ ${text}`
         errorDetail = responseText.substring(0, 200)
       }
       
+      console.error('[secure_extract] ❌ Gemini error code:', response.status)
       console.error('[secure_extract] ❌ Gemini error details:', errorDetail)
       throw new Error(`Gemini API error (${response.status}): ${errorDetail}`)
     }
