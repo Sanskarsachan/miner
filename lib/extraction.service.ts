@@ -13,7 +13,7 @@ import { Extraction, ExtractionVersion, Course } from './types'
  */
 export async function saveExtraction(
   userId: string,
-  extraction: Omit<Extraction, '_id' | 'created_at' | 'updated_at'>
+  extraction: Omit<Extraction, '_id' | 'created_at' | 'updated_at' | 'user_id'>
 ): Promise<Extraction> {
   const db = await getDB()
   const collection = db.collection('extractions')
@@ -38,9 +38,9 @@ export async function saveExtraction(
  */
 export async function getExtractionById(extractionId: string): Promise<Extraction | null> {
   const db = await getDB()
-  return await db.collection('extractions').findOne({
+  return (await db.collection('extractions').findOne({
     _id: new ObjectId(extractionId),
-  }) as Extraction | null
+  })) as Extraction | null
 }
 
 /**
@@ -94,16 +94,17 @@ export async function updateExtraction(
 }
 
 /**
- * Delete extraction
+ * Delete extraction by ID
  */
-export async function deleteExtraction(extractionId: string): Promise<boolean> {
+export async function deleteExtraction(extractionId: string): Promise<{ deletedCount: number }> {
   const db = await getDB()
-
   const result = await db.collection('extractions').deleteOne({
     _id: new ObjectId(extractionId),
   })
 
-  return result.deletedCount > 0
+  return {
+    deletedCount: result.deletedCount,
+  }
 }
 
 /**
@@ -128,62 +129,47 @@ export async function createVersion(
     throw new Error('Extraction not found')
   }
 
-  // Create new version
-  const newVersion: ExtractionVersion = {
+  // Create version record
+  const version: ExtractionVersion = {
     extraction_id: new ObjectId(extractionId),
     user_id: new ObjectId(userId),
-    version_number: extraction.current_version + 1,
+    version_number: (extraction.current_version || 1) + 1,
     changes,
-    total_courses: extraction.courses.length,
+    total_courses: extraction.total_courses,
     refined_by: 'manual',
-    notes,
     created_at: new Date(),
-    parent_version: extraction.current_version,
+    notes: notes || '',
   }
 
-  await versionCollection.insertOne(newVersion as any)
+  const versionResult = await versionCollection.insertOne(version as any)
 
-  // Update extraction
+  // Update extraction version counter
   await extractionCollection.updateOne(
     { _id: new ObjectId(extractionId) },
     {
       $set: {
-        current_version: newVersion.version_number,
-        is_refined: true,
-        last_refined_at: new Date(),
+        current_version: version.version_number,
         updated_at: new Date(),
       },
     }
   )
 
-  return newVersion
+  return {
+    ...version,
+    _id: versionResult.insertedId,
+  }
 }
 
 /**
- * Get version history
+ * Get version history for extraction
  */
 export async function getVersionHistory(extractionId: string): Promise<ExtractionVersion[]> {
   const db = await getDB()
-
   return (await db
     .collection('versions')
-    .find({
-      extraction_id: new ObjectId(extractionId),
-    })
+    .find({ extraction_id: new ObjectId(extractionId) })
     .sort({ version_number: -1 })
     .toArray()) as ExtractionVersion[]
-}
-
-/**
- * Get specific version
- */
-export async function getVersion(extractionId: string, versionNumber: number) {
-  const db = await getDB()
-
-  return await db.collection('versions').findOne({
-    extraction_id: new ObjectId(extractionId),
-    version_number: versionNumber,
-  })
 }
 
 /**
@@ -194,11 +180,23 @@ export async function getExtractionByFileHash(
   fileHash: string
 ): Promise<Extraction | null> {
   const db = await getDB()
-
   return (await db.collection('extractions').findOne({
     user_id: new ObjectId(userId),
     file_id: fileHash,
   })) as Extraction | null
+}
+
+/**
+ * Update courses in extraction
+ */
+export async function updateExtractionCourses(
+  extractionId: string,
+  courses: Course[]
+): Promise<Extraction | null> {
+  return updateExtraction(extractionId, {
+    courses,
+    total_courses: courses.length,
+  })
 }
 
 /**
@@ -234,17 +232,4 @@ export async function getUserTotalCourses(userId: string): Promise<number> {
     .toArray()) as any[]
 
   return results[0]?.total || 0
-}
-
-/**
- * Update courses in extraction
- */
-export async function updateExtractionCourses(
-  extractionId: string,
-  courses: Course[]
-): Promise<Extraction | null> {
-  return updateExtraction(extractionId, {
-    courses,
-    total_courses: courses.length,
-  })
 }

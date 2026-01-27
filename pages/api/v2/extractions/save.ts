@@ -52,7 +52,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const extraction = await saveExtraction(userId, {
       file_id,
       filename,
-      file_size: 0, // Will be tracked separately
+      file_size: 0, // TODO: Get from request
       file_type: filename.split('.').pop() || 'unknown',
       upload_date: new Date(),
       courses: courses.map((c: any) => ({
@@ -67,10 +67,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         extracted_by_api: api_used,
       })),
       total_courses: courses.length,
-      total_pages,
-      extraction_time_ms,
-      api_used,
-      tokens_used,
+      total_pages: total_pages || 0,
+      extraction_time_ms: extraction_time_ms || 0,
+      api_used: api_used || 'gemini',
+      tokens_used: tokens_used || 0,
       status: 'completed',
       current_version: 1,
       is_refined: false,

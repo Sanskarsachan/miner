@@ -518,6 +518,44 @@ export default function CourseHarvester() {
         pagesProcessed: Math.ceil(totalPages / 3) * 3,
       }))
 
+      // Save extraction to MongoDB
+      try {
+        const saveResponse = await fetch('/api/v2/extractions/save', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            file_id: fileHash,
+            filename: selectedFile.name,
+            courses: finalCourses,
+            metadata: {
+              file_size: selectedFile.size,
+              file_type: ext,
+              total_pages: totalPages,
+              pages_processed: Math.ceil(totalPages / 3) * 3,
+            },
+            status: 'completed',
+            tokens_used: estimatedTokens,
+            api_used: 'gemini',
+          }),
+        })
+
+        if (saveResponse.ok) {
+          const { extraction_id } = await saveResponse.json()
+          console.log('✅ Extraction saved to MongoDB:', extraction_id)
+          
+          // Show success notification
+          setStatus(
+            `✅ ${finalCourses.length} courses extracted and saved to database (ID: ${extraction_id.slice(0, 8)}...)`
+          )
+        } else {
+          console.error('Failed to save extraction to MongoDB')
+          setStatus(`⚠️ Extraction complete but failed to save to database. ${finalCourses.length} courses extracted.`)
+        }
+      } catch (error) {
+        console.error('Error saving to MongoDB:', error)
+        setStatus(`⚠️ Extraction complete but database save failed. ${finalCourses.length} courses extracted.`)
+      }
+
       // CRITICAL: Only cache if we have courses to cache
       if (finalCourses.length > 0) {
         // Cache cleaned results, not raw ones
