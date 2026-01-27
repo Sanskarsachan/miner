@@ -32,9 +32,9 @@ export interface Course {
 }
 
 export class ChunkProcessor {
-  private maxTokensPerChunk = 100000
+  private maxTokensPerChunk = 150000 // Increased for faster processing
   private retryAttempts = 3
-  private retryDelay = 2000
+  private retryDelay = 1500 // Reduced from 2000ms
   private batchSize = 3 // Process 3 pages at a time
   
   // Free tier limits per day
@@ -306,7 +306,7 @@ export class ChunkProcessor {
 
         // Small delay between chunks to avoid rate limiting
         if (i < chunks.length - 1) {
-          await new Promise((r) => setTimeout(r, 1000))
+          await new Promise((r) => setTimeout(r, 500))
         }
       } catch (error) {
         const errorMsg = error instanceof Error ? error.message : 'Unknown error'
