@@ -224,7 +224,40 @@ export default function CourseHarvester() {
 
     // Initialize document cache
     cacheRef.current = new DocumentCache()
-  }, [])
+
+    // Keyboard shortcuts
+    const handleKeyPress = (e: KeyboardEvent) => {
+      // Cmd/Ctrl + K: Focus search
+      if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+        e.preventDefault()
+        const searchInput = document.querySelector('input[placeholder*="Search courses"]') as HTMLInputElement
+        searchInput?.focus()
+      }
+      
+      // Cmd/Ctrl + E: Trigger extraction
+      if ((e.metaKey || e.ctrlKey) && e.key === 'e') {
+        e.preventDefault()
+        if (selectedFile && apiKey && !extractionProgress.isExtracting) {
+          extract()
+        }
+      }
+
+      // Cmd/Ctrl + B: Toggle sidebar
+      if ((e.metaKey || e.ctrlKey) && e.key === 'b') {
+        e.preventDefault()
+        setSidebarOpen(prev => !prev)
+      }
+
+      // Escape: Close modals/sidebar
+      if (e.key === 'Escape') {
+        setSidebarOpen(false)
+        setToast(null)
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyPress)
+    return () => window.removeEventListener('keydown', handleKeyPress)
+  }, [selectedFile, apiKey, extractionProgress.isExtracting])
 
   useEffect(() => {
     if (remember) localStorage.setItem('gh_api_key', apiKey)
@@ -1237,6 +1270,9 @@ export default function CourseHarvester() {
           <div style={{ textAlign: 'right' }}>
             <div style={{ fontSize: '12px', opacity: 0.9 }}>
               Powered by Google Gemini
+            </div>
+            <div style={{ fontSize: '11px', opacity: 0.75, marginTop: '4px' }}>
+              ⌨️ Cmd+K: Search | Cmd+E: Extract | Cmd+B: Sidebar
             </div>
             <a
               href="https://aistudio.google.com/app/apikey"
