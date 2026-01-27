@@ -69,16 +69,27 @@ Document:\n${content}`
 }
 
 function cleanCourseData(course: any): any {
-  // Clean and trim all string fields
+  // Clean and trim all string fields, fix character encoding issues
   const clean = (val: any) => {
-    if (!val) return ''
+    if (!val) return null
     let str = String(val).trim()
-    // Remove extra whitespace, special characters, and control characters
+    
+    // Remove control characters and fix encoding issues
     str = str.replace(/[\x00-\x1F\x7F]/g, '') // Remove control characters
+      .replace(/[\x80-\xFF]+/g, (match) => {
+        // Try to recover garbled UTF-8 sequences
+        try {
+          return Buffer.from(match, 'latin1').toString('utf8')
+        } catch {
+          return '' // Skip unrecoverable characters
+        }
+      })
       .replace(/\s+/g, ' ') // Collapse multiple spaces
-      .replace(/["\\]/g, '') // Remove quotes and backslashes
+      .replace(/["\\]/g, '') // Remove problematic quotes
       .trim()
-    return str
+    
+    // Return null if empty after cleaning
+    return str && str.length > 0 ? str : null
   }
 
   const courseName = clean(course.CourseName)
@@ -90,12 +101,12 @@ function cleanCourseData(course: any): any {
     Category: clean(course.Category) || 'Uncategorized',
     CourseName: courseName,
     CourseCode: clean(course.CourseCode) || null,
-    GradeLevel: clean(course.GradeLevel) || 'N/A',
-    Length: clean(course.Length) || 'N/A',
-    Prerequisite: clean(course.Prerequisite) || 'None',
-    Credit: clean(course.Credit) || 'N/A',
+    GradeLevel: clean(course.GradeLevel) || '-',
+    Length: clean(course.Length) || '-',
+    Prerequisite: clean(course.Prerequisite) || '-',
+    Credit: clean(course.Credit) || '-',
     Details: clean(course.Details) || null,
-    CourseDescription: clean(course.CourseDescription) || '',
+    CourseDescription: clean(course.CourseDescription) || '-',
     SourceFile: clean(course.SourceFile) || '',
   }
 }

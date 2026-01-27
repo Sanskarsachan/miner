@@ -35,25 +35,52 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     console.log('[secure_extract] First 100 chars:', text.substring(0, 100))
 
     // Build prompt that explicitly asks for JSON
-    const prompt = `You are a course data extraction expert. Extract all course information from the provided document.
+    const prompt = `You are a course data extraction expert. Extract ALL course information from the provided document.
 
-Return ONLY a valid JSON array with NO additional text or markdown. Start with [ and end with ].
+CRITICAL INSTRUCTIONS:
+1. Return ONLY a valid JSON array with NO additional text, markdown, or code blocks
+2. Start with [ and end with ]
+3. For missing fields: Use null (NOT "N/A", NOT empty string, NOT "-")
+4. For CourseCode: Extract course code if available, otherwise use null
+5. Fix character encoding issues: Replace garbled characters with readable text
+6. Include ALL courses found, even if details are partial
+7. Use proper JSON escaping for special characters
 
-For each course found, create an object with these fields:
-- Category (string or null)
-- CourseName (string)
-- CourseCode (string or null) - course code/number if available
-- GradeLevel (string or null)
-- Length (string or null)
-- Prerequisite (string or null)  
-- Credit (string or null)
-- Details (string or null) - additional course details/notes
-- CourseDescription (string or null)
+For each course, create an object with EXACTLY these fields:
+- Category: string (department/category name) or null
+- CourseName: string (course title - REQUIRED, must not be null)
+- CourseCode: string (course number/code) or null
+- GradeLevel: string (grade range like "9-12") or null
+- Length: string (duration like "1 semester" or "1 year") or null
+- Prerequisite: string (prerequisite courses) or null
+- Credit: string (credit hours) or null
+- Details: string (additional notes/details) or null
+- CourseDescription: string (full course description) or null
 
-Example format:
+STRICT EXAMPLE (follow this format exactly):
 [
-  {"Category":"Science","CourseName":"Biology 101","CourseCode":"BIO101","GradeLevel":"9-12","Length":"1 year","Prerequisite":null,"Credit":"1.0","Details":"Laboratory included","CourseDescription":"Study of living organisms"},
-  {"Category":"Math","CourseName":"Algebra","CourseCode":"MATH101","GradeLevel":"9-10","Length":"1 year","Prerequisite":null,"Credit":"1.0","Details":null,"CourseDescription":"Basic algebra concepts"}
+  {
+    "Category": "Mathematics",
+    "CourseName": "Algebra I",
+    "CourseCode": "MATH101",
+    "GradeLevel": "9-10",
+    "Length": "1 year",
+    "Prerequisite": null,
+    "Credit": "1.0",
+    "Details": "Foundation course in algebra",
+    "CourseDescription": "Introduction to algebraic concepts including variables, equations, and functions"
+  },
+  {
+    "Category": "Science",
+    "CourseName": "Physics",
+    "CourseCode": null,
+    "GradeLevel": "11-12",
+    "Length": "2 semesters",
+    "Prerequisite": "Algebra I",
+    "Credit": "1.0",
+    "Details": "Honors course available",
+    "CourseDescription": "Study of motion, forces, energy and waves"
+  }
 ]
 
 DOCUMENT TO EXTRACT FROM:

@@ -77,12 +77,28 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     const result = await collection.insertOne(extraction as any)
 
-    console.log(`[v2/save] ✅ Saved ${courses.length} courses from ${filename}`)
+    // Save token usage analytics
+    const analyticsCollection = db.collection('token_analytics')
+    await analyticsCollection.insertOne({
+      extraction_id: result.insertedId,
+      user_id: userId,
+      username: username || 'user_guest',
+      filename,
+      tokens_used: tokens_used || 0,
+      courses_extracted: courses.length,
+      total_pages: total_pages || 0,
+      cost_per_course: (tokens_used || 0) / Math.max(courses.length, 1),
+      api_used: api_used || 'gemini',
+      created_at: new Date(),
+    })
+
+    console.log(`[v2/save] ✅ Saved ${courses.length} courses from ${filename} (${tokens_used || 0} tokens)`)
 
     return res.status(200).json({
       success: true,
       extraction_id: result.insertedId.toString(),
       total_courses: extraction.total_courses,
+      tokens_used: tokens_used || 0,
       message: 'Extraction saved successfully',
     })
   } catch (error) {
