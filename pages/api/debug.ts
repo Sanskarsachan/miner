@@ -17,7 +17,26 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     // Check environment variables (without exposing actual values)
     const mongoUri = process.env.MONGODB_URI || ''
     
-    const debugInfo = {
+    const debugInfo: {
+      timestamp: string
+      environment: string | undefined
+      mongodb: {
+        hasUri: boolean
+        uriLength: number
+        uriStartsWith: string
+        hasUsername: boolean
+        hasCluster: boolean
+        connectionTest: string
+        connectionError?: string
+      }
+      user: {
+        hasDefaultUserId: boolean
+        userIdLength: number
+      }
+      optional: {
+        hasDebugSecret: boolean
+      }
+    } = {
       timestamp: new Date().toISOString(),
       environment: process.env.NODE_ENV,
       
@@ -28,6 +47,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         uriStartsWith: mongoUri.substring(0, 14), // "mongodb+srv://"
         hasUsername: mongoUri.includes('@'),
         hasCluster: mongoUri.includes('.mongodb.net'),
+        connectionTest: '',
+        connectionError: undefined,
       },
       
       // User
