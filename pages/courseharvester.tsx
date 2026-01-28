@@ -181,7 +181,8 @@ export default function CourseHarvester() {
   const [fileHistory, setFileHistory] = useState<FileHistory[]>([])
   const [searchQ, setSearchQ] = useState('')
   const [totalPages, setTotalPages] = useState(0)
-  const [pageLimit, setPageLimit] = useState(0) // 0 = all pages
+  const [pageRangeStart, setPageRangeStart] = useState(1) // Start page for extraction
+  const [pageRangeEnd, setPageRangeEnd] = useState(0) // End page for extraction (0 = all pages)
   const [cachedPageRange, setCachedPageRange] = useState<{
     start: number
     end: number
@@ -264,6 +265,34 @@ export default function CourseHarvester() {
     else localStorage.removeItem('gh_api_key')
   }, [remember, apiKey])
 
+  // Load courses when a saved extraction is selected from sidebar
+  useEffect(() => {
+    if (selectedSidebarExtraction && selectedSidebarExtraction.courses) {
+      // Load the saved courses into the main view
+      setAllCourses(selectedSidebarExtraction.courses)
+      
+      // Update metadata display
+      setTotalPages(selectedSidebarExtraction.metadata?.total_pages || 0)
+      setCachedPageRange({
+        start: 1,
+        end: selectedSidebarExtraction.metadata?.pages_processed || selectedSidebarExtraction.metadata?.total_pages || 0
+      })
+      
+      // Update usage stats to reflect loaded extraction
+      setUsageStats(prev => ({
+        ...prev,
+        coursesExtracted: selectedSidebarExtraction.courses?.length || 0,
+        pagesProcessed: selectedSidebarExtraction.metadata?.pages_processed || 0,
+      }))
+      
+      setStatus(`✅ Loaded ${selectedSidebarExtraction.courses.length} courses from "${selectedSidebarExtraction.filename}"`)
+      showToast(`📂 Loaded ${selectedSidebarExtraction.courses.length} courses from saved extraction`, 'success')
+      
+      // Close sidebar after loading
+      setSidebarOpen(false)
+    }
+  }, [selectedSidebarExtraction])
+
   const handleFile = async (file: File | null) => {
     if (!file) return
     if (file.size > 10 * 1024 * 1024) {
@@ -273,7 +302,9 @@ export default function CourseHarvester() {
     }
 
     setSelectedFile(file)
-    setPageLimit(0) // Reset page limit when new file selected
+    setPageRangeStart(1) // Reset to page 1
+    setPageRangeEnd(0) // 0 = all pages
+    setAllCourses([]) // Clear previous courses for new file
     setCachedPageRange(null) // Reset cached page range for new file
     setStatus('File selected: ' + file.name)
     showToast(`📄 File selected: ${file.name}`, 'info')
@@ -367,8 +398,15 @@ export default function CourseHarvester() {
 
     setStatus('Preparing file...')
     
+    // CRITICAL: Clear previous courses for fresh extraction from this page range
+    setAllCourses([])
+    
+    // Calculate actual page range to process
+    const startPage = pageRangeStart || 1
+    const endPage = pageRangeEnd > 0 ? Math.min(pageRangeEnd, totalPages) : totalPages
+    const numPagesToProcess = endPage - startPage + 1
+    
     // Initialize progress tracking
-    const numPagesToProcess = pageLimit > 0 ? Math.min(pageLimit, totalPages) : totalPages
     setExtractionProgress({
       isExtracting: true,
       pagesProcessed: 0,
@@ -388,13 +426,11 @@ export default function CourseHarvester() {
       // Check incremental cache for PDFs FIRST (before extracting text)
       if (ext === 'pdf') {
         const fileHash = await cacheRef.current!.hashFile(selectedFile)
-        const numPagesToProcess =
-          pageLimit > 0 ? Math.min(pageLimit, totalPages) : totalPages
         const incrementalCache =
           await cacheRef.current!.getIncremental(
             fileHash,
-            1,
-            numPagesToProcess
+            startPage,
+            endPage
           )
 
         if (incrementalCache) {
@@ -453,10 +489,11 @@ export default function CourseHarvester() {
         }).promise
 
         const pages: string[] = []
-        const numPagesToProcess = pageLimit > 0 ? Math.min(pageLimit, pdf.numPages) : pdf.numPages
+        const actualStartPage = startPage
+        const actualEndPage = endPage
         
-        // CRITICAL FIX: Only extract pages we need to process (not from page 1)
-        for (let i = startPage; i <= numPagesToProcess; i++) {
+        // Extract pages in the specified range
+        for (let i = actualStartPage; i <= actualEndPage; i++) {
           const page = await pdf.getPage(i)
           const tc = await page.getTextContent()
           pages.push(tc.items.map((it: any) => it.str).join(' '))
@@ -464,14 +501,12 @@ export default function CourseHarvester() {
           // Update progress
           setExtractionProgress(prev => ({
             ...prev,
-            pagesProcessed: i,
+            pagesProcessed: i - actualStartPage + 1,
             totalPages: numPagesToProcess,
           }))
         }
         
-        if (pageLimit > 0 && numPagesToProcess < pdf.numPages) {
-          setStatus(`Processing first ${numPagesToProcess} pages (out of ${pdf.numPages} total)...`)
-        }
+        setStatus(`Processing pages ${actualStartPage}-${actualEndPage} (out of ${pdf.numPages} total)...`)
         
         textContent = pages.join('\n\n')
       } else if (ext === 'doc' || ext === 'docx') {
@@ -696,10 +731,8 @@ export default function CourseHarvester() {
       if (finalCourses.length > 0) {
         // Cache cleaned results, not raw ones
         if (ext === 'pdf') {
-          const numPagesToProcess =
-            pageLimit > 0 ? Math.min(pageLimit, totalPages) : totalPages
-          const cacheStart = usingCache ? startPage : 1
-          const cacheEnd = numPagesToProcess
+          const cacheStart = startPage
+          const cacheEnd = endPage
           
           await cacheRef.current!.setIncremental(
             fileHash,
@@ -708,7 +741,7 @@ export default function CourseHarvester() {
             cacheEnd,
             totalPages
           )
-          setCachedPageRange({ start: 1, end: cacheEnd })
+          setCachedPageRange({ start: cacheStart, end: cacheEnd })
         } else {
           // For non-PDF, use simple cache
           await cacheRef.current!.set(fileHash, finalCourses)  // Cache cleaned courses
@@ -1423,8 +1456,12 @@ export default function CourseHarvester() {
                     </div>
                     <div style={{ display: 'flex', gap: '12px', alignItems: 'center', flexWrap: 'wrap', marginBottom: '12px' }}>
                       <select
-                        value={pageLimit}
-                        onChange={(e) => setPageLimit(Number(e.target.value))}
+                        value={`${pageRangeStart}-${pageRangeEnd}`}
+                        onChange={(e) => {
+                          const [start, end] = e.target.value.split('-').map(Number)
+                          setPageRangeStart(start)
+                          setPageRangeEnd(end)
+                        }}
                         style={{
                           padding: '6px 10px',
                           borderRadius: '4px',
@@ -1434,33 +1471,41 @@ export default function CourseHarvester() {
                           cursor: 'pointer',
                         }}
                       >
-                        <option value={0}>All pages ({totalPages})</option>
-                        {totalPages >= 5 && <option value={5}>Pages 1-5</option>}
-                        {totalPages >= 10 && <option value={10}>Pages 5-10</option>}
-                        {totalPages >= 15 && <option value={15}>Pages 10-15</option>}
-                        {totalPages >= 20 && <option value={20}>Pages 15-20</option>}
-                        {totalPages > 20 && <option value={totalPages - 20}>Remaining pages</option>}
+                        <option value={`1-0`}>All pages (1-{totalPages})</option>
+                        {totalPages >= 5 && <option value={`1-5`}>Pages 1-5</option>}
+                        {totalPages >= 10 && <option value={`6-10`}>Pages 6-10</option>}
+                        {totalPages >= 15 && <option value={`11-15`}>Pages 11-15</option>}
+                        {totalPages >= 20 && <option value={`16-20`}>Pages 16-20</option>}
+                        {totalPages >= 25 && <option value={`21-25`}>Pages 21-25</option>}
+                        {totalPages >= 30 && <option value={`26-30`}>Pages 26-30</option>}
+                        {totalPages >= 35 && <option value={`31-35`}>Pages 31-35</option>}
+                        {totalPages >= 40 && <option value={`36-40`}>Pages 36-40</option>}
+                        {totalPages >= 45 && <option value={`41-45`}>Pages 41-45</option>}
+                        {totalPages >= 47 && <option value={`46-${totalPages}`}>Pages 46-{totalPages}</option>}
                       </select>
                       <button
                         onClick={() => {
                           setAllCourses([])
-                          setPageLimit(5)
-                          setStatus('Ready to recheck 5 pages')
+                          setPageRangeStart(1)
+                          setPageRangeEnd(5)
+                          setStatus('Ready to extract pages 1-5')
                         }}
                         className="secondary"
                         style={{ fontSize: '12px', padding: '6px 8px' }}
-                        title="Clear results and recheck first 5 pages to catch any missed courses"
+                        title="Clear results and extract first 5 pages"
                       >
-                        🔄 Recheck 5 Pages
+                        🔄 Pages 1-5
                       </button>
                       <div className="muted">
-                        {pageLimit > 0 ? `Will process ${pageLimit} page${pageLimit !== 1 ? 's' : ''} (~${Math.ceil(pageLimit / 12)} API calls)` : `Will process all ${totalPages} page${totalPages !== 1 ? 's' : ''} (~${Math.ceil(totalPages / 12)} API calls)`}
+                        {pageRangeEnd > 0 
+                          ? `Will process pages ${pageRangeStart}-${pageRangeEnd} (${pageRangeEnd - pageRangeStart + 1} pages, ~${Math.ceil((pageRangeEnd - pageRangeStart + 1) / 12)} API calls)` 
+                          : `Will process all ${totalPages} page${totalPages !== 1 ? 's' : ''} (~${Math.ceil(totalPages / 12)} API calls)`}
                       </div>
                     </div>
 
                     {/* Batch Processing Info */}
                     {totalPages > 0 && (() => {
-                      const pagesToProcess = pageLimit > 0 ? pageLimit : totalPages
+                      const pagesToProcess = pageRangeEnd > 0 ? (pageRangeEnd - pageRangeStart + 1) : totalPages
                       const costEstimate = estimateTokenCost(pagesToProcess)
                       const tokensRemaining = usageStats.tokensLimitPerDay - usageStats.tokensUsedToday
                       const willExceedQuota = costEstimate.max > tokensRemaining
@@ -1489,7 +1534,7 @@ export default function CourseHarvester() {
                             color: willExceedQuota ? '#7f1d1d' : isWarning ? '#92400e' : '#166534',
                           }}>
                             <div style={{ marginBottom: '6px' }}>
-                              <strong>Processing {pagesToProcess} page{pagesToProcess !== 1 ? 's' : ''}:</strong>
+                              <strong>Processing pages {pageRangeStart}-{pageRangeEnd > 0 ? pageRangeEnd : totalPages} ({pagesToProcess} page{pagesToProcess !== 1 ? 's' : ''}):</strong>
                             </div>
                             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', fontSize: '11px', marginBottom: '8px' }}>
                               <div>Est. Tokens: <strong>{costEstimate.recommended.toLocaleString()}</strong></div>
@@ -1544,7 +1589,9 @@ export default function CourseHarvester() {
                     onClick={() => {
                       setSelectedFile(null)
                       setTotalPages(0)
-                      setPageLimit(0)
+                      setPageRangeStart(1)
+                      setPageRangeEnd(0)
+                      setAllCourses([])
                       setCachedPageRange(null)
                       setStatus('')
                     }}
