@@ -1479,16 +1479,16 @@ export default function CourseHarvester() {
                         }}
                       >
                         <option value={`1-0`}>All pages (1-{totalPages})</option>
-                        {totalPages >= 5 && <option value={`1-5`}>Pages 1-5</option>}
-                        {totalPages >= 10 && <option value={`6-10`}>Pages 6-10</option>}
-                        {totalPages >= 15 && <option value={`11-15`}>Pages 11-15</option>}
-                        {totalPages >= 20 && <option value={`16-20`}>Pages 16-20</option>}
-                        {totalPages >= 25 && <option value={`21-25`}>Pages 21-25</option>}
-                        {totalPages >= 30 && <option value={`26-30`}>Pages 26-30</option>}
-                        {totalPages >= 35 && <option value={`31-35`}>Pages 31-35</option>}
-                        {totalPages >= 40 && <option value={`36-40`}>Pages 36-40</option>}
-                        {totalPages >= 45 && <option value={`41-45`}>Pages 41-45</option>}
-                        {totalPages >= 47 && <option value={`46-${totalPages}`}>Pages 46-{totalPages}</option>}
+                        {/* Generate 5-page chunks dynamically */}
+                        {Array.from({ length: Math.ceil(totalPages / 5) }, (_, i) => {
+                          const start = i * 5 + 1
+                          const end = Math.min((i + 1) * 5, totalPages)
+                          return (
+                            <option key={i} value={`${start}-${end}`}>
+                              Pages {start}-{end}
+                            </option>
+                          )
+                        })}
                       </select>
                       <button
                         onClick={() => {
