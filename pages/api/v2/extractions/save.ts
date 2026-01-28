@@ -36,10 +36,61 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     })
     
     if (existing) {
-      return res.status(409).json({
-        error: 'File already extracted',
+      // MERGE MODE: Add new courses to existing extraction
+      const existingCourses = existing.courses || []
+      const existingNames = new Set(
+        existingCourses.map((c: any) => 
+          (c.name || c.CourseName || '').toLowerCase().trim()
+        )
+      )
+      
+      // Filter out duplicates
+      const newCourses = courses.filter((c: any) => {
+        const name = (c.CourseName || '').toLowerCase().trim()
+        return name && !existingNames.has(name)
+      }).map((c: any) => ({
+        name: c.CourseName,
+        code: c.CourseCode,
+        grade_level: c.GradeLevel,
+        credits: c.Credit,
+        description: c.CourseDescription,
+        details: c.Details,
+        category: c.Category,
+        confidence_score: 0.95,
+        extracted_by_api: api_used,
+      }))
+      
+      const mergedCourses = [...existingCourses, ...newCourses]
+      
+      // Update existing extraction with merged courses
+      await collection.updateOne(
+        { _id: existing._id },
+        {
+          $set: {
+            courses: mergedCourses,
+            total_courses: mergedCourses.length,
+            tokens_used: (existing.tokens_used || 0) + (tokens_used || 0),
+            updated_at: new Date(),
+            metadata: {
+              ...existing.metadata,
+              ...req.body.metadata,
+              pages_processed: req.body.metadata?.pages_processed || existing.metadata?.pages_processed,
+              total_pages: req.body.metadata?.total_pages || existing.metadata?.total_pages,
+            },
+          },
+        }
+      )
+      
+      console.log(`[v2/save] ✅ MERGED ${newCourses.length} new courses into ${filename} (total: ${mergedCourses.length})`)
+      
+      return res.status(200).json({
+        success: true,
         extraction_id: existing._id?.toString(),
-        message: 'This file has already been processed. Use the extraction ID to view or refine.',
+        total_courses: mergedCourses.length,
+        new_courses_added: newCourses.length,
+        tokens_used: (existing.tokens_used || 0) + (tokens_used || 0),
+        message: `Merged ${newCourses.length} new courses (total: ${mergedCourses.length})`,
+        merged: true,
       })
     }
 

@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
-import { Trash2, Download, Edit2, RefreshCw, Eye } from 'lucide-react'
+import Link from 'next/link'
+import { Trash2, Download, Edit2, RefreshCw, Eye, ExternalLink } from 'lucide-react'
 import ExtractionDetailModal from './ExtractionDetailModal'
 
 export interface SavedExtraction {
@@ -398,12 +399,9 @@ export default function CourseHarvesterSidebar({
                     CSV
                   </button>
 
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      setViewingExtraction(extraction)
-                      setShowDetailModal(true)
-                    }}
+                  <Link
+                    href={`/courses/${extraction._id}`}
+                    onClick={(e) => e.stopPropagation()}
                     style={{
                       flex: 1,
                       padding: '4px 6px',
@@ -418,20 +416,13 @@ export default function CourseHarvesterSidebar({
                       justifyContent: 'center',
                       gap: '4px',
                       transition: 'all 0.2s',
+                      textDecoration: 'none',
                     }}
-                    onMouseEnter={(e) => {
-                      e.currentTarget.style.backgroundColor = '#dbeafe'
-                      e.currentTarget.style.borderColor = '#3b82f6'
-                    }}
-                    onMouseLeave={(e) => {
-                      e.currentTarget.style.backgroundColor = '#eff6ff'
-                      e.currentTarget.style.borderColor = '#bfdbfe'
-                    }}
-                    title="View extracted courses"
+                    title="View & edit courses"
                   >
-                    <Eye size={12} />
-                    View
-                  </button>
+                    <ExternalLink size={12} />
+                    Open
+                  </Link>
                   <button
                     onClick={(e) => {
                       e.stopPropagation()

@@ -696,7 +696,7 @@ export default function CourseHarvester() {
               file_size: selectedFile.size,
               file_type: ext,
               total_pages: totalPages,
-              pages_processed: Math.ceil(totalPages / 3) * 3,
+              pages_processed: endPage,
             },
             status: 'completed',
             tokens_used: estimatedTokens,
@@ -705,17 +705,24 @@ export default function CourseHarvester() {
         })
 
         if (saveResponse.ok) {
-          const { extraction_id } = await saveResponse.json()
-          console.log('✅ Extraction saved to MongoDB:', extraction_id)
+          const saveData = await saveResponse.json()
+          console.log('✅ Extraction saved to MongoDB:', saveData.extraction_id)
           
           // Refresh sidebar to show new extraction
           setSidebarRefreshTrigger(prev => prev + 1)
           
-          // Show success notification
-          setStatus(
-            `✅ ${finalCourses.length} courses extracted and saved to database (ID: ${extraction_id.slice(0, 8)}...)`
-          )
-          showToast(`🎉 Successfully extracted ${finalCourses.length} courses!`, 'success')
+          // Check if it was a merge operation
+          if (saveData.merged) {
+            setStatus(
+              `✅ Merged ${saveData.new_courses_added} new courses! Total: ${saveData.total_courses} courses`
+            )
+            showToast(`🔄 Merged ${saveData.new_courses_added} new courses (Total: ${saveData.total_courses})`, 'success')
+          } else {
+            setStatus(
+              `✅ ${finalCourses.length} courses extracted and saved (ID: ${saveData.extraction_id.slice(0, 8)}...)`
+            )
+            showToast(`🎉 Successfully extracted ${finalCourses.length} courses!`, 'success')
+          }
         } else {
           console.error('Failed to save extraction to MongoDB')
           setStatus(`⚠️ Extraction complete but failed to save to database. ${finalCourses.length} courses extracted.`)

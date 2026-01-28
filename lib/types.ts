@@ -71,6 +71,14 @@ export interface Extraction {
   api_used: string
   tokens_used: number
   
+  // Extended Metadata (for UI display)
+  metadata?: {
+    file_size?: number
+    file_type?: string
+    total_pages?: number
+    pages_processed?: number
+  }
+  
   // Status
   status: 'processing' | 'completed' | 'failed'
   error_message?: string

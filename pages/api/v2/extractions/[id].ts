@@ -1,6 +1,6 @@
 import { NextApiRequest, NextApiResponse } from 'next';
 import { ObjectId } from 'mongodb';
-import { deleteExtraction, getExtractionById } from '../../../../lib/extraction.service';
+import { deleteExtraction, getExtractionById, updateExtraction } from '../../../../lib/extraction.service';
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   const { id } = req.query;
@@ -53,26 +53,75 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         message: 'Extraction deleted successfully',
       });
     } else if (req.method === 'PUT') {
-      // Update extraction (for refinements later)
-      const { courses, status, is_refined } = req.body;
+      // Update extraction (courses, status, metadata)
+      const { courses, status, is_refined, metadata, merge_courses } = req.body;
 
-      if (!courses && !status && is_refined === undefined) {
+      if (!courses && !status && is_refined === undefined && !metadata) {
         return res.status(400).json({
           success: false,
           error: 'No update data provided',
         });
       }
 
-      const updates: any = {};
-      if (courses) updates.courses = courses;
+      // Get existing extraction for merge
+      const existing = await getExtractionById(id);
+      if (!existing) {
+        return res.status(404).json({
+          success: false,
+          error: 'Extraction not found',
+        });
+      }
+
+      const updates: any = {
+        updated_at: new Date(),
+      };
+
+      // Handle course merging vs replacement
+      if (courses) {
+        if (merge_courses && existing.courses) {
+          // Merge: Add new courses that don't already exist
+          const existingNames = new Set(
+            existing.courses.map((c: any) => 
+              (c.name || c.CourseName || '').toLowerCase().trim()
+            )
+          );
+          
+          const newCourses = courses.filter((c: any) => {
+            const name = (c.name || c.CourseName || '').toLowerCase().trim();
+            return name && !existingNames.has(name);
+          });
+          
+          updates.courses = [...existing.courses, ...newCourses];
+          updates.total_courses = updates.courses.length;
+          console.log(`[PUT] Merged ${newCourses.length} new courses (total: ${updates.courses.length})`);
+        } else {
+          // Replace all courses
+          updates.courses = courses;
+          updates.total_courses = courses.length;
+        }
+      }
+
       if (status) updates.status = status;
       if (is_refined !== undefined) updates.is_refined = is_refined;
-      updates.updated_at = new Date();
+      if (metadata) {
+        updates.metadata = { ...existing.metadata, ...metadata };
+        if (metadata.pages_processed) updates.total_pages = metadata.pages_processed;
+      }
 
-      // TODO: Implement updateExtraction in service
+      const result = await updateExtraction(id, updates);
+
+      if (!result) {
+        return res.status(500).json({
+          success: false,
+          error: 'Failed to update extraction',
+        });
+      }
+
       return res.status(200).json({
         success: true,
         message: 'Extraction updated successfully',
+        data: result,
+        total_courses: result.total_courses || result.courses?.length || 0,
       });
     } else {
       return res.status(405).json({
