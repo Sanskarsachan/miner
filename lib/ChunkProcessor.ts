@@ -124,16 +124,22 @@ export class ChunkProcessor {
    */
   async processChunk(text: string, filename: string, attempt: number = 1): Promise<Course[]> {
     try {
+      console.log('[ChunkProcessor] Calling /api/secure_extract with', text.length, 'chars, apiKey present:', !!this.apiKey)
+      
       const response = await fetch('/api/secure_extract', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ text, filename, apiKey: this.apiKey }),  // Send API key
       })
 
+      console.log('[ChunkProcessor] Response status:', response.status)
+
       // Always read as text first (to avoid "body stream already read" error)
       let responseText = ''
       try {
         responseText = await response.text()
+        console.log('[ChunkProcessor] Response text length:', responseText.length)
+        console.log('[ChunkProcessor] Response preview:', responseText.substring(0, 200))
       } catch (textError) {
         console.error('[ChunkProcessor] Failed to read response text:', textError)
         throw new Error('Failed to read API response')

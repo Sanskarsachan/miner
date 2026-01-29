@@ -187,7 +187,7 @@ ${text}`
       return res.status(200).json([])
     }
 
-    const responseText = await response.text()
+    let responseText = await response.text()
     logEntry.geminiStatus = response.status
     logEntry.geminiResponseLength = responseText.length
 
@@ -212,18 +212,49 @@ ${text}`
           if (match) {
             retryAfter = Math.ceil(parseFloat(match[1]) * 1000) // Convert to milliseconds
             console.log(`[secure_extract] Rate limited. Retry after ${retryAfter}ms`)
+            
+            // If retry time is reasonable (< 120 seconds), wait and retry automatically
+            if (retryAfter > 0 && retryAfter < 120000) {
+              console.log(`[secure_extract] Waiting ${retryAfter}ms before automatic retry...`)
+              await new Promise(resolve => setTimeout(resolve, retryAfter + 1000)) // Add 1 second buffer
+              
+              // Recursive retry - make the API call again
+              console.log('[secure_extract] Retrying after rate limit wait...')
+              const retryResponse = await fetch(url, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  contents: [{ parts: [{ text: prompt }] }],
+                  generationConfig: { temperature: 0.1 },
+                }),
+              })
+              
+              if (retryResponse.ok) {
+                const retryText = await retryResponse.text()
+                console.log('[secure_extract] Retry succeeded, response length:', retryText.length)
+                responseText = retryText
+                response = retryResponse
+                // Continue processing below (skip the throw)
+              } else {
+                console.error('[secure_extract] Retry also failed:', retryResponse.status)
+                // Let it fall through to the error handling
+              }
+            }
           }
         }
       } catch (e) {
         errorDetail = responseText.substring(0, 200)
       }
       
-      console.error('[secure_extract] Gemini error code:', response.status)
-      console.error('[secure_extract] Gemini error details:', errorDetail)
-      logEntry.error = `Gemini API error (${response.status}): ${errorDetail}`
-      requestLogs.unshift(logEntry)
-      if (requestLogs.length > 10) requestLogs.pop()
-      throw new Error(`Gemini API error (${response.status}): ${errorDetail}`)
+      // Only throw if we didn't successfully retry
+      if (!response.ok) {
+        console.error('[secure_extract] Gemini error code:', response.status)
+        console.error('[secure_extract] Gemini error details:', errorDetail)
+        logEntry.error = `Gemini API error (${response.status}): ${errorDetail}`
+        requestLogs.unshift(logEntry)
+        if (requestLogs.length > 10) requestLogs.pop()
+        throw new Error(`Gemini API error (${response.status}): ${errorDetail}`)
+      }
     }
 
     let geminiData
