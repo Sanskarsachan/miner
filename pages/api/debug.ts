@@ -1,21 +1,31 @@
 /**
- * Debug API - Check Environment Variables
+ * Debug API - Check Environment Variables and Extraction Logs
  * Usage: /api/debug?secret=your-secret-key
  * 
  * SECURITY: Only works with secret parameter in production
  */
 
 import type { NextApiRequest, NextApiResponse } from 'next'
+import { getRequestLogs } from './secure_extract'
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
-  // Security: Require secret in production
-  if (process.env.NODE_ENV === 'production' && req.query.secret !== process.env.DEBUG_SECRET) {
+  // Security: Require secret in production (or allow in dev mode)
+  const isDev = process.env.NODE_ENV !== 'production'
+  if (!isDev && req.query.secret !== process.env.DEBUG_SECRET) {
     return res.status(403).json({ error: 'Forbidden - Invalid or missing secret' })
   }
 
   try {
     // Check environment variables (without exposing actual values)
     const mongoUri = process.env.MONGODB_URI || ''
+    
+    // Get extraction logs
+    let extractionLogs: any[] = []
+    try {
+      extractionLogs = getRequestLogs()
+    } catch (e) {
+      console.error('Failed to get extraction logs:', e)
+    }
     
     const debugInfo: {
       timestamp: string
@@ -36,6 +46,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       optional: {
         hasDebugSecret: boolean
       }
+      extractionLogs: any[]
     } = {
       timestamp: new Date().toISOString(),
       environment: process.env.NODE_ENV,
@@ -60,7 +71,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       // Optional
       optional: {
         hasDebugSecret: !!process.env.DEBUG_SECRET,
-      }
+      },
+      
+      // Extraction logs (last 10 requests)
+      extractionLogs,
     }
 
     // Try to connect to MongoDB

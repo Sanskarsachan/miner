@@ -12,34 +12,76 @@ interface Course {
   CourseDescription?: string
 }
 
+// In-memory log store for debugging (last 10 requests)
+const requestLogs: Array<{
+  timestamp: string
+  textLength: number
+  promptLength: number
+  apiKeyPresent: boolean
+  geminiStatus?: number
+  geminiResponseLength?: number
+  geminiContentLength?: number
+  coursesExtracted: number
+  error?: string
+  firstChars?: string
+  lastChars?: string
+}> = []
+
+// Export for debug endpoint
+export function getRequestLogs() {
+  return requestLogs
+}
+
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' })
   }
 
+  const logEntry: typeof requestLogs[0] = {
+    timestamp: new Date().toISOString(),
+    textLength: 0,
+    promptLength: 0,
+    apiKeyPresent: false,
+    coursesExtracted: 0,
+  }
+
   try {
     const { text, apiKey } = req.body
 
+    logEntry.apiKeyPresent = !!apiKey
+    logEntry.textLength = text?.length || 0
+
     if (!apiKey) {
+      logEntry.error = 'No API key provided'
       console.error('[secure_extract] No API key provided')
+      requestLogs.unshift(logEntry)
+      if (requestLogs.length > 10) requestLogs.pop()
       return res.status(400).json({ error: 'API key required' })
     }
 
     if (!text || typeof text !== 'string' || text.length === 0) {
+      logEntry.error = 'No text provided'
       console.error('[secure_extract] No text provided')
+      requestLogs.unshift(logEntry)
+      if (requestLogs.length > 10) requestLogs.pop()
       return res.status(400).json({ error: 'Text is required' })
     }
 
     // CRITICAL: Check if text is too short to contain courses
     if (text.length < 50) {
+      logEntry.error = `Text too short: ${text.length} chars`
       console.warn('[secure_extract] Text too short to contain courses:', text.length, 'chars')
-      console.warn('[secure_extract] Full text:', text)
+      requestLogs.unshift(logEntry)
+      if (requestLogs.length > 10) requestLogs.pop()
       return res.status(200).json([])
     }
 
-    console.log('[secure_extract] Input validation passed')
+    logEntry.firstChars = text.substring(0, 100)
+    logEntry.lastChars = text.substring(text.length - 100)
+
+    console.log('[secure_extract] === NEW EXTRACTION REQUEST ===')
     console.log('[secure_extract] Text length:', text.length)
-    console.log('[secure_extract] First 200 chars:', text.substring(0, 200))
+    console.log('[secure_extract] First 300 chars:', text.substring(0, 300))
     console.log('[secure_extract] Last 200 chars:', text.substring(text.length - 200))
 
     // Build prompt that explicitly asks for JSON
@@ -94,15 +136,19 @@ STRICT EXAMPLE (follow this format exactly):
 DOCUMENT TO EXTRACT FROM:
 ${text}`
 
+    logEntry.promptLength = prompt.length
     console.log('[secure_extract] Prompt built, length:', prompt.length)
+    
     const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`
+    console.log('[secure_extract] Calling Gemini API...')
 
-    let response
+    let response: Response | undefined
     let retryCount = 0
     const maxRetries = 3
     
     while (retryCount < maxRetries) {
       try {
+        console.log(`[secure_extract] Fetch attempt ${retryCount + 1}/${maxRetries}`)
         response = await fetch(url, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -117,20 +163,37 @@ ${text}`
             },
           }),
         })
+        console.log('[secure_extract] Fetch succeeded, status:', response.status)
         break // Success, exit retry loop
       } catch (fetchError) {
         retryCount++
+        const errMsg = fetchError instanceof Error ? fetchError.message : String(fetchError)
+        console.error(`[secure_extract] Fetch attempt ${retryCount} failed:`, errMsg)
         if (retryCount >= maxRetries) {
-          console.error('[secure_extract] Fetch error:', fetchError instanceof Error ? fetchError.message : String(fetchError))
+          logEntry.error = `Fetch failed after ${maxRetries} attempts: ${errMsg}`
+          requestLogs.unshift(logEntry)
+          if (requestLogs.length > 10) requestLogs.pop()
           throw fetchError
         }
+        // Wait before retry
+        await new Promise(r => setTimeout(r, 1000 * retryCount))
       }
     }
 
+    if (!response) {
+      logEntry.error = 'No response received from Gemini'
+      requestLogs.unshift(logEntry)
+      if (requestLogs.length > 10) requestLogs.pop()
+      return res.status(200).json([])
+    }
+
     const responseText = await response.text()
+    logEntry.geminiStatus = response.status
+    logEntry.geminiResponseLength = responseText.length
 
     console.log('[secure_extract] Gemini response status:', response.status)
     console.log('[secure_extract] Response length:', responseText.length)
+    console.log('[secure_extract] Response preview:', responseText.substring(0, 500))
     
     if (!response.ok) {
       // Try to extract error details from Gemini response
@@ -157,29 +220,41 @@ ${text}`
       
       console.error('[secure_extract] Gemini error code:', response.status)
       console.error('[secure_extract] Gemini error details:', errorDetail)
+      logEntry.error = `Gemini API error (${response.status}): ${errorDetail}`
+      requestLogs.unshift(logEntry)
+      if (requestLogs.length > 10) requestLogs.pop()
       throw new Error(`Gemini API error (${response.status}): ${errorDetail}`)
     }
 
     let geminiData
     try {
       geminiData = JSON.parse(responseText)
+      console.log('[secure_extract] Parsed Gemini JSON response')
     } catch (e) {
       console.error('[secure_extract] Failed to parse Gemini response as JSON')
-      console.error('[secure_extract] Response was:', responseText.substring(0, 300))
+      console.error('[secure_extract] Response was:', responseText.substring(0, 500))
+      logEntry.error = 'Failed to parse Gemini response as JSON'
+      requestLogs.unshift(logEntry)
+      if (requestLogs.length > 10) requestLogs.pop()
       throw new Error('Invalid response from Gemini')
     }
 
     // Extract the text content from Gemini response
     const responseContent = geminiData.candidates?.[0]?.content?.parts?.[0]?.text
+    logEntry.geminiContentLength = responseContent?.length || 0
     
     if (!responseContent) {
       console.error('[secure_extract] No text content in Gemini response')
-      console.error('[secure_extract] Full response:', JSON.stringify(geminiData).substring(0, 500))
+      console.error('[secure_extract] Candidates:', JSON.stringify(geminiData.candidates).substring(0, 500))
+      console.error('[secure_extract] Full response keys:', Object.keys(geminiData))
+      logEntry.error = 'No text content in Gemini response'
+      requestLogs.unshift(logEntry)
+      if (requestLogs.length > 10) requestLogs.pop()
       return res.status(200).json([])
     }
 
     console.log('[secure_extract] Gemini returned text, length:', responseContent.length)
-    console.log('[secure_extract] First 200 chars:', responseContent.substring(0, 200))
+    console.log('[secure_extract] Content preview (first 500):', responseContent.substring(0, 500))
 
     // Extract JSON array from response
     let courses: Course[] = []
@@ -189,27 +264,47 @@ ${text}`
       
       if (!jsonMatch) {
         console.error('[secure_extract] Could not find JSON array in response')
-        console.error('[secure_extract] Response text:', responseContent)
+        console.error('[secure_extract] Full response text:', responseContent)
+        logEntry.error = 'No JSON array found in Gemini content'
+        requestLogs.unshift(logEntry)
+        if (requestLogs.length > 10) requestLogs.pop()
         return res.status(200).json([])
       }
 
       const jsonStr = jsonMatch[0]
-      console.log('[secure_extract] Found JSON, parsing...')
+      console.log('[secure_extract] Found JSON array, length:', jsonStr.length)
       
       courses = JSON.parse(jsonStr)
+      logEntry.coursesExtracted = courses.length
       console.log('[secure_extract] Successfully parsed', courses.length, 'courses')
+      
+      // Log first course for debugging
+      if (courses.length > 0) {
+        console.log('[secure_extract] First course:', JSON.stringify(courses[0]).substring(0, 300))
+      }
     } catch (parseError) {
-      console.error('[secure_extract] JSON parse error:', parseError instanceof Error ? parseError.message : String(parseError))
-      console.error('[secure_extract] Attempted to parse:', responseContent.substring(0, 300))
+      const errMsg = parseError instanceof Error ? parseError.message : String(parseError)
+      console.error('[secure_extract] JSON parse error:', errMsg)
+      console.error('[secure_extract] Attempted to parse:', responseContent.substring(0, 500))
+      logEntry.error = `JSON parse error: ${errMsg}`
+      requestLogs.unshift(logEntry)
+      if (requestLogs.length > 10) requestLogs.pop()
       return res.status(200).json([])
     }
 
+    // Success - save log and return
+    requestLogs.unshift(logEntry)
+    if (requestLogs.length > 10) requestLogs.pop()
+    console.log('[secure_extract] === EXTRACTION COMPLETE ===', courses.length, 'courses')
+    
     return res.status(200).json(courses)
   } catch (error) {
     const errorMsg = error instanceof Error ? error.message : String(error)
     console.error('[secure_extract] Fatal error:', errorMsg)
+    logEntry.error = `Fatal: ${errorMsg}`
+    requestLogs.unshift(logEntry)
+    if (requestLogs.length > 10) requestLogs.pop()
     // Return empty array with 200 status (not 500) to avoid client parsing issues
-    // Client will receive empty array and user will see "0 courses extracted" instead of crash
     return res.status(200).json([])
   }
 }
