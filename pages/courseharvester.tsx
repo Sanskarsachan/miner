@@ -207,6 +207,11 @@ export default function CourseHarvester() {
     retryAfter: number
     suggestion: string
   } | null>(null)
+  const [recheckResult, setRecheckResult] = useState<{
+    show: boolean
+    newCourses: Course[]
+    existingCount: number
+  } | null>(null)
   const [extractionProgress, setExtractionProgress] = useState({
     isExtracting: false,
     pagesProcessed: 0,
@@ -850,6 +855,118 @@ export default function CourseHarvester() {
     a.download = `courses_${new Date().toISOString().slice(0, 10)}.csv`
     a.click()
     URL.revokeObjectURL(url)
+  }
+
+  // Recheck for missed courses - re-extracts and compares with existing
+  const recheckForMissedCourses = async () => {
+    if (!selectedFile) return setStatus('Select a file first')
+    if (!apiKey) return setStatus('Enter your Gemini API key')
+    if (allCourses.length === 0) return setStatus('Extract courses first before rechecking')
+
+    const existingCourses = [...allCourses]
+    setStatus('Rechecking for missed courses...')
+    
+    setExtractionProgress({
+      isExtracting: true,
+      pagesProcessed: 0,
+      totalPages: totalPages || 1,
+      coursesFound: 0,
+      startTime: Date.now(),
+      estimatedTimeRemaining: 0,
+    })
+
+    try {
+      let textContent = ''
+      const ext = detectFileType(selectedFile).extension
+      const startPage = pageRangeStart || 1
+      const endPage = pageRangeEnd > 0 ? Math.min(pageRangeEnd, totalPages) : totalPages
+
+      // Extract text from file
+      if (ext === 'pdf') {
+        const ab = await selectedFile.arrayBuffer()
+        const pdf = await (window as any).pdfjsLib.getDocument({ data: ab }).promise
+
+        const pages: string[] = []
+        for (let i = startPage; i <= endPage; i++) {
+          const page = await pdf.getPage(i)
+          const tc = await page.getTextContent()
+          const pageText = tc.items.map((it: any) => it.str).join(' ')
+          pages.push(pageText)
+        }
+        textContent = pages.join('\n\n--- PAGE BREAK ---\n\n')
+      } else if (ext === 'doc' || ext === 'docx') {
+        const ab = await selectedFile.arrayBuffer()
+        const res = await (window as any).mammoth.extractRawText({ arrayBuffer: ab })
+        textContent = res.value
+      } else {
+        textContent = await selectedFile.text()
+      }
+
+      // Process with ChunkProcessor (no cache - fresh extraction)
+      const processor = new ChunkProcessor(
+        (progress) => {
+          if (progress.status === 'processing') {
+            setStatus(`Rechecking: ${progress.message}`)
+          } else if (progress.status === 'chunk_complete') {
+            setExtractionProgress(prev => ({
+              ...prev,
+              pagesProcessed: progress.current,
+              totalPages: progress.total,
+              coursesFound: progress.coursesFound || 0,
+            }))
+          }
+        },
+        (error) => console.error('Recheck error:', error),
+        apiKey
+      )
+
+      const newExtraction = await processor.processDocument(textContent, selectedFile.name)
+      
+      // Clean new courses
+      const cleanedNew: Course[] = newExtraction
+        .map((c) => cleanCourseData({ ...c, SourceFile: selectedFile.name }))
+        .filter((c): c is Course => c !== null)
+
+      // Find courses that are in new extraction but not in existing
+      const existingKeys = new Set(
+        existingCourses.map(c => 
+          `${(c.CourseName || '').toLowerCase().trim()}|${(c.Category || '').toLowerCase().trim()}`
+        )
+      )
+
+      const missedCourses = cleanedNew.filter(c => {
+        const key = `${(c.CourseName || '').toLowerCase().trim()}|${(c.Category || '').toLowerCase().trim()}`
+        return !existingKeys.has(key)
+      })
+
+      setExtractionProgress(prev => ({ ...prev, isExtracting: false }))
+
+      if (missedCourses.length > 0) {
+        setRecheckResult({
+          show: true,
+          newCourses: missedCourses,
+          existingCount: existingCourses.length,
+        })
+        setStatus(`Found ${missedCourses.length} potentially missed courses!`)
+        showToast(`Found ${missedCourses.length} new courses that may have been missed`, 'info')
+      } else {
+        setStatus(`Recheck complete — no missed courses found (${existingCourses.length} courses verified)`)
+        showToast('No missed courses found - extraction looks complete!', 'success')
+      }
+    } catch (e: any) {
+      if (e?.isRateLimit) {
+        setRateLimitModal({
+          show: true,
+          message: e.message || 'API rate limit reached.',
+          retryAfter: e.retryAfter || 60,
+          suggestion: e.suggestion || 'Please wait and try again.',
+        })
+        setStatus('Rate limit reached during recheck')
+      } else {
+        setStatus(`Recheck error: ${e instanceof Error ? e.message : 'Unknown error'}`)
+      }
+      setExtractionProgress(prev => ({ ...prev, isExtracting: false }))
+    }
   }
 
   const filteredCourses = allCourses.filter((c) => {
@@ -1542,17 +1659,19 @@ export default function CourseHarvester() {
                       </select>
                       <button
                         type="button"
-                        onClick={() => {
-                          setAllCourses([])
-                          setPageRangeStart(1)
-                          setPageRangeEnd(5)
-                          setStatus('Ready to extract pages 1-5')
-                        }}
+                        onClick={recheckForMissedCourses}
+                        disabled={!selectedFile || !apiKey || allCourses.length === 0 || extractionProgress.isExtracting}
                         className="secondary"
-                        style={{ fontSize: '12px', padding: '6px 8px' }}
-                        title="Clear results and extract first 5 pages"
+                        style={{ 
+                          fontSize: '12px', 
+                          padding: '6px 10px',
+                          backgroundColor: allCourses.length > 0 ? '#F4F0FF' : undefined,
+                          borderColor: allCourses.length > 0 ? '#603AC8' : undefined,
+                          color: allCourses.length > 0 ? '#603AC8' : undefined,
+                        }}
+                        title={`Recheck pages ${pageRangeStart}-${pageRangeEnd > 0 ? pageRangeEnd : totalPages} for missed courses`}
                       >
-                        Reset 1-5
+                        🔍 Recheck {pageRangeStart}-{pageRangeEnd > 0 ? pageRangeEnd : totalPages}
                       </button>
                       <div className="muted">
                         {pageRangeEnd > 0 
@@ -2213,6 +2332,146 @@ export default function CourseHarvester() {
               >
                 Change API Key
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Recheck Results Modal */}
+      {recheckResult?.show && (
+        <div 
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: 'rgba(0, 0, 0, 0.6)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 1000,
+          }}
+          onClick={() => setRecheckResult(null)}
+        >
+          <div 
+            style={{
+              backgroundColor: '#fff',
+              borderRadius: '16px',
+              padding: '32px',
+              maxWidth: '600px',
+              width: '90%',
+              maxHeight: '80vh',
+              overflow: 'hidden',
+              display: 'flex',
+              flexDirection: 'column',
+              boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)',
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header */}
+            <div style={{ textAlign: 'center', marginBottom: '20px' }}>
+              <div style={{
+                width: '64px',
+                height: '64px',
+                borderRadius: '50%',
+                backgroundColor: '#F4F0FF',
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                marginBottom: '12px',
+              }}>
+                <CheckCircle size={32} color="#603AC8" />
+              </div>
+              <h3 style={{
+                fontSize: '20px',
+                fontWeight: 700,
+                color: '#1F2937',
+                margin: '0 0 8px 0',
+              }}>
+                Recheck Complete
+              </h3>
+              <p style={{ fontSize: '14px', color: '#6B7280', margin: 0 }}>
+                Found <strong style={{ color: '#603AC8' }}>{recheckResult.newCourses.length}</strong> potentially missed courses
+                (existing: {recheckResult.existingCount})
+              </p>
+            </div>
+
+            {/* Course List */}
+            {recheckResult.newCourses.length > 0 && (
+              <div style={{
+                flex: 1,
+                overflow: 'auto',
+                marginBottom: '20px',
+                border: '1px solid #E5E7EB',
+                borderRadius: '8px',
+              }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
+                  <thead>
+                    <tr style={{ backgroundColor: '#F9FAFB', position: 'sticky', top: 0 }}>
+                      <th style={{ padding: '10px', textAlign: 'left', borderBottom: '1px solid #E5E7EB' }}>#</th>
+                      <th style={{ padding: '10px', textAlign: 'left', borderBottom: '1px solid #E5E7EB' }}>Course Name</th>
+                      <th style={{ padding: '10px', textAlign: 'left', borderBottom: '1px solid #E5E7EB' }}>Category</th>
+                      <th style={{ padding: '10px', textAlign: 'left', borderBottom: '1px solid #E5E7EB' }}>Grade</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {recheckResult.newCourses.map((course, idx) => (
+                      <tr key={idx} style={{ borderBottom: '1px solid #F3F4F6' }}>
+                        <td style={{ padding: '10px', color: '#603AC8', fontWeight: 600 }}>{idx + 1}</td>
+                        <td style={{ padding: '10px' }}>{course.CourseName}</td>
+                        <td style={{ padding: '10px', color: '#6B7280' }}>{course.Category || '-'}</td>
+                        <td style={{ padding: '10px', color: '#6B7280' }}>{course.GradeLevel || '-'}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+
+            {/* Action Buttons */}
+            <div style={{ display: 'flex', gap: '12px' }}>
+              <button
+                type="button"
+                onClick={() => setRecheckResult(null)}
+                style={{
+                  flex: 1,
+                  padding: '12px 16px',
+                  borderRadius: '8px',
+                  border: '1px solid #D1D5DB',
+                  backgroundColor: '#fff',
+                  color: '#374151',
+                  fontSize: '14px',
+                  fontWeight: 500,
+                  cursor: 'pointer',
+                }}
+              >
+                Dismiss
+              </button>
+              {recheckResult.newCourses.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    // Add the new courses to existing
+                    setAllCourses(prev => [...prev, ...recheckResult.newCourses])
+                    showToast(`Added ${recheckResult.newCourses.length} new courses!`, 'success')
+                    setRecheckResult(null)
+                  }}
+                  style={{
+                    flex: 1,
+                    padding: '12px 16px',
+                    borderRadius: '8px',
+                    border: 'none',
+                    backgroundColor: '#603AC8',
+                    color: '#fff',
+                    fontSize: '14px',
+                    fontWeight: 500,
+                    cursor: 'pointer',
+                  }}
+                >
+                  Add {recheckResult.newCourses.length} Courses
+                </button>
+              )}
             </div>
           </div>
         </div>
