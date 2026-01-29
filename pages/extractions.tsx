@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import Head from 'next/head';
 import Link from 'next/link';
+import { useRouter } from 'next/router';
 import { 
   FileText, 
   Download, 
@@ -38,6 +39,7 @@ interface Extraction {
 }
 
 export default function V2ExtractionsPage() {
+  const router = useRouter();
   const [extractions, setExtractions] = useState<Extraction[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -49,6 +51,10 @@ export default function V2ExtractionsPage() {
   const [copied, setCopied] = useState(false);
   const [copiedShare, setCopiedShare] = useState<string | null>(null);
   const [deleting, setDeleting] = useState<string | null>(null);
+
+  const navigateToExtraction = (id: string) => {
+    router.push(`/extraction/${id}`);
+  };
 
   useEffect(() => {
     fetchExtractions();
@@ -151,7 +157,7 @@ export default function V2ExtractionsPage() {
   };
 
   const shareExtraction = async (extraction: Extraction) => {
-    const shareUrl = `${window.location.origin}/v2/extractions?id=${extraction._id}`;
+    const shareUrl = `${window.location.origin}/extractions?id=${extraction._id}`;
     
     // Try native share first (mobile)
     if (navigator.share) {
@@ -279,7 +285,7 @@ export default function V2ExtractionsPage() {
                   Saved Extractions
                 </h1>
                 <p style={{ margin: '4px 0 0', fontSize: '14px', opacity: 0.85 }}>
-                  {extractions.length} file{extractions.length !== 1 ? 's' : ''} • {extractions.reduce((sum, e) => sum + e.total_courses, 0)} total courses
+                  {extractions.length} file{extractions.length !== 1 ? 's' : ''} • {extractions.reduce((sum, e) => sum + (e.total_courses || 0), 0)} total courses
                 </p>
               </div>
             </div>
@@ -486,7 +492,7 @@ export default function V2ExtractionsPage() {
                 return (
                   <div
                     key={extraction._id}
-                    onClick={() => { setSelectedExtraction(extraction); setShowDetail(true); }}
+                    onClick={() => navigateToExtraction(extraction._id)}
                     style={{
                       background: 'white',
                       borderRadius: '16px',
@@ -571,25 +577,25 @@ export default function V2ExtractionsPage() {
                     <div style={{ padding: '16px 20px', display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '8px' }}>
                       <div style={{ textAlign: 'center', padding: '8px 4px', background: '#F4F0FF', borderRadius: '8px' }}>
                         <div style={{ fontSize: '20px', fontWeight: 700, color: '#603AC8' }}>
-                          {extraction.total_courses}
+                          {extraction.total_courses || 0}
                         </div>
                         <div style={{ fontSize: '10px', color: '#6B7280', marginTop: '2px' }}>Courses</div>
                       </div>
                       <div style={{ textAlign: 'center', padding: '8px 4px', background: '#ECFDF5', borderRadius: '8px' }}>
                         <div style={{ fontSize: '20px', fontWeight: 700, color: '#059669' }}>
-                          {extraction.pages_processed || '-'}
+                          {extraction.pages_processed || 0}
                         </div>
                         <div style={{ fontSize: '10px', color: '#6B7280', marginTop: '2px' }}>Pages</div>
                       </div>
                       <div style={{ textAlign: 'center', padding: '8px 4px', background: '#FEF3C7', borderRadius: '8px' }}>
                         <div style={{ fontSize: '20px', fontWeight: 700, color: '#D97706' }}>
-                          {extraction.tokens_used > 1000 ? `${(extraction.tokens_used / 1000).toFixed(1)}k` : extraction.tokens_used}
+                          {(extraction.tokens_used || 0) > 1000 ? `${((extraction.tokens_used || 0) / 1000).toFixed(1)}k` : (extraction.tokens_used || 0)}
                         </div>
                         <div style={{ fontSize: '10px', color: '#6B7280', marginTop: '2px' }}>Tokens</div>
                       </div>
                       <div style={{ textAlign: 'center', padding: '8px 4px', background: '#EEF2FF', borderRadius: '8px' }}>
                         <div style={{ fontSize: '20px', fontWeight: 700, color: '#4F46E5' }}>
-                          {extraction.total_courses > 0 && extraction.pages_processed ? (extraction.total_courses / extraction.pages_processed).toFixed(1) : '-'}
+                          {(extraction.total_courses || 0) > 0 && (extraction.pages_processed || 0) > 0 ? ((extraction.total_courses || 0) / (extraction.pages_processed || 1)).toFixed(1) : '-'}
                         </div>
                         <div style={{ fontSize: '10px', color: '#6B7280', marginTop: '2px' }}>Avg/Page</div>
                       </div>
@@ -726,7 +732,7 @@ export default function V2ExtractionsPage() {
                     return (
                       <tr
                         key={extraction._id}
-                        onClick={() => { setSelectedExtraction(extraction); setShowDetail(true); }}
+                        onClick={() => navigateToExtraction(extraction._id)}
                         style={{
                           borderBottom: '1px solid #F3F4F6',
                           cursor: 'pointer',
@@ -767,13 +773,13 @@ export default function V2ExtractionsPage() {
                           </span>
                         </td>
                         <td style={{ padding: '16px 20px', textAlign: 'center', fontWeight: 600, color: '#603AC8' }}>
-                          {extraction.total_courses}
+                          {extraction.total_courses || 0}
                         </td>
                         <td style={{ padding: '16px 20px', textAlign: 'center', fontWeight: 600, color: '#059669' }}>
-                          {extraction.pages_processed || '-'}
+                          {extraction.pages_processed || 0}
                         </td>
                         <td style={{ padding: '16px 20px', textAlign: 'center', color: '#6B7280' }}>
-                          {extraction.tokens_used.toLocaleString()}
+                          {(extraction.tokens_used || 0).toLocaleString()}
                         </td>
                         <td style={{ padding: '16px 20px', textAlign: 'center', color: '#6B7280', fontSize: '13px' }}>
                           {formatDate(extraction.created_at)}
@@ -906,7 +912,7 @@ export default function V2ExtractionsPage() {
                     textAlign: 'center',
                   }}>
                     <BookOpen size={18} style={{ color: '#603AC8', marginBottom: '6px' }} />
-                    <div style={{ fontSize: '22px', fontWeight: 700, color: '#603AC8' }}>{selectedExtraction.total_courses}</div>
+                    <div style={{ fontSize: '22px', fontWeight: 700, color: '#603AC8' }}>{selectedExtraction.total_courses || 0}</div>
                     <div style={{ fontSize: '10px', color: '#6B7280' }}>Courses</div>
                   </div>
                   <div style={{
@@ -916,7 +922,7 @@ export default function V2ExtractionsPage() {
                     textAlign: 'center',
                   }}>
                     <FileText size={18} style={{ color: '#059669', marginBottom: '6px' }} />
-                    <div style={{ fontSize: '22px', fontWeight: 700, color: '#059669' }}>{selectedExtraction.pages_processed || '-'}</div>
+                    <div style={{ fontSize: '22px', fontWeight: 700, color: '#059669' }}>{selectedExtraction.pages_processed || 0}</div>
                     <div style={{ fontSize: '10px', color: '#6B7280' }}>Pages</div>
                   </div>
                   <div style={{
@@ -926,7 +932,7 @@ export default function V2ExtractionsPage() {
                     textAlign: 'center',
                   }}>
                     <Zap size={18} style={{ color: '#D97706', marginBottom: '6px' }} />
-                    <div style={{ fontSize: '22px', fontWeight: 700, color: '#D97706' }}>{selectedExtraction.tokens_used.toLocaleString()}</div>
+                    <div style={{ fontSize: '22px', fontWeight: 700, color: '#D97706' }}>{(selectedExtraction.tokens_used || 0).toLocaleString()}</div>
                     <div style={{ fontSize: '10px', color: '#6B7280' }}>Tokens</div>
                   </div>
                   <div style={{
@@ -937,8 +943,8 @@ export default function V2ExtractionsPage() {
                   }}>
                     <Hash size={18} style={{ color: '#4F46E5', marginBottom: '6px' }} />
                     <div style={{ fontSize: '22px', fontWeight: 700, color: '#4F46E5' }}>
-                      {selectedExtraction.total_courses > 0 && selectedExtraction.pages_processed 
-                        ? (selectedExtraction.total_courses / selectedExtraction.pages_processed).toFixed(1) 
+                      {(selectedExtraction.total_courses || 0) > 0 && (selectedExtraction.pages_processed || 0) > 0 
+                        ? ((selectedExtraction.total_courses || 0) / (selectedExtraction.pages_processed || 1)).toFixed(1) 
                         : '-'}
                     </div>
                     <div style={{ fontSize: '10px', color: '#6B7280' }}>Avg/Page</div>
@@ -1008,16 +1014,14 @@ export default function V2ExtractionsPage() {
 
                 {/* Actions */}
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                  {/* Share Button - Prominent */}
+                  {/* View Courses Button - Primary */}
                   <button
-                    onClick={() => shareExtraction(selectedExtraction)}
+                    onClick={() => { setShowDetail(false); navigateToExtraction(selectedExtraction._id); }}
                     style={{
                       padding: '14px',
                       border: 'none',
                       borderRadius: '10px',
-                      background: copiedShare === selectedExtraction._id 
-                        ? 'linear-gradient(135deg, #059669 0%, #047857 100%)' 
-                        : 'linear-gradient(135deg, #603AC8 0%, #31225C 100%)',
+                      background: 'linear-gradient(135deg, #603AC8 0%, #31225C 100%)',
                       cursor: 'pointer',
                       display: 'flex',
                       alignItems: 'center',
@@ -1026,6 +1030,30 @@ export default function V2ExtractionsPage() {
                       fontSize: '14px',
                       fontWeight: 600,
                       color: 'white',
+                      transition: 'all 0.2s',
+                    }}
+                  >
+                    <Eye size={18} /> View All Courses
+                  </button>
+
+                  {/* Share Button */}
+                  <button
+                    onClick={() => shareExtraction(selectedExtraction)}
+                    style={{
+                      padding: '14px',
+                      border: '2px solid #E0E7FF',
+                      borderRadius: '10px',
+                      background: copiedShare === selectedExtraction._id 
+                        ? '#ECFDF5' 
+                        : '#EEF2FF',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: '10px',
+                      fontSize: '14px',
+                      fontWeight: 600,
+                      color: copiedShare === selectedExtraction._id ? '#059669' : '#4F46E5',
                       transition: 'all 0.2s',
                     }}
                   >

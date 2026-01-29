@@ -59,7 +59,7 @@ const Home: NextPage = () => {
           <nav style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             <NavLink href="/courseharvester" label="Extract" Icon={Upload} />
             <NavLink href="/tokens" label="Analytics" Icon={BarChart3} />
-            <NavLink href="/v2/extractions" label="History" Icon={FolderOpen} />
+            <NavLink href="/extractions" label="History" Icon={FolderOpen} />
             <Link href="/courseharvester" style={{
               marginLeft: '12px',
               padding: '10px 20px',
@@ -177,7 +177,7 @@ const Home: NextPage = () => {
             }}>
               Start Extracting <ArrowRight size={18} />
             </Link>
-            <Link href="/v2/extractions" style={{
+            <Link href="/extractions" style={{
               padding: '16px 32px',
               background: 'white',
               color: '#603AC8',
@@ -397,7 +397,7 @@ const Home: NextPage = () => {
             <div style={{ display: 'flex', gap: '24px', fontSize: '14px', opacity: 0.8 }}>
               <Link href="/courseharvester" style={{ color: 'white', textDecoration: 'none' }}>Extract</Link>
               <Link href="/tokens" style={{ color: 'white', textDecoration: 'none' }}>Analytics</Link>
-              <Link href="/v2/extractions" style={{ color: 'white', textDecoration: 'none' }}>History</Link>
+              <Link href="/extractions" style={{ color: 'white', textDecoration: 'none' }}>History</Link>
             </div>
             <p style={{ fontSize: '14px', opacity: 0.6 }}>
               Built with Next.js • TypeScript • Gemini AI

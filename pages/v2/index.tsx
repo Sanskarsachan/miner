@@ -6,7 +6,7 @@ export default function V2Index() {
 
   useEffect(() => {
     // Redirect to extractions page
-    router.push('/v2/extractions');
+    router.push('/extractions');
   }, [router]);
 
   return (
