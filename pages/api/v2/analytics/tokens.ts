@@ -82,7 +82,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const tokensRemaining = Math.max(0, FREE_TIER_LIMIT - totalTokens)
     const estimatedExtractionsRemaining = Math.floor(tokensRemaining / Math.max(avgTokensPerCourse, 1))
 
-    console.log('[token analytics] ✅ Retrieved analytics for', userIdStr)
+    console.log('[token analytics] Retrieved analytics for', userIdStr)
 
     return res.status(200).json({
       success: true,

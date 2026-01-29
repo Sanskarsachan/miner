@@ -47,7 +47,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       .limit(limit)
       .toArray()) as any[]
 
-    console.log(`[v2/list] ✅ Retrieved ${extractions.length}/${total} extractions`)
+    console.log(`[v2/list] Retrieved ${extractions.length}/${total} extractions`)
 
     return res.status(200).json({
       success: true,
