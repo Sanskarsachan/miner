@@ -793,13 +793,17 @@ export default function CourseHarvester() {
     } catch (e: any) {
       // Check if this is a rate limit error
       if (e?.isRateLimit) {
+        // Show which pages are still cached (if any)
+        const cachedInfo = cachedPageRange 
+          ? ` Pages 1-${cachedPageRange.end} are still cached.`
+          : ''
         setRateLimitModal({
           show: true,
-          message: e.message || 'API rate limit reached.',
+          message: `${e.message || 'API rate limit reached.'}${cachedInfo}`,
           retryAfter: e.retryAfter || 60,
           suggestion: e.suggestion || 'Please wait and try again, or use a different API key.',
         })
-        setStatus('Rate limit reached - please check the alert')
+        setStatus(`Rate limit reached - pages ${pageRangeStart}-${pageRangeEnd > 0 ? pageRangeEnd : totalPages} not extracted`)
         showToast('API rate limit reached!', 'error')
       } else {
         setStatus(`Error: ${e instanceof Error ? e.message : 'Unknown error'}`)
