@@ -1,6 +1,7 @@
 import Head from 'next/head'
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
+import Header from '@/components/Header'
 import { BarChart3, AlertTriangle, CheckCircle } from 'lucide-react'
 
 interface TokenAnalytics {
@@ -261,6 +262,11 @@ export default function TokensPage() {
         }
       `}</style>
 
+      <Header />
+      
+      {/* Spacer for fixed header */}
+      <div style={{ height: '70px' }} />
+
       <div className="container">
         <div className="header">
           <div>
@@ -269,9 +275,6 @@ export default function TokensPage() {
               Track your API usage and optimize extraction efficiency
             </p>
           </div>
-          <Link href="/courseharvester">
-            <a className="header-link">← Back to Harvester</a>
-          </Link>
         </div>
 
         {/* Summary Cards */}

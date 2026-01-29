@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import Head from 'next/head';
 import Link from 'next/link';
 import { useRouter } from 'next/router';
+import Header from '@/components/Header';
 import { 
   FileText, 
   Download, 
@@ -305,14 +306,17 @@ export default function ExtractionDetailPage() {
       `}</style>
 
       <div style={{ minHeight: '100vh' }}>
-        {/* Header */}
-        <header style={{
+        {/* Global Header */}
+        <Header />
+        
+        {/* Spacer for fixed header */}
+        <div style={{ height: '70px' }} />
+
+        {/* Page Header */}
+        <div style={{
           background: 'linear-gradient(135deg, #603AC8 0%, #31225C 100%)',
           color: 'white',
           padding: '20px 24px',
-          position: 'sticky',
-          top: 0,
-          zIndex: 50,
           boxShadow: '0 4px 20px rgba(96, 58, 200, 0.3)',
         }}>
           <div style={{ maxWidth: '1400px', margin: '0 auto' }}>
@@ -412,7 +416,7 @@ export default function ExtractionDetailPage() {
               </div>
             </div>
           </div>
-        </header>
+        </div>
 
         {/* Stats Bar */}
         <div style={{

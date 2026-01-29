@@ -2,7 +2,8 @@ import Head from 'next/head'
 import Link from 'next/link'
 import { NextPage } from 'next'
 import { useState } from 'react'
-import { FileText, Bot, Zap, BarChart3, Save, Download, Upload, ListFilter, CheckCircle, Sparkles, ArrowRight, FolderOpen } from 'lucide-react'
+import Header from '@/components/Header'
+import { FileText, Bot, Zap, BarChart3, Save, Download, ArrowRight, Sparkles } from 'lucide-react'
 
 const Home: NextPage = () => {
   const [hoveredFeature, setHoveredFeature] = useState<number | null>(null)
@@ -25,58 +26,7 @@ const Home: NextPage = () => {
       `}</style>
       
       {/* Header Navigation */}
-      <header style={{
-        position: 'fixed',
-        top: 0,
-        left: 0,
-        right: 0,
-        zIndex: 100,
-        background: 'rgba(255, 255, 255, 0.95)',
-        backdropFilter: 'blur(10px)',
-        borderBottom: '1px solid #F4F0FF',
-        padding: '12px 24px',
-      }}>
-        <div style={{
-          maxWidth: '1200px',
-          margin: '0 auto',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-        }}>
-          {/* Logo */}
-          <Link href="/" style={{ textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '10px' }}>
-            <img 
-              src="/PlanpathsIcon.png" 
-              alt="Planpaths Logo" 
-              style={{ width: '36px', height: '36px', borderRadius: '8px' }} 
-            />
-            <span style={{ fontSize: '20px', fontWeight: 700, color: '#31225C' }}>
-              Course<span style={{ color: '#603AC8' }}>Harvester</span>
-            </span>
-          </Link>
-
-          {/* Navigation Links */}
-          <nav style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <NavLink href="/courseharvester" label="Extract" Icon={Upload} />
-            <NavLink href="/tokens" label="Analytics" Icon={BarChart3} />
-            <NavLink href="/extractions" label="History" Icon={FolderOpen} />
-            <Link href="/courseharvester" style={{
-              marginLeft: '12px',
-              padding: '10px 20px',
-              background: 'linear-gradient(135deg, #603AC8, #31225C)',
-              color: 'white',
-              borderRadius: '8px',
-              textDecoration: 'none',
-              fontWeight: 600,
-              fontSize: '14px',
-              transition: 'all 0.3s ease',
-              boxShadow: '0 4px 15px rgba(96, 58, 200, 0.3)',
-            }}>
-              Get Started
-            </Link>
-          </nav>
-        </div>
-      </header>
+      <Header transparent />
 
       <main style={{ minHeight: '100vh', background: '#ffffff' }}>
         {/* Hero Section */}
@@ -408,25 +358,6 @@ const Home: NextPage = () => {
     </>
   )
 }
-
-// Nav Link Component
-const NavLink = ({ href, label, Icon }: { href: string; label: string; Icon: any }) => (
-  <Link href={href} style={{
-    display: 'flex',
-    alignItems: 'center',
-    gap: '6px',
-    padding: '8px 14px',
-    color: '#31225C',
-    textDecoration: 'none',
-    fontSize: '14px',
-    fontWeight: 500,
-    borderRadius: '8px',
-    transition: 'all 0.2s ease',
-  }}>
-    <Icon size={16} />
-    {label}
-  </Link>
-)
 
 // Stat Item Component
 const StatItem = ({ value, label }: { value: string; label: string }) => (

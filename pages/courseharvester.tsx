@@ -5,6 +5,7 @@ import { ChunkProcessor, type Course } from '@/lib/ChunkProcessor'
 import { DocumentCache } from '@/lib/DocumentCache'
 import CourseHarvesterSidebar, { type SavedExtraction } from '@/components/CourseHarvesterSidebar'
 import Toast, { type ToastType } from '@/components/Toast'
+import Header from '@/components/Header'
 import { FileText, BarChart3, BookOpen, Clock, FolderOpen, X, CheckCircle, AlertTriangle, XCircle, Lightbulb, AlertCircle, Key } from 'lucide-react'
 
 interface FileHistory {
@@ -718,6 +719,8 @@ export default function CourseHarvester() {
             filename: selectedFile.name,
             courses: finalCourses,
             username: 'user_guest',
+            file_size: selectedFile.size,
+            total_pages: totalPages,
             metadata: {
               file_size: selectedFile.size,
               file_type: ext,
@@ -1471,6 +1474,12 @@ export default function CourseHarvester() {
       `}</style>
 
       {/* Header */}
+      <Header />
+      
+      {/* Spacer for fixed header */}
+      <div style={{ height: '70px' }} />
+
+      {/* Page Title Bar */}
       <div className="header headerbackground">
         <div className="header-inner">
           <div>

@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import Head from 'next/head';
 import Link from 'next/link';
 import { useRouter } from 'next/router';
+import Header from '@/components/Header';
 import { 
   FileText, 
   Download, 
@@ -35,6 +36,14 @@ interface Extraction {
   status: 'pending' | 'completed' | 'failed';
   tokens_used: number;
   pages_processed?: number;
+  total_pages?: number;
+  file_size?: number;
+  metadata?: {
+    file_size?: number;
+    file_type?: string;
+    total_pages?: number;
+    pages_processed?: number;
+  };
   courses?: any[];
 }
 
@@ -67,7 +76,16 @@ export default function V2ExtractionsPage() {
       const data = await response.json();
       
       if (data.success) {
-        setExtractions(data.data || []);
+        // Map metadata fields to top-level for easier access
+        const mappedData = (data.data || []).map((ext: any) => ({
+          ...ext,
+          total_courses: ext.courses?.length || ext.total_courses || 0,
+          pages_processed: ext.metadata?.pages_processed || ext.pages_processed || 0,
+          total_pages: ext.metadata?.total_pages || ext.total_pages || 0,
+          file_size: ext.metadata?.file_size || ext.file_size || 0,
+          tokens_used: ext.tokens_used || 0,
+        }));
+        setExtractions(mappedData);
       } else {
         setError('Failed to load extractions');
       }
@@ -207,6 +225,22 @@ export default function V2ExtractionsPage() {
     return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
   };
 
+  const formatTime = (dateString: string) => {
+    const date = new Date(dateString);
+    return date.toLocaleTimeString('en-US', { 
+      hour: 'numeric', 
+      minute: '2-digit',
+      hour12: true 
+    });
+  };
+
+  const formatFileSize = (bytes: number) => {
+    if (!bytes || bytes === 0) return '-';
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  };
+
   const filteredExtractions = extractions
     .filter(e => e.filename.toLowerCase().includes(searchQuery.toLowerCase()))
     .sort((a, b) => {
@@ -259,32 +293,51 @@ export default function V2ExtractionsPage() {
           min-height: 100vh;
         }
         @keyframes spin { to { transform: rotate(360deg); } }
+        
+        /* Hide on mobile */
+        @media (max-width: 640px) {
+          .hide-on-mobile { display: none !important; }
+        }
+        
+        /* Responsive table */
+        @media (max-width: 900px) {
+          table th:nth-child(3),
+          table td:nth-child(3),
+          table th:nth-child(4),
+          table td:nth-child(4) {
+            display: none;
+          }
+        }
+        @media (max-width: 640px) {
+          table th:nth-child(5),
+          table td:nth-child(5) {
+            display: none;
+          }
+        }
       `}</style>
 
       <div style={{ minHeight: '100vh' }}>
-        {/* Header */}
-        <header style={{
+        {/* Global Header */}
+        <Header />
+        
+        {/* Spacer for fixed header */}
+        <div style={{ height: '70px' }} />
+
+        {/* Page Header */}
+        <div style={{
           background: 'linear-gradient(135deg, #603AC8 0%, #31225C 100%)',
           color: 'white',
-          padding: '20px 24px',
-          position: 'sticky',
-          top: 0,
-          zIndex: 50,
+          padding: '16px 20px',
           boxShadow: '0 4px 20px rgba(96, 58, 200, 0.3)',
         }}>
-          <div style={{ maxWidth: '1400px', margin: '0 auto', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-              <Link href="/courseharvester" style={{ color: 'white', display: 'flex', alignItems: 'center', gap: '8px', textDecoration: 'none', opacity: 0.9 }}>
-                <ArrowLeft size={20} />
-                <span style={{ fontSize: '14px' }}>Back</span>
-              </Link>
-              <div style={{ width: '1px', height: '24px', background: 'rgba(255,255,255,0.3)' }} />
+          <div style={{ maxWidth: '1400px', margin: '0 auto', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '12px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+              <FolderOpen size={22} style={{ flexShrink: 0 }} />
               <div>
-                <h1 style={{ margin: 0, fontSize: '24px', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '10px' }}>
-                  <FolderOpen size={24} />
+                <h1 style={{ margin: 0, fontSize: '20px', fontWeight: 700 }}>
                   Saved Extractions
                 </h1>
-                <p style={{ margin: '4px 0 0', fontSize: '14px', opacity: 0.85 }}>
+                <p style={{ margin: '2px 0 0', fontSize: '13px', opacity: 0.85 }}>
                   {extractions.length} file{extractions.length !== 1 ? 's' : ''} • {extractions.reduce((sum, e) => sum + (e.total_courses || 0), 0)} total courses
                 </p>
               </div>
@@ -294,39 +347,39 @@ export default function V2ExtractionsPage() {
               style={{
                 display: 'flex',
                 alignItems: 'center',
-                gap: '8px',
-                padding: '10px 20px',
+                gap: '6px',
+                padding: '8px 16px',
                 background: 'white',
                 color: '#603AC8',
                 borderRadius: '8px',
                 textDecoration: 'none',
                 fontWeight: 600,
-                fontSize: '14px',
+                fontSize: '13px',
                 transition: 'all 0.2s',
               }}
             >
-              <Plus size={18} />
-              New Extraction
+              <Plus size={16} />
+              <span className="hide-on-mobile">New Extraction</span>
             </Link>
           </div>
-        </header>
+        </div>
 
         {/* Main Content */}
-        <main style={{ maxWidth: '1400px', margin: '0 auto', padding: '24px' }}>
+        <main style={{ maxWidth: '1400px', margin: '0 auto', padding: '20px 16px' }}>
           {/* Toolbar */}
           <div style={{
             display: 'flex',
-            gap: '12px',
-            marginBottom: '24px',
+            gap: '10px',
+            marginBottom: '20px',
             flexWrap: 'wrap',
             alignItems: 'center',
           }}>
             {/* Search */}
             <div style={{
-              flex: '1 1 300px',
+              flex: '1 1 200px',
               position: 'relative',
             }}>
-              <Search size={18} style={{ position: 'absolute', left: '14px', top: '50%', transform: 'translateY(-50%)', color: '#9CA3AF' }} />
+              <Search size={18} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: '#9CA3AF' }} />
               <input
                 type="text"
                 placeholder="Search files..."
@@ -482,8 +535,8 @@ export default function V2ExtractionsPage() {
           {!loading && filteredExtractions.length > 0 && viewMode === 'grid' && (
             <div style={{
               display: 'grid',
-              gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))',
-              gap: '20px',
+              gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))',
+              gap: '16px',
             }}>
               {filteredExtractions.map((extraction) => {
                 const fileIcon = getFileIcon(extraction.filename);
@@ -574,42 +627,34 @@ export default function V2ExtractionsPage() {
                     </div>
 
                     {/* Stats */}
-                    <div style={{ padding: '16px 20px', display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '8px' }}>
-                      <div style={{ textAlign: 'center', padding: '8px 4px', background: '#F4F0FF', borderRadius: '8px' }}>
-                        <div style={{ fontSize: '20px', fontWeight: 700, color: '#603AC8' }}>
+                    <div style={{ padding: '16px 20px', display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '8px' }}>
+                      <div style={{ textAlign: 'center', padding: '10px 8px', background: '#F4F0FF', borderRadius: '8px' }}>
+                        <div style={{ fontSize: '22px', fontWeight: 700, color: '#603AC8' }}>
                           {extraction.total_courses || 0}
                         </div>
                         <div style={{ fontSize: '10px', color: '#6B7280', marginTop: '2px' }}>Courses</div>
                       </div>
-                      <div style={{ textAlign: 'center', padding: '8px 4px', background: '#ECFDF5', borderRadius: '8px' }}>
-                        <div style={{ fontSize: '20px', fontWeight: 700, color: '#059669' }}>
-                          {extraction.pages_processed || 0}
+                      <div style={{ textAlign: 'center', padding: '10px 8px', background: '#ECFDF5', borderRadius: '8px' }}>
+                        <div style={{ fontSize: '16px', fontWeight: 700, color: '#059669' }}>
+                          {extraction.pages_processed || 0}<span style={{ fontSize: '12px', fontWeight: 500, color: '#6B7280' }}> of {extraction.total_pages || extraction.pages_processed || 0}</span>
                         </div>
                         <div style={{ fontSize: '10px', color: '#6B7280', marginTop: '2px' }}>Pages</div>
                       </div>
-                      <div style={{ textAlign: 'center', padding: '8px 4px', background: '#FEF3C7', borderRadius: '8px' }}>
-                        <div style={{ fontSize: '20px', fontWeight: 700, color: '#D97706' }}>
-                          {(extraction.tokens_used || 0) > 1000 ? `${((extraction.tokens_used || 0) / 1000).toFixed(1)}k` : (extraction.tokens_used || 0)}
-                        </div>
-                        <div style={{ fontSize: '10px', color: '#6B7280', marginTop: '2px' }}>Tokens</div>
-                      </div>
-                      <div style={{ textAlign: 'center', padding: '8px 4px', background: '#EEF2FF', borderRadius: '8px' }}>
-                        <div style={{ fontSize: '20px', fontWeight: 700, color: '#4F46E5' }}>
-                          {(extraction.total_courses || 0) > 0 && (extraction.pages_processed || 0) > 0 ? ((extraction.total_courses || 0) / (extraction.pages_processed || 1)).toFixed(1) : '-'}
-                        </div>
-                        <div style={{ fontSize: '10px', color: '#6B7280', marginTop: '2px' }}>Avg/Page</div>
-                      </div>
                     </div>
 
-                    {/* Created/Updated Info */}
-                    <div style={{ padding: '8px 20px', borderTop: '1px solid #F3F4F6', display: 'flex', gap: '16px', fontSize: '11px', color: '#6B7280' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                        <Calendar size={12} />
-                        Created: {formatDate(extraction.created_at)}
+                    {/* Additional Info Row */}
+                    <div style={{ padding: '0 20px 12px', display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '8px' }}>
+                      <div style={{ textAlign: 'center', padding: '10px 8px', background: '#FEF3C7', borderRadius: '8px' }}>
+                        <div style={{ fontSize: '14px', fontWeight: 600, color: '#D97706' }}>
+                          {formatFileSize(extraction.file_size || 0)}
+                        </div>
+                        <div style={{ fontSize: '10px', color: '#6B7280', marginTop: '2px' }}>File Size</div>
                       </div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                        <Clock size={12} />
-                        Updated: {formatDate(extraction.updated_at)}
+                      <div style={{ textAlign: 'center', padding: '10px 8px', background: '#EEF2FF', borderRadius: '8px' }}>
+                        <div style={{ fontSize: '14px', fontWeight: 600, color: '#4F46E5' }}>
+                          {formatTime(extraction.created_at)}
+                        </div>
+                        <div style={{ fontSize: '10px', color: '#6B7280', marginTop: '2px' }}>{formatDate(extraction.created_at)}</div>
                       </div>
                     </div>
 
@@ -716,11 +761,10 @@ export default function V2ExtractionsPage() {
                 <thead>
                   <tr style={{ background: '#F9FAFB', borderBottom: '1px solid #E5E7EB' }}>
                     <th style={{ padding: '14px 20px', textAlign: 'left', fontSize: '12px', fontWeight: 600, color: '#6B7280' }}>File</th>
-                    <th style={{ padding: '14px 20px', textAlign: 'center', fontSize: '12px', fontWeight: 600, color: '#6B7280' }}>Status</th>
-                    <th style={{ padding: '14px 20px', textAlign: 'center', fontSize: '12px', fontWeight: 600, color: '#6B7280' }}>Courses</th>
-                    <th style={{ padding: '14px 20px', textAlign: 'center', fontSize: '12px', fontWeight: 600, color: '#6B7280' }}>Pages</th>
-                    <th style={{ padding: '14px 20px', textAlign: 'center', fontSize: '12px', fontWeight: 600, color: '#6B7280' }}>Tokens</th>
-                    <th style={{ padding: '14px 20px', textAlign: 'center', fontSize: '12px', fontWeight: 600, color: '#6B7280' }}>Created</th>
+                    <th style={{ padding: '14px 12px', textAlign: 'center', fontSize: '12px', fontWeight: 600, color: '#6B7280' }}>Courses</th>
+                    <th style={{ padding: '14px 12px', textAlign: 'center', fontSize: '12px', fontWeight: 600, color: '#6B7280' }}>Size</th>
+                    <th style={{ padding: '14px 12px', textAlign: 'center', fontSize: '12px', fontWeight: 600, color: '#6B7280' }}>Pages</th>
+                    <th style={{ padding: '14px 12px', textAlign: 'center', fontSize: '12px', fontWeight: 600, color: '#6B7280' }}>Date & Time</th>
                     <th style={{ padding: '14px 20px', textAlign: 'right', fontSize: '12px', fontWeight: 600, color: '#6B7280' }}>Actions</th>
                   </tr>
                 </thead>
@@ -744,9 +788,9 @@ export default function V2ExtractionsPage() {
                         <td style={{ padding: '16px 20px' }}>
                           <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                             <div style={{
-                              width: '36px',
-                              height: '36px',
-                              borderRadius: '8px',
+                              width: '40px',
+                              height: '40px',
+                              borderRadius: '10px',
                               background: fileIcon.color,
                               display: 'flex',
                               alignItems: 'center',
@@ -757,32 +801,39 @@ export default function V2ExtractionsPage() {
                             }}>
                               {fileIcon.label}
                             </div>
-                            <span style={{ fontWeight: 500, color: '#1F2937', fontSize: '14px' }}>{extraction.filename}</span>
+                            <div>
+                              <div style={{ fontWeight: 600, color: '#1F2937', fontSize: '14px' }}>{extraction.filename}</div>
+                              <div style={{ fontSize: '11px', color: '#9CA3AF', marginTop: '2px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                <span style={{
+                                  padding: '2px 6px',
+                                  borderRadius: '4px',
+                                  fontSize: '10px',
+                                  fontWeight: 500,
+                                  background: statusColor.bg,
+                                  color: statusColor.text,
+                                }}>
+                                  {extraction.status}
+                                </span>
+                              </div>
+                            </div>
                           </div>
                         </td>
-                        <td style={{ padding: '16px 20px', textAlign: 'center' }}>
-                          <span style={{
-                            padding: '4px 10px',
-                            borderRadius: '20px',
-                            fontSize: '12px',
-                            fontWeight: 500,
-                            background: statusColor.bg,
-                            color: statusColor.text,
-                          }}>
-                            {extraction.status}
-                          </span>
+                        <td style={{ padding: '16px 12px', textAlign: 'center' }}>
+                          <div style={{ fontWeight: 700, fontSize: '18px', color: '#603AC8' }}>
+                            {extraction.total_courses || 0}
+                          </div>
                         </td>
-                        <td style={{ padding: '16px 20px', textAlign: 'center', fontWeight: 600, color: '#603AC8' }}>
-                          {extraction.total_courses || 0}
+                        <td style={{ padding: '16px 12px', textAlign: 'center', color: '#6B7280', fontSize: '13px' }}>
+                          {formatFileSize(extraction.file_size || 0)}
                         </td>
-                        <td style={{ padding: '16px 20px', textAlign: 'center', fontWeight: 600, color: '#059669' }}>
-                          {extraction.pages_processed || 0}
+                        <td style={{ padding: '16px 12px', textAlign: 'center' }}>
+                          <div style={{ fontWeight: 600, color: '#059669', fontSize: '13px' }}>
+                            {extraction.pages_processed || 0} <span style={{ color: '#9CA3AF', fontWeight: 400 }}>of</span> {extraction.total_pages || extraction.pages_processed || 0}
+                          </div>
                         </td>
-                        <td style={{ padding: '16px 20px', textAlign: 'center', color: '#6B7280' }}>
-                          {(extraction.tokens_used || 0).toLocaleString()}
-                        </td>
-                        <td style={{ padding: '16px 20px', textAlign: 'center', color: '#6B7280', fontSize: '13px' }}>
-                          {formatDate(extraction.created_at)}
+                        <td style={{ padding: '16px 12px', textAlign: 'center' }}>
+                          <div style={{ fontSize: '13px', color: '#1F2937', fontWeight: 500 }}>{formatDate(extraction.created_at)}</div>
+                          <div style={{ fontSize: '11px', color: '#9CA3AF' }}>{formatTime(extraction.created_at)}</div>
                         </td>
                         <td style={{ padding: '16px 20px', textAlign: 'right' }}>
                           <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>

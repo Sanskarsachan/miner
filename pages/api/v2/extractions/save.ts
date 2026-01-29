@@ -100,7 +100,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       user_id: userId,
       username: username || 'user_guest',
       filename,
-      file_size: 0,
+      file_size: req.body.file_size || req.body.metadata?.file_size || 0,
       file_type: filename.split('.').pop() || 'unknown',
       upload_date: new Date(),
       courses: courses.map((c: any) => ({
@@ -124,6 +124,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       is_refined: false,
       created_at: new Date(),
       updated_at: new Date(),
+      metadata: {
+        file_size: req.body.file_size || req.body.metadata?.file_size || 0,
+        total_pages: total_pages || 0,
+        pages_processed: req.body.metadata?.pages_processed || total_pages || 0,
+      },
     }
 
     const result = await collection.insertOne(extraction as any)
