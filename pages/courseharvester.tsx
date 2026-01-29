@@ -1366,9 +1366,15 @@ export default function CourseHarvester() {
                     placeholder="Paste your Gemini API key"
                     value={apiKey}
                     onChange={(e) => setApiKey(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault()
+                        verifyKey()
+                      }
+                    }}
                     style={{ flex: 1 }}
                   />
-                  <button onClick={verifyKey} className="secondary">
+                  <button type="button" onClick={(e) => { e.preventDefault(); verifyKey(); }} className="secondary">
                     Verify
                   </button>
                 </div>
@@ -1509,6 +1515,7 @@ export default function CourseHarvester() {
                         })}
                       </select>
                       <button
+                        type="button"
                         onClick={() => {
                           setAllCourses([])
                           setPageRangeStart(1)
@@ -1590,10 +1597,11 @@ export default function CourseHarvester() {
                 )}
 
                 <div className="controls">
-                  <button onClick={extract} disabled={!selectedFile || !apiKey}>
+                  <button type="button" onClick={extract} disabled={!selectedFile || !apiKey}>
                     Extract Courses
                   </button>
                   <button
+                    type="button"
                     onClick={async () => {
                       // Clear IndexedDB cache completely
                       try {
@@ -1611,6 +1619,7 @@ export default function CourseHarvester() {
                     Clear Cache
                   </button>
                   <button
+                    type="button"
                     onClick={() => {
                       setSelectedFile(null)
                       setTotalPages(0)
@@ -1856,6 +1865,7 @@ export default function CourseHarvester() {
                     </div>
 
                     <button
+                      type="button"
                       onClick={() => copyToClipboard(filteredCourses)}
                       className="primary"
                       disabled={allCourses.length === 0}
@@ -1864,6 +1874,7 @@ export default function CourseHarvester() {
                       Copy
                     </button>
                     <button
+                      type="button"
                       onClick={downloadCSV}
                       className="secondary"
                       disabled={allCourses.length === 0}
@@ -1871,6 +1882,7 @@ export default function CourseHarvester() {
                       CSV
                     </button>
                     <button
+                      type="button"
                       onClick={() => {
                         const blob = new Blob([JSON.stringify(allCourses, null, 2)], {
                           type: 'application/json',
@@ -1888,6 +1900,7 @@ export default function CourseHarvester() {
                       JSON
                     </button>
                     <button
+                      type="button"
                       onClick={() => {
                         setAllCourses([])
                         setFileHistory([])
@@ -1967,6 +1980,7 @@ export default function CourseHarvester() {
 
             {/* Sidebar Toggle Button */}
             <button 
+              type="button"
               className="sidebar-toggle"
               onClick={() => setSidebarOpen(!sidebarOpen)}
               title={sidebarOpen ? 'Close sidebar' : 'Open saved files'}
