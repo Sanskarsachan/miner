@@ -855,10 +855,13 @@ export default function CourseHarvester() {
       <Script
         src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"
         strategy="beforeInteractive"
-      />
-      <Script
-        src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js"
-        strategy="beforeInteractive"
+        onLoad={() => {
+          // Set worker source immediately when pdf.js loads
+          if (typeof window !== 'undefined' && (window as any).pdfjsLib) {
+            (window as any).pdfjsLib.GlobalWorkerOptions.workerSrc = 
+              'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+          }
+        }}
       />
       <Script
         src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js"
