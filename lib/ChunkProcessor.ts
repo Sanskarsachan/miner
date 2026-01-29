@@ -196,7 +196,13 @@ export class ChunkProcessor {
 
       const courses = this.extractCoursesFromResponse(data)
       return courses
-    } catch (error) {
+    } catch (error: any) {
+      // Don't retry rate limit errors - throw immediately so UI can show modal
+      if (error?.isRateLimit) {
+        console.log('[ChunkProcessor] Rate limit error - not retrying, throwing to UI')
+        throw error
+      }
+      
       // Retry on network errors, but not on validation errors
       if (attempt < this.retryAttempts && !(error instanceof SyntaxError)) {
         const delay = this.retryDelay * Math.pow(2, attempt - 1)
@@ -306,7 +312,13 @@ export class ChunkProcessor {
         if (i < chunks.length - 1) {
           await new Promise((r) => setTimeout(r, 500))
         }
-      } catch (error) {
+      } catch (error: any) {
+        // Re-throw rate limit errors so UI can show modal
+        if (error?.isRateLimit) {
+          console.log('[ChunkProcessor] Rate limit error in processDocument - re-throwing to UI')
+          throw error
+        }
+        
         const errorMsg = error instanceof Error ? error.message : 'Unknown error'
         this.onError(error instanceof Error ? error : new Error(errorMsg))
 
