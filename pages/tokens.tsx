@@ -1,6 +1,7 @@
 import Head from 'next/head'
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
+import { BarChart3, AlertTriangle, CheckCircle } from 'lucide-react'
 
 interface TokenAnalytics {
   summary: {
@@ -86,6 +87,8 @@ export default function TokensPage() {
       <Head>
         <title>Token Analytics - CourseHarvester</title>
         <meta name="viewport" content="width=device-width,initial-scale=1" />
+        <link rel="icon" href="/PlanpathsIcon.png" type="image/png" />
+        <link rel="apple-touch-icon" href="/PlanpathsIcon.png" />
       </Head>
 
       <style jsx global>{`
@@ -261,7 +264,7 @@ export default function TokensPage() {
       <div className="container">
         <div className="header">
           <div>
-            <h1>💡 Token Analytics</h1>
+            <h1>Token Analytics</h1>
             <p style={{ margin: '6px 0 0 0', opacity: 0.9, fontSize: '14px' }}>
               Track your API usage and optimize extraction efficiency
             </p>
@@ -449,8 +452,8 @@ export default function TokensPage() {
         {/* Free Tier Info */}
         <div className="section">
           <div className="highlight">
-            <p className="highlight-text">
-              📊 <strong>Free Tier:</strong> {summary.usage_percentage.toFixed(1)}% used ({summary.total_tokens.toLocaleString()} / {summary.free_tier_limit.toLocaleString()} tokens). {summary.usage_percentage > 80 ? '⚠️ Consider upgrading to paid plan.' : '✅ You have plenty of quota remaining.'}
+            <p className="highlight-text" style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+              <BarChart3 size={16} /> <strong>Free Tier:</strong> {summary.usage_percentage.toFixed(1)}% used ({summary.total_tokens.toLocaleString()} / {summary.free_tier_limit.toLocaleString()} tokens). {summary.usage_percentage > 80 ? <><AlertTriangle size={14} /> Consider upgrading to paid plan.</> : <><CheckCircle size={14} /> You have plenty of quota remaining.</>}
             </p>
           </div>
         </div>

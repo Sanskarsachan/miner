@@ -99,6 +99,8 @@ export default function V2ExtractionsPage() {
       <Head>
         <title>Extractions - Course Harvester V2</title>
         <meta name="description" content="Manage your course extractions" />
+        <link rel="icon" href="/PlanpathsIcon.png" type="image/png" />
+        <link rel="apple-touch-icon" href="/PlanpathsIcon.png" />
       </Head>
 
       <div className="flex h-screen bg-gray-100">

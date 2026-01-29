@@ -2,6 +2,7 @@ import Head from 'next/head'
 import Link from 'next/link'
 import { NextPage } from 'next'
 import { useState } from 'react'
+import { FileText, Bot, Zap, BarChart3, Save, Download, Upload, ListFilter, CheckCircle, Sparkles, ArrowRight, FolderOpen } from 'lucide-react'
 
 const Home: NextPage = () => {
   const [hoveredFeature, setHoveredFeature] = useState<number | null>(null)
@@ -12,6 +13,8 @@ const Home: NextPage = () => {
         <title>CourseHarvester - Extract Course Data</title>
         <meta name="description" content="Extract course information from curriculum documents using AI" />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <link rel="icon" href="/PlanpathsIcon.png" type="image/png" />
+        <link rel="apple-touch-icon" href="/PlanpathsIcon.png" />
         <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
       </Head>
 
@@ -44,18 +47,11 @@ const Home: NextPage = () => {
         }}>
           {/* Logo */}
           <Link href="/" style={{ textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '10px' }}>
-            <div style={{
-              width: '36px',
-              height: '36px',
-              borderRadius: '10px',
-              background: 'linear-gradient(135deg, #603AC8, #31225C)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              fontSize: '18px',
-            }}>
-              📚
-            </div>
+            <img 
+              src="/PlanpathsIcon.png" 
+              alt="Planpaths Logo" 
+              style={{ width: '36px', height: '36px', borderRadius: '8px' }} 
+            />
             <span style={{ fontSize: '20px', fontWeight: 700, color: '#31225C' }}>
               Course<span style={{ color: '#603AC8' }}>Harvester</span>
             </span>
@@ -63,9 +59,9 @@ const Home: NextPage = () => {
 
           {/* Navigation Links */}
           <nav style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <NavLink href="/courseharvester" label="Extract" icon="🚀" />
-            <NavLink href="/tokens" label="Analytics" icon="📊" />
-            <NavLink href="/v2/extractions" label="History" icon="📁" />
+            <NavLink href="/courseharvester" label="Extract" Icon={Upload} />
+            <NavLink href="/tokens" label="Analytics" Icon={BarChart3} />
+            <NavLink href="/v2/extractions" label="History" Icon={FolderOpen} />
             <Link href="/courseharvester" style={{
               marginLeft: '12px',
               padding: '10px 20px',
@@ -131,7 +127,7 @@ const Home: NextPage = () => {
             marginBottom: '24px',
             border: '1px solid rgba(96, 58, 200, 0.2)',
           }}>
-            <span style={{ animation: 'pulse 2s infinite' }}>✨</span>
+            <Sparkles size={16} style={{ color: '#603AC8' }} />
             <span style={{ fontSize: '14px', color: '#603AC8', fontWeight: 500 }}>AI-Powered Course Extraction</span>
           </div>
 
@@ -181,7 +177,7 @@ const Home: NextPage = () => {
               boxShadow: '0 8px 30px rgba(96, 58, 200, 0.4)',
               transition: 'all 0.3s ease',
             }}>
-              Start Extracting <span>→</span>
+              Start Extracting <ArrowRight size={18} />
             </Link>
             <Link href="/v2/extractions" style={{
               padding: '16px 32px',
@@ -261,10 +257,10 @@ const Home: NextPage = () => {
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
-                    fontSize: '24px',
                     marginBottom: '20px',
+                    color: 'white',
                   }}>
-                    {feature.icon}
+                    <feature.icon size={28} />
                   </div>
                   <h3 style={{
                     fontSize: '1.25rem',
@@ -366,6 +362,8 @@ const Home: NextPage = () => {
           </p>
           <Link href="/courseharvester" style={{
             display: 'inline-flex',
+            alignItems: 'center',
+            gap: '8px',
             padding: '16px 40px',
             background: 'white',
             color: '#603AC8',
@@ -375,7 +373,7 @@ const Home: NextPage = () => {
             fontSize: '16px',
             boxShadow: '0 8px 30px rgba(0, 0, 0, 0.2)',
           }}>
-            Launch CourseHarvester →
+            Launch CourseHarvester <ArrowRight size={18} />
           </Link>
         </section>
 
@@ -395,7 +393,7 @@ const Home: NextPage = () => {
             gap: '20px',
           }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-              <span style={{ fontSize: '20px' }}>📚</span>
+              <img src="/PlanpathsIcon.png" alt="Planpaths" style={{ width: '20px', height: '20px', borderRadius: '4px' }} />
               <span style={{ fontWeight: 600 }}>CourseHarvester</span>
             </div>
             <div style={{ display: 'flex', gap: '24px', fontSize: '14px', opacity: 0.8 }}>
@@ -414,7 +412,7 @@ const Home: NextPage = () => {
 }
 
 // Nav Link Component
-const NavLink = ({ href, label, icon }: { href: string; label: string; icon: string }) => (
+const NavLink = ({ href, label, Icon }: { href: string; label: string; Icon: any }) => (
   <Link href={href} style={{
     display: 'flex',
     alignItems: 'center',
@@ -427,7 +425,7 @@ const NavLink = ({ href, label, icon }: { href: string; label: string; icon: str
     borderRadius: '8px',
     transition: 'all 0.2s ease',
   }}>
-    <span>{icon}</span>
+    <Icon size={16} />
     {label}
   </Link>
 )
@@ -442,12 +440,12 @@ const StatItem = ({ value, label }: { value: string; label: string }) => (
 
 // Features data
 const features = [
-  { icon: '📄', title: 'Multi-Format Support', description: 'Extract from PDF, DOCX, PPTX, HTML, TXT and more. Works with any curriculum document.' },
-  { icon: '🤖', title: 'AI-Powered Extraction', description: 'Powered by Google Gemini AI for intelligent, context-aware data extraction.' },
-  { icon: '⚡', title: 'Real-Time Processing', description: 'Watch courses appear as they are extracted. Live progress tracking included.' },
-  { icon: '📊', title: 'Analytics Dashboard', description: 'Track token usage, extraction history, and optimize your workflow.' },
-  { icon: '💾', title: 'Auto-Save & History', description: 'All extractions are saved automatically. Access and manage anytime.' },
-  { icon: '📥', title: 'Export Options', description: 'Download as CSV for easy import into spreadsheets and databases.' },
+  { icon: FileText, title: 'Multi-Format Support', description: 'Extract from PDF, DOCX, PPTX, HTML, TXT and more. Works with any curriculum document.' },
+  { icon: Bot, title: 'AI-Powered Extraction', description: 'Powered by Google Gemini AI for intelligent, context-aware data extraction.' },
+  { icon: Zap, title: 'Real-Time Processing', description: 'Watch courses appear as they are extracted. Live progress tracking included.' },
+  { icon: BarChart3, title: 'Analytics Dashboard', description: 'Track token usage, extraction history, and optimize your workflow.' },
+  { icon: Save, title: 'Auto-Save & History', description: 'All extractions are saved automatically. Access and manage anytime.' },
+  { icon: Download, title: 'Export Options', description: 'Download as CSV for easy import into spreadsheets and databases.' },
 ]
 
 // Steps data

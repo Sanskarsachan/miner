@@ -318,7 +318,7 @@ export class DocumentCache {
           
           // VALIDATION: Check if courses array is valid and not empty
           if (!result.courses || !Array.isArray(result.courses) || result.courses.length === 0) {
-            console.warn(`⚠️ Cache corrupted for ${fileHash}: empty or invalid courses array`)
+            console.warn(`Cache corrupted for ${fileHash}: empty or invalid courses array`)
             this.delete(fileHash).catch(console.error)
             resolve(null)
             return
@@ -333,7 +333,7 @@ export class DocumentCache {
 
           if (hasAllPages) {
             // We have all requested pages, no need to process
-            console.log(`✓ Cache covers pages ${requestedPageStart}-${requestedPageEnd} (have ${cachedStart}-${cachedEnd}, ${result.courses.length} courses)`)
+            console.log(`Cache covers pages ${requestedPageStart}-${requestedPageEnd} (have ${cachedStart}-${cachedEnd}, ${result.courses.length} courses)`)
             resolve({
               cachedCourses: result.courses,
               cachedPageStart: cachedStart,
@@ -343,7 +343,7 @@ export class DocumentCache {
           } else {
             // We have partial cache, need to process remaining pages
             const nextPageToProcess = Math.max(cachedEnd + 1, requestedPageStart)
-            console.log(`⚠ Cache partial: have ${cachedStart}-${cachedEnd}, need ${requestedPageStart}-${requestedPageEnd}, will process from ${nextPageToProcess}`)
+            console.log(`Cache partial: have ${cachedStart}-${cachedEnd}, need ${requestedPageStart}-${requestedPageEnd}, will process from ${nextPageToProcess}`)
             resolve({
               cachedCourses: result.courses,
               cachedPageStart: cachedStart,
@@ -381,7 +381,7 @@ export class DocumentCache {
         merged.push(course)
       }
     })
-    console.log(`✓ Merged ${cached.length} cached + ${newCourses.length} new = ${merged.length} total courses`)
+    console.log(`Merged ${cached.length} cached + ${newCourses.length} new = ${merged.length} total courses`)
     return merged
   }
 
@@ -400,7 +400,7 @@ export class DocumentCache {
       const request = store.clear()
 
       request.onsuccess = () => {
-        console.log('🧹 All cache entries cleared from IndexedDB')
+        console.log('All cache entries cleared from IndexedDB')
         resolve()
       }
 

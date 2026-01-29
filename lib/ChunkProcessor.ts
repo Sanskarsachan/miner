@@ -153,7 +153,7 @@ export class ChunkProcessor {
 
       // Handle error responses (HTTP errors, API errors)
       if (!response.ok) {
-        console.error(`[ChunkProcessor] ⚠️ API returned HTTP ${response.status}`)
+        console.error(`[ChunkProcessor] API returned HTTP ${response.status}`)
         console.error('[ChunkProcessor] Response:', JSON.stringify(data).substring(0, 300))
 
         // Handle rate limiting with exponential backoff
@@ -179,7 +179,7 @@ export class ChunkProcessor {
         // For 500 errors, server returns empty array to avoid crashing client
         // Log but continue with empty result
         if (response.status === 500) {
-          console.error('[ChunkProcessor] ⚠️ API returned 500 error. Check server logs for details.')
+          console.error('[ChunkProcessor] API returned 500 error. Check server logs for details.')
           // Return empty array - client will show "0 courses extracted"
           return []
         }
@@ -202,7 +202,7 @@ export class ChunkProcessor {
       // Retry on network errors, but not on validation errors
       if (attempt < this.retryAttempts && !(error instanceof SyntaxError)) {
         const delay = this.retryDelay * Math.pow(2, attempt - 1)
-        console.log(`[ChunkProcessor] 🔄 Retrying (attempt ${attempt + 1}/${this.retryAttempts}) after ${delay}ms`)
+        console.log(`[ChunkProcessor] Retrying (attempt ${attempt + 1}/${this.retryAttempts}) after ${delay}ms`)
         await new Promise((r) => setTimeout(r, delay))
         return this.processChunk(text, filename, attempt + 1)
       }
@@ -328,7 +328,7 @@ export class ChunkProcessor {
     const deduplicated = this.deduplicateCourses(allCourses)
     const dupesRemoved = beforeDedup - deduplicated.length
 
-    console.log(`[ChunkProcessor] 🔍 Deduplication: ${beforeDedup} → ${deduplicated.length} (removed ${dupesRemoved} duplicates)`)
+console.log(`[ChunkProcessor] Deduplication: ${beforeDedup} → ${deduplicated.length} (removed ${dupesRemoved} duplicates)`)
 
     this.onProgress({
       status: 'processing',
@@ -360,7 +360,7 @@ export class ChunkProcessor {
     }
 
     const result = Array.from(seen.values())
-    console.log(`[ChunkProcessor] 📊 Dedup: kept ${result.length}/${courses.length} courses`)
+    console.log(`[ChunkProcessor] Dedup: kept ${result.length}/${courses.length} courses`)
     return result
   }
 }

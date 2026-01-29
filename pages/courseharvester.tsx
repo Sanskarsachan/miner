@@ -5,6 +5,7 @@ import { ChunkProcessor, type Course } from '@/lib/ChunkProcessor'
 import { DocumentCache } from '@/lib/DocumentCache'
 import CourseHarvesterSidebar, { type SavedExtraction } from '@/components/CourseHarvesterSidebar'
 import Toast, { type ToastType } from '@/components/Toast'
+import { FileText, BarChart3, BookOpen, Clock, FolderOpen, X, CheckCircle, AlertTriangle, XCircle, Lightbulb } from 'lucide-react'
 
 interface FileHistory {
   filename: string
@@ -138,7 +139,7 @@ function copyToClipboard(courses: any[]) {
 
   const text = rows.join('\n')
   navigator.clipboard.writeText(text).then(() => {
-    alert(`✅ Copied ${courses.length} courses to clipboard!\nPaste directly into Google Sheets.`)
+    alert(`Copied ${courses.length} courses to clipboard!\nPaste directly into Google Sheets.`)
   }).catch(() => {
     alert('Failed to copy to clipboard')
   })
@@ -285,7 +286,7 @@ export default function CourseHarvester() {
         pagesProcessed: selectedSidebarExtraction.metadata?.pages_processed || 0,
       }))
       
-      setStatus(`✅ Loaded ${selectedSidebarExtraction.courses.length} courses from "${selectedSidebarExtraction.filename}"`)
+      setStatus(`Loaded ${selectedSidebarExtraction.courses.length} courses from "${selectedSidebarExtraction.filename}"`)
       showToast(`📂 Loaded ${selectedSidebarExtraction.courses.length} courses from saved extraction`, 'success')
       
       // Close sidebar after loading
@@ -297,7 +298,7 @@ export default function CourseHarvester() {
     if (!file) return
     if (file.size > 10 * 1024 * 1024) {
       setStatus('File too large (max 10MB)')
-      showToast('❌ File too large! Maximum size is 10MB', 'error')
+      showToast('File too large! Maximum size is 10MB', 'error')
       return
     }
 
@@ -307,7 +308,7 @@ export default function CourseHarvester() {
     setAllCourses([]) // Clear previous courses for new file
     setCachedPageRange(null) // Reset cached page range for new file
     setStatus('File selected: ' + file.name)
-    showToast(`📄 File selected: ${file.name}`, 'info')
+    showToast(`File selected: ${file.name}`, 'info')
 
     try {
       const ext = detectFileType(file).extension
@@ -376,9 +377,9 @@ export default function CourseHarvester() {
           `Key verified! Gemini 2.5 Flash available. Free tier: 20 requests/day. Upgrade to paid for unlimited.`
         )
         setVerified(true)
-        showToast('✅ API key verified successfully!', 'success')
+        showToast('API key verified successfully!', 'success')
       } else {
-        setStatus('⚠️ Key verified but gemini-2.5-flash not found.')
+        setStatus('Key verified but gemini-2.5-flash not found.')
         setVerified(found.length > 0)
         showToast('API key verified but Gemini 2.5 Flash not available', 'warning')
       }
@@ -388,7 +389,7 @@ export default function CourseHarvester() {
         `Key verification failed: ${e instanceof Error ? e.message : 'Unknown error'}`
       )
       setVerified(false)
-      showToast(`❌ Verification failed: ${e instanceof Error ? e.message : 'Unknown error'}`, 'error')
+      showToast(`Verification failed: ${e instanceof Error ? e.message : 'Unknown error'}`, 'error')
     }
   }
 
@@ -438,14 +439,14 @@ export default function CourseHarvester() {
           
           // CRITICAL FIX: If cached results are empty, skip cache and process fresh
           if (cachedResults.length === 0) {
-            console.warn('⚠️ Cache returned empty results, ignoring cache and processing fresh')
+            console.warn('Cache returned empty results, ignoring cache and processing fresh')
             cachedResults = []
             usingCache = false
           } else if (incrementalCache.needsProcessing) {
             // We have partial cache, continue from next page
-            startPage = incrementalCache.nextPageToProcess || numPagesToProcess + 1
+            startPage = incrementalCache.nextPageToProcess || endPage + 1
             setStatus(
-              `📦 Using cached results from pages ${incrementalCache.cachedPageStart}-${incrementalCache.cachedPageEnd}. Processing pages ${startPage}-${numPagesToProcess}...`
+              `Using cached results from pages ${incrementalCache.cachedPageStart}-${incrementalCache.cachedPageEnd}. Processing pages ${startPage}-${endPage}...`
             )
             usingCache = true
           } else if (cachedResults.length > 0) {
@@ -474,7 +475,7 @@ export default function CourseHarvester() {
               end: incrementalCache.cachedPageEnd || totalPages,
             })
             setStatus(
-              `✅ Loaded from cache — ${cachedResults.length} courses (pages ${incrementalCache.cachedPageStart}-${incrementalCache.cachedPageEnd})`
+              `Loaded from cache — ${cachedResults.length} courses (pages ${incrementalCache.cachedPageStart}-${incrementalCache.cachedPageEnd})`
             )
             return
           }
@@ -586,7 +587,7 @@ export default function CourseHarvester() {
           },
         ])
 
-        setStatus(`✅ Complete — ${courses.length} courses extracted`)
+        setStatus(`Complete — ${courses.length} courses extracted`)
         return
       } else {
         throw new Error('Unsupported file type')
@@ -606,7 +607,7 @@ export default function CourseHarvester() {
               timestamp: new Date().toISOString(),
             },
           ])
-          setStatus(`✅ Loaded from cache — ${cached.length} courses`)
+          setStatus(`Loaded from cache — ${cached.length} courses`)
           return
         }
       }
@@ -625,7 +626,7 @@ export default function CourseHarvester() {
             accumulatedCourses = (accumulatedCourses || []).slice() // Ensure it's an array
             
             setStatus(
-              `📄 Page ${progress.current} of ${progress.total} done — ${coursesInChunk} course${coursesInChunk !== 1 ? 's' : ''} in this chunk`
+              `Page ${progress.current} of ${progress.total} done — ${coursesInChunk} course${coursesInChunk !== 1 ? 's' : ''} in this chunk`
             )
             
             // Update extraction progress with real-time course count
@@ -706,7 +707,7 @@ export default function CourseHarvester() {
 
         if (saveResponse.ok) {
           const saveData = await saveResponse.json()
-          console.log('✅ Extraction saved to MongoDB:', saveData.extraction_id)
+          console.log('Extraction saved to MongoDB:', saveData.extraction_id)
           
           // Refresh sidebar to show new extraction
           setSidebarRefreshTrigger(prev => prev + 1)
@@ -714,31 +715,33 @@ export default function CourseHarvester() {
           // Check if it was a merge operation
           if (saveData.merged) {
             setStatus(
-              `✅ Merged ${saveData.new_courses_added} new courses! Total: ${saveData.total_courses} courses`
+              `Merged ${saveData.new_courses_added} new courses! Total: ${saveData.total_courses} courses`
             )
-            showToast(`🔄 Merged ${saveData.new_courses_added} new courses (Total: ${saveData.total_courses})`, 'success')
+            showToast(`Merged ${saveData.new_courses_added} new courses (Total: ${saveData.total_courses})`, 'success')
           } else {
             setStatus(
-              `✅ ${finalCourses.length} courses extracted and saved (ID: ${saveData.extraction_id.slice(0, 8)}...)`
+              `${finalCourses.length} courses extracted and saved (ID: ${saveData.extraction_id.slice(0, 8)}...)`
             )
-            showToast(`🎉 Successfully extracted ${finalCourses.length} courses!`, 'success')
+            showToast(`Successfully extracted ${finalCourses.length} courses!`, 'success')
           }
         } else {
           console.error('Failed to save extraction to MongoDB')
-          setStatus(`⚠️ Extraction complete but failed to save to database. ${finalCourses.length} courses extracted.`)
-          showToast('⚠️ Extraction complete but database save failed', 'warning')
+          setStatus(`Extraction complete but failed to save to database. ${finalCourses.length} courses extracted.`)
+          showToast('Extraction complete but database save failed', 'warning')
         }
       } catch (error) {
         console.error('Error saving to MongoDB:', error)
-        setStatus(`⚠️ Extraction complete but database save failed. ${finalCourses.length} courses extracted.`)
-        showToast('⚠️ Database save failed', 'warning')
+        setStatus(`Extraction complete but database save failed. ${finalCourses.length} courses extracted.`)
+        showToast('Database save failed', 'warning')
       }
 
       // CRITICAL: Only cache if we have courses to cache
       if (finalCourses.length > 0) {
         // Cache cleaned results, not raw ones
         if (ext === 'pdf') {
-          const cacheStart = startPage
+          // When using incremental cache, use the original start page (from cache or request)
+          // to ensure we're caching the full range of processed pages
+          const cacheStart = usingCache ? 1 : (pageRangeStart || 1)  // Start from page 1 if we merged cached results
           const cacheEnd = endPage
           
           await cacheRef.current!.setIncremental(
@@ -754,7 +757,7 @@ export default function CourseHarvester() {
           await cacheRef.current!.set(fileHash, finalCourses)  // Cache cleaned courses
         }
       } else {
-        console.warn('⚠️ No courses extracted, not caching empty results')
+        console.warn('No courses extracted, not caching empty results')
       }
 
       setFileHistory((prev) => [
@@ -766,7 +769,7 @@ export default function CourseHarvester() {
         },
       ])
 
-      setStatus(`✅ Complete — ${courses.length} courses extracted`)
+      setStatus(`Complete — ${finalCourses.length} courses extracted`)
     } catch (e) {
       setStatus(`Error: ${e instanceof Error ? e.message : 'Unknown error'}`)
       setExtractionProgress(prev => ({ ...prev, isExtracting: false }))
@@ -833,6 +836,8 @@ export default function CourseHarvester() {
       <Head>
         <title>CourseHarvester - Extract Course Data</title>
         <meta name="viewport" content="width=device-width,initial-scale=1" />
+        <link rel="icon" href="/PlanpathsIcon.png" type="image/png" />
+        <link rel="apple-touch-icon" href="/PlanpathsIcon.png" />
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
         <link
@@ -843,6 +848,13 @@ export default function CourseHarvester() {
       <Script
         src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"
         strategy="beforeInteractive"
+        onLoad={() => {
+          // Set PDF.js worker source to fix deprecated API warning
+          if (typeof window !== 'undefined' && (window as any).pdfjsLib) {
+            (window as any).pdfjsLib.GlobalWorkerOptions.workerSrc = 
+              'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+          }
+        }}
       />
       <Script
         src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js"
@@ -1503,7 +1515,7 @@ export default function CourseHarvester() {
                         style={{ fontSize: '12px', padding: '6px 8px' }}
                         title="Clear results and extract first 5 pages"
                       >
-                        🔄 Pages 1-5
+                        Reset 1-5
                       </button>
                       <div className="muted">
                         {pageRangeEnd > 0 
@@ -1534,7 +1546,7 @@ export default function CourseHarvester() {
                             fontWeight: 600,
                             color: willExceedQuota ? '#991b1b' : isWarning ? '#31225C' : '#31225C',
                           }}>
-                            {willExceedQuota ? '⚠️ Warning: Quota Exceeded' : isWarning ? '💡 Batch Processing' : '✅ Sufficient Quota'}
+                            {willExceedQuota ? <><AlertTriangle size={12} style={{ display: 'inline', verticalAlign: 'middle', marginRight: '4px' }} />Warning: Quota Exceeded</> : isWarning ? <><Lightbulb size={12} style={{ display: 'inline', verticalAlign: 'middle', marginRight: '4px' }} />Batch Processing</> : <><CheckCircle size={12} style={{ display: 'inline', verticalAlign: 'middle', marginRight: '4px' }} />Sufficient Quota</>}
                           </div>
                           
                           <div style={{
@@ -1551,7 +1563,7 @@ export default function CourseHarvester() {
                               <div>Range: {costEstimate.min.toLocaleString()}-{costEstimate.max.toLocaleString()}</div>
                               <div>
                                 Remaining: <strong style={{ color: willExceedQuota ? '#dc2626' : '#603AC8' }}>
-                                  {willExceedQuota ? `❌ -${(costEstimate.recommended - tokensRemaining).toLocaleString()}` : (tokensRemaining - costEstimate.recommended).toLocaleString()}
+                                  {willExceedQuota ? `-${(costEstimate.recommended - tokensRemaining).toLocaleString()}` : (tokensRemaining - costEstimate.recommended).toLocaleString()}
                                 </strong>
                               </div>
                             </div>
@@ -1563,7 +1575,7 @@ export default function CourseHarvester() {
                                 borderRadius: '4px',
                                 marginTop: '8px',
                               }}>
-                                💡 <strong>Recommendation:</strong> Process in smaller batches (5-10 pages) or upgrade to paid plan
+                                <Lightbulb size={12} style={{ display: 'inline', verticalAlign: 'middle', marginRight: '4px' }} /><strong>Recommendation:</strong> Process in smaller batches (5-10 pages) or upgrade to paid plan
                               </div>
                             )}
                           </div>
@@ -1583,7 +1595,7 @@ export default function CourseHarvester() {
                       try {
                         await cacheRef.current?.clearAll()
                         setCachedPageRange(null)
-                        setStatus('🧹 Cache cleared!')
+                        setStatus('Cache cleared!')
                       } catch (e) {
                         console.error('Failed to clear cache:', e)
                         setStatus('Error clearing cache')
@@ -1633,8 +1645,8 @@ export default function CourseHarvester() {
                     marginTop: '12px',
                   }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
-                      <div style={{ fontWeight: 600, fontSize: '13px', color: '#31225C' }}>
-                        📊 Extraction Progress
+                      <div style={{ fontWeight: 600, fontSize: '13px', color: '#31225C', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <BarChart3 size={14} /> Extraction Progress
                       </div>
                       <div style={{ fontSize: '12px', color: '#31225C' }}>
                         {extractionProgress.pagesProcessed}/{extractionProgress.totalPages} pages
@@ -1675,7 +1687,7 @@ export default function CourseHarvester() {
                         borderRadius: '4px',
                         borderLeft: '3px solid #603AC8',
                       }}>
-                        <div style={{ color: '#6b7280', marginBottom: '2px' }}>📚 Courses Found</div>
+                        <div style={{ color: '#6b7280', marginBottom: '2px', display: 'flex', alignItems: 'center', gap: '4px' }}><BookOpen size={12} /> Courses Found</div>
                         <div style={{ fontSize: '16px', fontWeight: 700, color: '#31225C' }}>{extractionProgress.coursesFound}</div>
                       </div>
                       
@@ -1685,7 +1697,7 @@ export default function CourseHarvester() {
                         borderRadius: '4px',
                         borderLeft: '3px solid #603AC8',
                       }}>
-                        <div style={{ color: '#6b7280', marginBottom: '2px' }}>📄 Pages Processed</div>
+                        <div style={{ color: '#6b7280', marginBottom: '2px', display: 'flex', alignItems: 'center', gap: '4px' }}><FileText size={12} /> Pages Processed</div>
                         <div style={{ fontSize: '16px', fontWeight: 700, color: '#31225C' }}>
                           {extractionProgress.pagesProcessed}/{extractionProgress.totalPages}
                         </div>
@@ -1697,7 +1709,7 @@ export default function CourseHarvester() {
                         borderRadius: '4px',
                         borderLeft: '3px solid #603AC8',
                       }}>
-                        <div style={{ color: '#6b7280', marginBottom: '2px' }}>⏱️ Time Elapsed</div>
+                        <div style={{ color: '#6b7280', marginBottom: '2px', display: 'flex', alignItems: 'center', gap: '4px' }}><Clock size={12} /> Time Elapsed</div>
                         <div style={{ fontSize: '16px', fontWeight: 700, color: '#31225C' }}>
                           {Math.round((Date.now() - extractionProgress.startTime) / 1000)}s
                         </div>
@@ -1710,7 +1722,7 @@ export default function CourseHarvester() {
                           borderRadius: '4px',
                           borderLeft: '3px solid #603AC8',
                         }}>
-                          <div style={{ color: '#6b7280', marginBottom: '2px' }}>⏰ Est. Time Remaining</div>
+                          <div style={{ color: '#6b7280', marginBottom: '2px', display: 'flex', alignItems: 'center', gap: '4px' }}><Clock size={12} /> Est. Time Remaining</div>
                           <div style={{ fontSize: '16px', fontWeight: 700, color: '#31225C' }}>
                             {Math.round(extractionProgress.estimatedTimeRemaining / 1000)}s
                           </div>
@@ -1817,7 +1829,7 @@ export default function CourseHarvester() {
                     <div style={{ marginBottom: '12px' }}>
                       <input
                         type="text"
-                        placeholder="🔍 Search courses by name, code, or description..."
+                        placeholder="Search courses by name, code, or description..."
                         value={courseSearch}
                         onChange={(e) => setCourseSearch(e.target.value)}
                         style={{
@@ -1955,7 +1967,7 @@ export default function CourseHarvester() {
               onClick={() => setSidebarOpen(!sidebarOpen)}
               title={sidebarOpen ? 'Close sidebar' : 'Open saved files'}
             >
-              {sidebarOpen ? '✕' : '📁'}
+              {sidebarOpen ? <X size={18} /> : <FolderOpen size={18} />}
             </button>
 
             {/* Backdrop when sidebar is open on small screens */}

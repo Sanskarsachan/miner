@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
-import { Trash2, Download, Edit2, RefreshCw, Eye, ExternalLink } from 'lucide-react'
+import { Trash2, Download, Edit2, RefreshCw, Eye, ExternalLink, FileText, FileType2, Presentation, Globe, File, FolderOpen, BarChart2 } from 'lucide-react'
 import ExtractionDetailModal from './ExtractionDetailModal'
 
 export interface SavedExtraction {
@@ -153,16 +153,16 @@ export default function CourseHarvesterSidebar({
   }
 
   const getFileTypeIcon = (fileType: string) => {
-    const icons: Record<string, string> = {
-      pdf: '📄',
-      docx: '📝',
-      doc: '📝',
-      pptx: '🎯',
-      ppt: '🎯',
-      html: '🌐',
-      txt: '📋',
+    const iconMap: Record<string, React.ReactNode> = {
+      pdf: <FileText size={14} />,
+      docx: <FileType2 size={14} />,
+      doc: <FileType2 size={14} />,
+      pptx: <Presentation size={14} />,
+      ppt: <Presentation size={14} />,
+      html: <Globe size={14} />,
+      txt: <File size={14} />,
     }
-    return icons[fileType.toLowerCase()] || '📁'
+    return iconMap[fileType.toLowerCase()] || <FolderOpen size={14} />
   }
 
   return (
@@ -182,8 +182,8 @@ export default function CourseHarvesterSidebar({
         justifyContent: 'space-between',
         alignItems: 'center',
       }}>
-        <div style={{ fontWeight: 600, fontSize: '13px' }}>
-          📚 Saved Files
+        <div style={{ fontWeight: 600, fontSize: '13px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+          <FolderOpen size={14} /> Saved Files
         </div>
         <div style={{ display: 'flex', gap: '6px' }}>
           <button
@@ -339,19 +339,20 @@ export default function CourseHarvesterSidebar({
                   fontSize: '11px',
                   color: '#6b7280',
                   flexWrap: 'wrap',
+                  alignItems: 'center',
                 }}>
                   {extraction.metadata?.file_size && (
-                    <span title={`File size: ${extraction.metadata.file_size} bytes`}>
-                      📊 {(extraction.metadata.file_size / 1024).toFixed(1)} KB
+                    <span title={`File size: ${extraction.metadata.file_size} bytes`} style={{ display: 'flex', alignItems: 'center', gap: '2px' }}>
+                      <BarChart2 size={10} /> {(extraction.metadata.file_size / 1024).toFixed(1)} KB
                     </span>
                   )}
                   {extraction.metadata?.file_type?.toLowerCase() === 'pdf' && extraction.metadata?.pages_processed && (
-                    <span title="Pages processed">
-                      📄 {extraction.metadata.pages_processed} of {extraction.metadata.total_pages}
+                    <span title="Pages processed" style={{ display: 'flex', alignItems: 'center', gap: '2px' }}>
+                      <FileText size={10} /> {extraction.metadata.pages_processed} of {extraction.metadata.total_pages}
                     </span>
                   )}
-                  <span title="Saved date">
-                    🕐 {formatDate(extraction.created_at)}
+                  <span title="Saved date" style={{ display: 'flex', alignItems: 'center', gap: '2px' }}>
+                    {formatDate(extraction.created_at)}
                   </span>
                 </div>
 
