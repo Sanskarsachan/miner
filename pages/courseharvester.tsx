@@ -861,10 +861,10 @@ export default function CourseHarvester() {
   const recheckForMissedCourses = async () => {
     if (!selectedFile) return setStatus('Select a file first')
     if (!apiKey) return setStatus('Enter your Gemini API key')
-    if (allCourses.length === 0) return setStatus('Extract courses first before rechecking')
 
     const existingCourses = [...allCourses]
-    setStatus('Rechecking for missed courses...')
+    const isFirstExtraction = existingCourses.length === 0
+    setStatus(isFirstExtraction ? 'Extracting courses...' : 'Rechecking for missed courses...')
     
     setExtractionProgress({
       isExtracting: true,
@@ -940,6 +940,19 @@ export default function CourseHarvester() {
       })
 
       setExtractionProgress(prev => ({ ...prev, isExtracting: false }))
+
+      // If this is the first extraction (no existing courses), just add all found courses
+      if (isFirstExtraction) {
+        if (cleanedNew.length > 0) {
+          setAllCourses(cleanedNew)
+          setStatus(`Extracted ${cleanedNew.length} courses from pages ${startPage}-${endPage}`)
+          showToast(`Successfully extracted ${cleanedNew.length} courses!`, 'success')
+        } else {
+          setStatus('No courses found in selected pages')
+          showToast('No courses found in the selected page range', 'warning')
+        }
+        return
+      }
 
       if (missedCourses.length > 0) {
         setRecheckResult({
@@ -1660,14 +1673,14 @@ export default function CourseHarvester() {
                       <button
                         type="button"
                         onClick={recheckForMissedCourses}
-                        disabled={!selectedFile || !apiKey || allCourses.length === 0 || extractionProgress.isExtracting}
+                        disabled={!selectedFile || !apiKey || extractionProgress.isExtracting}
                         className="secondary"
                         style={{ 
                           fontSize: '12px', 
                           padding: '6px 10px',
-                          backgroundColor: allCourses.length > 0 ? '#F4F0FF' : undefined,
-                          borderColor: allCourses.length > 0 ? '#603AC8' : undefined,
-                          color: allCourses.length > 0 ? '#603AC8' : undefined,
+                          backgroundColor: '#F4F0FF',
+                          borderColor: '#603AC8',
+                          color: '#603AC8',
                         }}
                         title={`Recheck pages ${pageRangeStart}-${pageRangeEnd > 0 ? pageRangeEnd : totalPages} for missed courses`}
                       >
