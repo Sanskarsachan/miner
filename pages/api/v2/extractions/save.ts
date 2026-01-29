@@ -81,7 +81,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         }
       )
       
-      console.log(`[v2/save] ✅ MERGED ${newCourses.length} new courses into ${filename} (total: ${mergedCourses.length})`)
+      console.log(`[v2/save] MERGED ${newCourses.length} new courses into ${filename} (total: ${mergedCourses.length})`)
       
       return res.status(200).json({
         success: true,
@@ -143,7 +143,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       created_at: new Date(),
     })
 
-    console.log(`[v2/save] ✅ Saved ${courses.length} courses from ${filename} (${tokens_used || 0} tokens)`)
+    console.log(`[v2/save] Saved ${courses.length} courses from ${filename} (${tokens_used || 0} tokens)`)
 
     return res.status(200).json({
       success: true,

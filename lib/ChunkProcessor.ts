@@ -135,7 +135,7 @@ export class ChunkProcessor {
       try {
         responseText = await response.text()
       } catch (textError) {
-        console.error('[ChunkProcessor] ❌ Failed to read response text:', textError)
+        console.error('[ChunkProcessor] Failed to read response text:', textError)
         throw new Error('Failed to read API response')
       }
 
@@ -146,7 +146,7 @@ export class ChunkProcessor {
           data = JSON.parse(responseText)
         }
       } catch (parseError) {
-        console.error('[ChunkProcessor] ❌ Failed to parse response as JSON:', parseError)
+        console.error('[ChunkProcessor] Failed to parse response as JSON:', parseError)
         console.error('[ChunkProcessor] Response text was:', responseText.substring(0, 300))
         throw new Error(`Invalid API response: ${responseText.substring(0, 100)}`)
       }
@@ -192,7 +192,7 @@ export class ChunkProcessor {
 
       // Data should be an array of courses
       if (!Array.isArray(data)) {
-        console.error('[ChunkProcessor] ❌ API response is not an array:', typeof data)
+        console.error('[ChunkProcessor] API response is not an array:', typeof data)
         return []
       }
 
@@ -316,7 +316,7 @@ export class ChunkProcessor {
           status: 'chunk_error',
           total: totalChunks,
           current: chunkNum,
-          message: `❌ Error in chunk ${chunkNum}: ${errorMsg}`,
+          message: `Error in chunk ${chunkNum}: ${errorMsg}`,
         })
 
         // Continue with next chunk instead of failing entire document

@@ -34,7 +34,7 @@ export async function connectDB(): Promise<Db> {
     })
 
     await client.connect()
-    console.log('[DB] ✅ Connected to MongoDB')
+    console.log('[DB] Connected to MongoDB')
 
     cachedClient = client
     cachedDb = client.db(DB_NAME)
@@ -44,7 +44,7 @@ export async function connectDB(): Promise<Db> {
 
     return cachedDb
   } catch (error) {
-    console.error('[DB] ❌ Connection failed:', error)
+    console.error('[DB] Connection failed:', error)
     throw error
   }
 }
@@ -89,7 +89,7 @@ async function initializeCollections(db: Db) {
     await db.collection('api_logs').createIndex({ user_id: 1, timestamp: -1 })
     await db.collection('api_logs').createIndex({ timestamp: -1 }, { expireAfterSeconds: 2592000 }) // 30 days TTL
 
-    console.log('[DB] ✅ All collections initialized')
+    console.log('[DB] All collections initialized')
   } catch (error) {
     console.error('[DB] Error initializing collections:', error)
   }

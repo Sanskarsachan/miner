@@ -227,6 +227,12 @@ export default function CourseHarvester() {
     // Initialize document cache
     cacheRef.current = new DocumentCache()
 
+    // Set PDF.js worker source to fix deprecated API warning
+    if (typeof window !== 'undefined' && (window as any).pdfjsLib) {
+      (window as any).pdfjsLib.GlobalWorkerOptions.workerSrc = 
+        'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+    }
+
     // Keyboard shortcuts
     const handleKeyPress = (e: KeyboardEvent) => {
       // Cmd/Ctrl + K: Focus search
@@ -287,7 +293,7 @@ export default function CourseHarvester() {
       }))
       
       setStatus(`Loaded ${selectedSidebarExtraction.courses.length} courses from "${selectedSidebarExtraction.filename}"`)
-      showToast(`📂 Loaded ${selectedSidebarExtraction.courses.length} courses from saved extraction`, 'success')
+      showToast(`Loaded ${selectedSidebarExtraction.courses.length} courses from saved extraction`, 'success')
       
       // Close sidebar after loading
       setSidebarOpen(false)
@@ -497,7 +503,11 @@ export default function CourseHarvester() {
         for (let i = actualStartPage; i <= actualEndPage; i++) {
           const page = await pdf.getPage(i)
           const tc = await page.getTextContent()
-          pages.push(tc.items.map((it: any) => it.str).join(' '))
+          const pageText = tc.items.map((it: any) => it.str).join(' ')
+          pages.push(pageText)
+          
+          // Debug: Log each page's text length
+          console.log(`[PDF Extract] Page ${i}: ${pageText.length} chars, first 100: "${pageText.substring(0, 100)}"`)
           
           // Update progress
           setExtractionProgress(prev => ({
@@ -509,7 +519,11 @@ export default function CourseHarvester() {
         
         setStatus(`Processing pages ${actualStartPage}-${actualEndPage} (out of ${pdf.numPages} total)...`)
         
-        textContent = pages.join('\n\n')
+        textContent = pages.join('\n\n--- PAGE BREAK ---\n\n')
+        
+        // Debug: Log total text content info
+        console.log(`[PDF Extract] Total text length: ${textContent.length} chars from ${pages.length} pages`)
+        console.log(`[PDF Extract] Text preview (first 500 chars):`, textContent.substring(0, 500))
       } else if (ext === 'doc' || ext === 'docx') {
         const ab = await selectedFile.arrayBuffer()
         const res = await (window as any).mammoth.extractRawText({
@@ -848,13 +862,10 @@ export default function CourseHarvester() {
       <Script
         src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"
         strategy="beforeInteractive"
-        onLoad={() => {
-          // Set PDF.js worker source to fix deprecated API warning
-          if (typeof window !== 'undefined' && (window as any).pdfjsLib) {
-            (window as any).pdfjsLib.GlobalWorkerOptions.workerSrc = 
-              'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
-          }
-        }}
+      />
+      <Script
+        src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js"
+        strategy="beforeInteractive"
       />
       <Script
         src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js"
