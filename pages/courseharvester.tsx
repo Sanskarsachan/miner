@@ -5,7 +5,7 @@ import { ChunkProcessor, type Course } from '@/lib/ChunkProcessor'
 import { DocumentCache } from '@/lib/DocumentCache'
 import CourseHarvesterSidebar, { type SavedExtraction } from '@/components/CourseHarvesterSidebar'
 import Toast, { type ToastType } from '@/components/Toast'
-import { FileText, BarChart3, BookOpen, Clock, FolderOpen, X, CheckCircle, AlertTriangle, XCircle, Lightbulb } from 'lucide-react'
+import { FileText, BarChart3, BookOpen, Clock, FolderOpen, X, CheckCircle, AlertTriangle, XCircle, Lightbulb, AlertCircle, Key } from 'lucide-react'
 
 interface FileHistory {
   filename: string
@@ -201,6 +201,12 @@ export default function CourseHarvester() {
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'warning' | 'info' } | null>(null)
   const [courseSearch, setCourseSearch] = useState('')
+  const [rateLimitModal, setRateLimitModal] = useState<{
+    show: boolean
+    message: string
+    retryAfter: number
+    suggestion: string
+  } | null>(null)
   const [extractionProgress, setExtractionProgress] = useState({
     isExtracting: false,
     pagesProcessed: 0,
@@ -784,8 +790,21 @@ export default function CourseHarvester() {
       ])
 
       setStatus(`Complete — ${finalCourses.length} courses extracted`)
-    } catch (e) {
-      setStatus(`Error: ${e instanceof Error ? e.message : 'Unknown error'}`)
+    } catch (e: any) {
+      // Check if this is a rate limit error
+      if (e?.isRateLimit) {
+        setRateLimitModal({
+          show: true,
+          message: e.message || 'API rate limit reached.',
+          retryAfter: e.retryAfter || 60,
+          suggestion: e.suggestion || 'Please wait and try again, or use a different API key.',
+        })
+        setStatus('Rate limit reached - please check the alert')
+        showToast('API rate limit reached!', 'error')
+      } else {
+        setStatus(`Error: ${e instanceof Error ? e.message : 'Unknown error'}`)
+        showToast(`Extraction failed: ${e instanceof Error ? e.message : 'Unknown error'}`, 'error')
+      }
       setExtractionProgress(prev => ({ ...prev, isExtracting: false }))
     }
   }
@@ -2018,6 +2037,181 @@ export default function CourseHarvester() {
           type={toast.type}
           onClose={() => setToast(null)}
         />
+      )}
+
+      {/* Rate Limit Alert Modal */}
+      {rateLimitModal?.show && (
+        <div 
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: 'rgba(0, 0, 0, 0.6)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 1000,
+          }}
+          onClick={() => setRateLimitModal(null)}
+        >
+          <div 
+            style={{
+              backgroundColor: '#fff',
+              borderRadius: '16px',
+              padding: '32px',
+              maxWidth: '450px',
+              width: '90%',
+              boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)',
+              animation: 'fadeIn 0.3s ease-out',
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Alert Icon */}
+            <div style={{ textAlign: 'center', marginBottom: '20px' }}>
+              <div style={{
+                width: '64px',
+                height: '64px',
+                borderRadius: '50%',
+                backgroundColor: '#FEE2E2',
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}>
+                <AlertCircle size={32} color="#DC2626" />
+              </div>
+            </div>
+
+            {/* Title */}
+            <h3 style={{
+              fontSize: '20px',
+              fontWeight: 700,
+              color: '#1F2937',
+              textAlign: 'center',
+              margin: '0 0 12px 0',
+            }}>
+              API Rate Limit Reached
+            </h3>
+
+            {/* Message */}
+            <p style={{
+              fontSize: '14px',
+              color: '#6B7280',
+              textAlign: 'center',
+              margin: '0 0 20px 0',
+              lineHeight: '1.5',
+            }}>
+              {rateLimitModal.message}
+            </p>
+
+            {/* Info Box */}
+            <div style={{
+              backgroundColor: '#F3F4F6',
+              borderRadius: '12px',
+              padding: '16px',
+              marginBottom: '20px',
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
+                <Clock size={16} color="#603AC8" />
+                <span style={{ fontSize: '13px', fontWeight: 600, color: '#374151' }}>
+                  Retry after: {rateLimitModal.retryAfter} seconds
+                </span>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'flex-start', gap: '8px' }}>
+                <Key size={16} color="#603AC8" style={{ marginTop: '2px', flexShrink: 0 }} />
+                <span style={{ fontSize: '13px', color: '#4B5563', lineHeight: '1.4' }}>
+                  {rateLimitModal.suggestion}
+                </span>
+              </div>
+            </div>
+
+            {/* Tip */}
+            <div style={{
+              backgroundColor: '#FDF4FF',
+              borderRadius: '8px',
+              padding: '12px',
+              marginBottom: '24px',
+              border: '1px solid #E9D5FF',
+            }}>
+              <div style={{ display: 'flex', alignItems: 'flex-start', gap: '8px' }}>
+                <Lightbulb size={16} color="#9333EA" style={{ marginTop: '2px', flexShrink: 0 }} />
+                <span style={{ fontSize: '12px', color: '#7E22CE', lineHeight: '1.4' }}>
+                  <strong>Tip:</strong> The Gemini free tier allows 20 requests per day. 
+                  For more requests, upgrade to a paid API key at{' '}
+                  <a 
+                    href="https://aistudio.google.com/app/apikey" 
+                    target="_blank" 
+                    rel="noopener noreferrer"
+                    style={{ color: '#603AC8', textDecoration: 'underline' }}
+                  >
+                    Google AI Studio
+                  </a>
+                </span>
+              </div>
+            </div>
+
+            {/* Action Buttons */}
+            <div style={{ display: 'flex', gap: '12px' }}>
+              <button
+                type="button"
+                onClick={() => setRateLimitModal(null)}
+                style={{
+                  flex: 1,
+                  padding: '12px 16px',
+                  borderRadius: '8px',
+                  border: '1px solid #D1D5DB',
+                  backgroundColor: '#fff',
+                  color: '#374151',
+                  fontSize: '14px',
+                  fontWeight: 500,
+                  cursor: 'pointer',
+                  transition: 'all 0.2s',
+                }}
+                onMouseOver={(e) => {
+                  e.currentTarget.style.backgroundColor = '#F9FAFB'
+                }}
+                onMouseOut={(e) => {
+                  e.currentTarget.style.backgroundColor = '#fff'
+                }}
+              >
+                Close
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setRateLimitModal(null)
+                  // Scroll to API key input
+                  const apiKeyInput = document.querySelector('input[placeholder*="API"]') as HTMLElement
+                  if (apiKeyInput) {
+                    apiKeyInput.scrollIntoView({ behavior: 'smooth', block: 'center' })
+                    apiKeyInput.focus()
+                  }
+                }}
+                style={{
+                  flex: 1,
+                  padding: '12px 16px',
+                  borderRadius: '8px',
+                  border: 'none',
+                  backgroundColor: '#603AC8',
+                  color: '#fff',
+                  fontSize: '14px',
+                  fontWeight: 500,
+                  cursor: 'pointer',
+                  transition: 'all 0.2s',
+                }}
+                onMouseOver={(e) => {
+                  e.currentTarget.style.backgroundColor = '#4F2FA8'
+                }}
+                onMouseOut={(e) => {
+                  e.currentTarget.style.backgroundColor = '#603AC8'
+                }}
+              >
+                Change API Key
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </>
   )

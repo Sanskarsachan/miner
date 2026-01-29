@@ -162,24 +162,16 @@ export class ChunkProcessor {
         console.error(`[ChunkProcessor] API returned HTTP ${response.status}`)
         console.error('[ChunkProcessor] Response:', JSON.stringify(data).substring(0, 300))
 
-        // Handle rate limiting with exponential backoff
+        // Handle rate limiting - throw a special error that the UI can catch
         if (response.status === 429) {
-          if (attempt < this.retryAttempts) {
-            const delay = this.retryDelay * Math.pow(2, attempt - 1)
-            this.onProgress({
-              status: 'waiting',
-              total: 0,
-              current: 0,
-              message: `Rate limit reached. Retrying in ${Math.ceil(delay / 1000)}s... (attempt ${attempt}/${this.retryAttempts})`,
-            })
-
-            await new Promise((r) => setTimeout(r, delay))
-            return this.processChunk(text, filename, attempt + 1)
-          } else {
-            throw new Error(
-              `Rate limit exceeded. Maximum 5 documents per hour. Please try again later.`
-            )
-          }
+          const rateLimitError = new Error(
+            data.message || 'API rate limit reached. Free tier allows 20 requests/day.'
+          )
+          // Add custom properties to identify this as a rate limit error
+          ;(rateLimitError as any).isRateLimit = true
+          ;(rateLimitError as any).retryAfter = data.retryAfter || 60
+          ;(rateLimitError as any).suggestion = data.suggestion || 'Please wait and try again, or use a different API key.'
+          throw rateLimitError
         }
 
         // For 500 errors, server returns empty array to avoid crashing client

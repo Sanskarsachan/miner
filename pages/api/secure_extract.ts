@@ -199,6 +199,7 @@ ${text}`
       // Try to extract error details from Gemini response
       let errorDetail = 'Unknown error'
       let retryAfter = 0
+      let retrySucceeded = false
       
       console.log('[secure_extract] API Error - Full response:', responseText.substring(0, 500))
       
@@ -234,6 +235,7 @@ ${text}`
                 console.log('[secure_extract] Retry succeeded, response length:', retryText.length)
                 responseText = retryText
                 response = retryResponse
+                retrySucceeded = true
                 // Continue processing below (skip the throw)
               } else {
                 console.error('[secure_extract] Retry also failed:', retryResponse.status)
@@ -247,12 +249,23 @@ ${text}`
       }
       
       // Only throw if we didn't successfully retry
-      if (!response.ok) {
+      if (!retrySucceeded) {
         console.error('[secure_extract] Gemini error code:', response.status)
         console.error('[secure_extract] Gemini error details:', errorDetail)
         logEntry.error = `Gemini API error (${response.status}): ${errorDetail}`
         requestLogs.unshift(logEntry)
         if (requestLogs.length > 10) requestLogs.pop()
+        
+        // Return specific error for rate limiting so client can show proper message
+        if (response.status === 429) {
+          return res.status(429).json({ 
+            error: 'RATE_LIMIT_EXCEEDED',
+            message: 'API rate limit reached. Free tier allows 20 requests/day.',
+            retryAfter: retryAfter > 0 ? Math.ceil(retryAfter / 1000) : 60,
+            suggestion: 'Please wait a minute and try again, or use a different API key.'
+          })
+        }
+        
         throw new Error(`Gemini API error (${response.status}): ${errorDetail}`)
       }
     }
