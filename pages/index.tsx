@@ -71,8 +71,8 @@ const Home: NextPage = () => {
 const styles = {
   main: {
     minHeight: '100vh',
-    background: 'linear-gradient(135deg, #0f172a 0%, #1e293b 100%)',
-    color: '#e2e8f0',
+    background: 'linear-gradient(135deg, #31225C 0%, #603AC8 100%)',
+    color: '#F4F0FF',
     fontFamily: "'Inter', 'system-ui', '-apple-system', sans-serif",
     padding: '20px',
   } as React.CSSProperties,
@@ -129,13 +129,13 @@ const styles = {
     padding: '14px 40px',
     fontSize: '1.1rem',
     fontWeight: '600',
-    background: 'linear-gradient(to right, #3b82f6, #8b5cf6)',
+    background: '#603AC8',
     color: 'white',
     border: 'none',
     borderRadius: '8px',
     cursor: 'pointer',
     transition: 'all 0.3s ease',
-    boxShadow: '0 4px 15px rgba(59, 130, 246, 0.4)',
+    boxShadow: '0 4px 15px rgba(96, 58, 200, 0.4)',
   } as React.CSSProperties,
 
   arrow: {
@@ -156,8 +156,8 @@ const styles = {
   } as React.CSSProperties,
 
   feature: {
-    background: 'rgba(30, 41, 59, 0.5)',
-    border: '1px solid rgba(148, 163, 184, 0.2)',
+    background: 'rgba(96, 58, 200, 0.2)',
+    border: '1px solid rgba(96, 58, 200, 0.3)',
     borderRadius: '12px',
     padding: '24px',
     textAlign: 'center' as const,
@@ -173,12 +173,12 @@ const styles = {
     fontSize: '1.1rem',
     fontWeight: '600',
     margin: '0 0 8px 0',
-    color: '#f1f5f9',
+    color: '#ffffff',
   } as React.CSSProperties,
 
   featureText: {
     fontSize: '0.9rem',
-    color: '#94a3b8',
+    color: '#F4F0FF',
     margin: 0,
   } as React.CSSProperties,
 
@@ -186,12 +186,12 @@ const styles = {
     textAlign: 'center' as const,
     marginTop: 'auto',
     paddingBottom: '20px',
-    borderTop: '1px solid rgba(148, 163, 184, 0.1)',
+    borderTop: '1px solid rgba(96, 58, 200, 0.3)',
   } as React.CSSProperties,
 
   footerText: {
     fontSize: '0.9rem',
-    color: '#64748b',
+    color: '#F4F0FF',
     margin: '20px 0 0 0',
   } as React.CSSProperties,
 }

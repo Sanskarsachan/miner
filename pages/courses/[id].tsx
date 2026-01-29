@@ -246,9 +246,9 @@ export default function CourseDetailPage() {
 
   if (loading) {
     return (
-      <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#f8fafc' }}>
+      <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#F4F0FF' }}>
         <div style={{ textAlign: 'center' }}>
-          <div style={{ width: 40, height: 40, border: '3px solid #e5e7eb', borderTopColor: '#6366f1', borderRadius: '50%', animation: 'spin 1s linear infinite', margin: '0 auto 16px' }} />
+          <div style={{ width: 40, height: 40, border: '3px solid #e5e7eb', borderTopColor: '#603AC8', borderRadius: '50%', animation: 'spin 1s linear infinite', margin: '0 auto 16px' }} />
           <p style={{ color: '#6b7280' }}>Loading...</p>
         </div>
         <style jsx>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
@@ -258,12 +258,12 @@ export default function CourseDetailPage() {
 
   if (error || !extraction) {
     return (
-      <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#f8fafc' }}>
+      <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#F4F0FF' }}>
         <div style={{ textAlign: 'center', maxWidth: 400 }}>
           <div style={{ fontSize: 48, marginBottom: 16 }}>😕</div>
           <h2 style={{ margin: '0 0 8px' }}>Not Found</h2>
           <p style={{ color: '#6b7280', marginBottom: 24 }}>{error || 'Extraction does not exist.'}</p>
-          <Link href="/courseharvester" style={{ padding: '12px 24px', background: '#6366f1', color: 'white', borderRadius: 8, textDecoration: 'none', fontWeight: 600 }}>
+          <Link href="/courseharvester" style={{ padding: '12px 24px', background: '#603AC8', color: 'white', borderRadius: 8, textDecoration: 'none', fontWeight: 600 }}>
             ← Back
           </Link>
         </div>
@@ -285,19 +285,19 @@ export default function CourseDetailPage() {
 
       <style jsx global>{`
         * { box-sizing: border-box; }
-        body { margin: 0; font-family: Inter, system-ui, sans-serif; background: #f8fafc; color: #1f2937; }
+        body { margin: 0; font-family: Inter, system-ui, sans-serif; background: #F4F0FF; color: #31225C; }
         @keyframes spin { to { transform: rotate(360deg); } }
         table { width: 100%; border-collapse: collapse; font-size: 13px; }
         th, td { padding: 10px 12px; text-align: left; border-bottom: 1px solid #e5e7eb; }
-        th { background: #f9fafb; font-weight: 600; color: #6b7280; position: sticky; top: 0; z-index: 10; }
-        tr:hover { background: #f8fafc; }
+        th { background: #F4F0FF; font-weight: 600; color: #31225C; position: sticky; top: 0; z-index: 10; }
+        tr:hover { background: #F4F0FF; }
         .truncate { max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
         .edit-input { padding: 6px 8px; border: 1px solid #d1d5db; border-radius: 4px; font-size: 12px; width: 100%; }
-        .edit-input:focus { outline: none; border-color: #6366f1; }
+        .edit-input:focus { outline: none; border-color: #603AC8; }
       `}</style>
 
       {/* Header */}
-      <header style={{ background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', color: 'white', padding: '16px 24px', position: 'sticky', top: 0, zIndex: 50 }}>
+      <header style={{ background: 'linear-gradient(135deg, #603AC8 0%, #31225C 100%)', color: 'white', padding: '16px 24px', position: 'sticky', top: 0, zIndex: 50 }}>
         <div style={{ maxWidth: 1600, margin: '0 auto', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
             <Link href="/courseharvester" style={{ display: 'flex', alignItems: 'center', gap: 8, color: 'white', textDecoration: 'none', padding: '8px 12px', borderRadius: 8, background: 'rgba(255,255,255,0.1)' }}>
@@ -314,7 +314,7 @@ export default function CourseDetailPage() {
             <button onClick={() => setShowAddModal(true)} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px', background: 'rgba(255,255,255,0.2)', border: 'none', borderRadius: 6, color: 'white', fontWeight: 600, fontSize: 13, cursor: 'pointer' }}>
               <Plus size={16} /> Add
             </button>
-            <button onClick={downloadCSV} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px', background: 'white', border: 'none', borderRadius: 6, color: '#6366f1', fontWeight: 600, fontSize: 13, cursor: 'pointer' }}>
+            <button onClick={downloadCSV} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px', background: 'white', border: 'none', borderRadius: 6, color: '#603AC8', fontWeight: 600, fontSize: 13, cursor: 'pointer' }}>
               <Download size={16} /> CSV
             </button>
           </div>
@@ -325,7 +325,7 @@ export default function CourseDetailPage() {
         {/* Stats Row */}
         <div style={{ display: 'flex', gap: 16, marginBottom: 20, flexWrap: 'wrap' }}>
           <div style={{ background: 'white', borderRadius: 10, padding: '14px 20px', boxShadow: '0 1px 3px rgba(0,0,0,0.1)', display: 'flex', alignItems: 'center', gap: 12, minWidth: 160 }}>
-            <div style={{ width: 40, height: 40, borderRadius: 8, background: 'linear-gradient(135deg, #3b82f6, #1d4ed8)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white' }}>
+            <div style={{ width: 40, height: 40, borderRadius: 8, background: 'linear-gradient(135deg, #603AC8, #31225C)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white' }}>
               <FileText size={20} />
             </div>
             <div>
@@ -334,7 +334,7 @@ export default function CourseDetailPage() {
             </div>
           </div>
           <div style={{ background: 'white', borderRadius: 10, padding: '14px 20px', boxShadow: '0 1px 3px rgba(0,0,0,0.1)', display: 'flex', alignItems: 'center', gap: 12, minWidth: 160 }}>
-            <div style={{ width: 40, height: 40, borderRadius: 8, background: 'linear-gradient(135deg, #10b981, #059669)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white' }}>
+            <div style={{ width: 40, height: 40, borderRadius: 8, background: 'linear-gradient(135deg, #603AC8, #31225C)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white' }}>
               <Layers size={20} />
             </div>
             <div>
@@ -343,7 +343,7 @@ export default function CourseDetailPage() {
             </div>
           </div>
           <div style={{ background: 'white', borderRadius: 10, padding: '14px 20px', boxShadow: '0 1px 3px rgba(0,0,0,0.1)', display: 'flex', alignItems: 'center', gap: 12, minWidth: 160 }}>
-            <div style={{ width: 40, height: 40, borderRadius: 8, background: 'linear-gradient(135deg, #8b5cf6, #7c3aed)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white' }}>
+            <div style={{ width: 40, height: 40, borderRadius: 8, background: 'linear-gradient(135deg, #603AC8, #31225C)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white' }}>
               <CheckCircle size={20} />
             </div>
             <div>
@@ -361,7 +361,7 @@ export default function CourseDetailPage() {
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               style={{ width: '100%', padding: '12px 12px 12px 42px', border: '2px solid #e5e7eb', borderRadius: 8, fontSize: 14, outline: 'none' }}
-              onFocus={(e) => e.target.style.borderColor = '#6366f1'}
+              onFocus={(e) => e.target.style.borderColor = '#603AC8'}
               onBlur={(e) => e.target.style.borderColor = '#e5e7eb'}
             />
           </div>
@@ -397,7 +397,7 @@ export default function CourseDetailPage() {
                   
                   return (
                     <tr key={actualIdx}>
-                      <td style={{ fontWeight: 600, color: '#6366f1' }}>{actualIdx + 1}</td>
+                      <td style={{ fontWeight: 600, color: '#603AC8' }}>{actualIdx + 1}</td>
                       
                       {isEditing && editedCourse ? (
                         <>
@@ -412,7 +412,7 @@ export default function CourseDetailPage() {
                           <td><input className="edit-input" value={editedCourse.CourseDescription || ''} onChange={(e) => setEditedCourse({ ...editedCourse, CourseDescription: e.target.value })} /></td>
                           <td>
                             <div style={{ display: 'flex', gap: 4 }}>
-                              <button onClick={handleSaveCourse} disabled={saving} style={{ padding: 6, background: '#10b981', color: 'white', border: 'none', borderRadius: 4, cursor: 'pointer' }} title="Save">
+                              <button onClick={handleSaveCourse} disabled={saving} style={{ padding: 6, background: '#603AC8', color: 'white', border: 'none', borderRadius: 4, cursor: 'pointer' }} title="Save">
                                 <Save size={14} />
                               </button>
                               <button onClick={() => { setEditingRow(null); setEditedCourse(null) }} style={{ padding: 6, background: '#f3f4f6', color: '#6b7280', border: 'none', borderRadius: 4, cursor: 'pointer' }} title="Cancel">
@@ -482,7 +482,7 @@ export default function CourseDetailPage() {
               </div>
               <input type="text" placeholder="Details" value={newCourse.Details} onChange={(e) => setNewCourse({ ...newCourse, Details: e.target.value })} style={{ padding: 10, border: '1px solid #e5e7eb', borderRadius: 6, fontSize: 13 }} />
               <textarea placeholder="Course Description" value={newCourse.CourseDescription} onChange={(e) => setNewCourse({ ...newCourse, CourseDescription: e.target.value })} rows={3} style={{ padding: 12, border: '1px solid #e5e7eb', borderRadius: 6, fontSize: 13, resize: 'vertical' }} />
-              <button onClick={handleAddCourse} disabled={saving || !newCourse.CourseName?.trim()} style={{ padding: 14, background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', color: 'white', border: 'none', borderRadius: 8, fontWeight: 600, fontSize: 14, cursor: saving || !newCourse.CourseName?.trim() ? 'not-allowed' : 'pointer', opacity: saving || !newCourse.CourseName?.trim() ? 0.7 : 1, marginTop: 8 }}>
+              <button onClick={handleAddCourse} disabled={saving || !newCourse.CourseName?.trim()} style={{ padding: 14, background: 'linear-gradient(135deg, #603AC8 0%, #31225C 100%)', color: 'white', border: 'none', borderRadius: 8, fontWeight: 600, fontSize: 14, cursor: saving || !newCourse.CourseName?.trim() ? 'not-allowed' : 'pointer', opacity: saving || !newCourse.CourseName?.trim() ? 0.7 : 1, marginTop: 8 }}>
                 {saving ? 'Adding...' : 'Add Course'}
               </button>
             </div>
@@ -492,7 +492,7 @@ export default function CourseDetailPage() {
 
       {/* Toast */}
       {toast && (
-        <div style={{ position: 'fixed', bottom: 24, right: 24, padding: '12px 20px', background: toast.type === 'success' ? '#10b981' : '#ef4444', color: 'white', borderRadius: 8, fontWeight: 500, boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1)', zIndex: 200 }}>
+        <div style={{ position: 'fixed', bottom: 24, right: 24, padding: '12px 20px', background: toast.type === 'success' ? '#603AC8' : '#ef4444', color: 'white', borderRadius: 8, fontWeight: 500, boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1)', zIndex: 200 }}>
           {toast.message}
         </div>
       )}

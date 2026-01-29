@@ -291,8 +291,8 @@ export default function CourseHarvesterSidebar({
                 onClick={() => handleSelect(extraction)}
                 style={{
                   padding: '8px',
-                  backgroundColor: selectedId === extraction._id ? '#dbeafe' : '#ffffff',
-                  border: selectedId === extraction._id ? '1px solid #3b82f6' : '1px solid #e5e7eb',
+                  backgroundColor: selectedId === extraction._id ? '#F4F0FF' : '#ffffff',
+                  border: selectedId === extraction._id ? '1px solid #603AC8' : '1px solid #e5e7eb',
                   borderRadius: '6px',
                   cursor: 'pointer',
                   transition: 'all 0.2s',
@@ -320,8 +320,8 @@ export default function CourseHarvesterSidebar({
                     {extraction.filename}
                   </span>
                   <span style={{
-                    backgroundColor: '#dbeafe',
-                    color: '#1e40af',
+                    backgroundColor: '#F4F0FF',
+                    color: '#603AC8',
                     padding: '2px 6px',
                     borderRadius: '4px',
                     fontSize: '11px',
@@ -406,9 +406,9 @@ export default function CourseHarvesterSidebar({
                       flex: 1,
                       padding: '4px 6px',
                       fontSize: '11px',
-                      border: '1px solid #bfdbfe',
-                      backgroundColor: '#eff6ff',
-                      color: '#1e40af',
+                      border: '1px solid #603AC8',
+                      backgroundColor: '#F4F0FF',
+                      color: '#603AC8',
                       borderRadius: '4px',
                       cursor: 'pointer',
                       display: 'flex',

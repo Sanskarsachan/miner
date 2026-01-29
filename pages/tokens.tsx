@@ -90,12 +90,12 @@ export default function TokensPage() {
 
       <style jsx global>{`
         :root {
-          --primary: #2563eb;
-          --secondary: #10b981;
-          --accent: #8b5cf6;
+          --primary: #603AC8;
+          --secondary: #31225C;
+          --accent: #603AC8;
           --warning: #f97316;
           --danger: #ef4444;
-          --bg: #f8fafc;
+          --bg: #F4F0FF;
           --card: #ffffff;
           --muted: #6b7280;
         }
@@ -104,8 +104,8 @@ export default function TokensPage() {
         }
         body {
           margin: 0;
-          background: linear-gradient(180deg, #f8fafc, #ffffff);
-          color: #0f172a;
+          background: linear-gradient(180deg, #F4F0FF, #ffffff);
+          color: #31225C;
           font-family: Inter, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial;
         }
       `}</style>
@@ -219,22 +219,22 @@ export default function TokensPage() {
           background: #f8fafc;
         }
         .highlight {
-          background: #fef3c7;
+          background: #F4F0FF;
           padding: 12px;
           border-radius: 8px;
-          border-left: 4px solid var(--warning);
+          border-left: 4px solid #603AC8;
           margin-bottom: 16px;
         }
         .highlight-text {
           font-size: 13px;
-          color: #92400e;
+          color: #31225C;
           margin: 0;
         }
         .api-badge {
           display: inline-block;
           padding: 4px 8px;
-          background: #dbeafe;
-          color: #1e40af;
+          background: #F4F0FF;
+          color: #603AC8;
           border-radius: 4px;
           font-size: 12px;
           font-weight: 600;
@@ -308,7 +308,7 @@ export default function TokensPage() {
 
           <div className="card">
             <div className="stat-label">Cost Efficiency</div>
-            <div className="stat-value" style={{ color: '#10b981' }}>
+            <div className="stat-value" style={{ color: '#603AC8' }}>
               {efficiency.avg_tokens_per_course}
               <span className="stat-unit"> tokens/course</span>
             </div>
@@ -325,25 +325,25 @@ export default function TokensPage() {
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px' }}>
               <div>
                 <div className="stat-label">Tokens per Course</div>
-                <div style={{ fontSize: '20px', fontWeight: '700', color: '#2563eb' }}>
+                <div style={{ fontSize: '20px', fontWeight: '700', color: '#603AC8' }}>
                   {efficiency.avg_tokens_per_course}
                 </div>
               </div>
               <div>
                 <div className="stat-label">Tokens per Page</div>
-                <div style={{ fontSize: '20px', fontWeight: '700', color: '#2563eb' }}>
+                <div style={{ fontSize: '20px', fontWeight: '700', color: '#603AC8' }}>
                   {efficiency.avg_tokens_per_page}
                 </div>
               </div>
               <div>
                 <div className="stat-label">Courses per Extraction</div>
-                <div style={{ fontSize: '20px', fontWeight: '700', color: '#2563eb' }}>
+                <div style={{ fontSize: '20px', fontWeight: '700', color: '#603AC8' }}>
                   {efficiency.avg_courses_per_extraction}
                 </div>
               </div>
               <div>
                 <div className="stat-label">Usage Rate</div>
-                <div style={{ fontSize: '20px', fontWeight: '700', color: summary.usage_percentage > 80 ? '#ef4444' : '#10b981' }}>
+                <div style={{ fontSize: '20px', fontWeight: '700', color: summary.usage_percentage > 80 ? '#ef4444' : '#603AC8' }}>
                   {summary.usage_percentage.toFixed(1)}%
                 </div>
               </div>

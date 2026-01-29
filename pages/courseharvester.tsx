@@ -850,10 +850,10 @@ export default function CourseHarvester() {
       />
       <style jsx global>{`
         :root {
-          --primary: #2563eb;
-          --secondary: #10b981;
-          --accent: #8b5cf6;
-          --bg: #f8fafc;
+          --primary: #603AC8;
+          --secondary: #31225C;
+          --accent: #603AC8;
+          --bg: #F4F0FF;
           --card: #ffffff;
           --muted: #6b7280;
           --danger: #ef4444;
@@ -863,21 +863,23 @@ export default function CourseHarvester() {
         }
         body {
           margin: 0;
-          background: linear-gradient(180deg, #f8fafc, #ffffff);
-          color: #0f172a;
+          background: linear-gradient(180deg, #F4F0FF, #ffffff);
+          color: #31225C;
           font-family: Inter, system-ui, -apple-system, 'Segoe UI', Roboto,
             'Helvetica Neue', Arial;
         }
       `}</style>
 
       <style jsx>{`
-        .header {
+      .headerbackground {
           background: linear-gradient(90deg, var(--primary), var(--accent));
+          box-shadow: 0 10px 30px rgba(16, 24, 40, 0.08);
+      }
+        .header {
           color: #fff;
           padding: 20px 10px;
           border-bottom-left-radius: 12px;
           border-bottom-right-radius: 12px;
-          box-shadow: 0 10px 30px rgba(16, 24, 40, 0.08);
         }
         .header-inner {
           max-width: 1400px;
@@ -887,9 +889,9 @@ export default function CourseHarvester() {
           justify-content: space-between;
           gap: 16px;
         }
-        .header h1 {
+        .header-text{
           margin: 0;
-          font-size: 22px;
+          font-size: 25px;
           font-weight: 700;
         }
         .tagline {
@@ -941,7 +943,7 @@ export default function CourseHarvester() {
           right: 20px;
           top: 20px;
           z-index: 105;
-          background: var(--primary);
+          background: #603AC8;
           color: white;
           border: none;
           border-radius: 50%;
@@ -1297,11 +1299,11 @@ export default function CourseHarvester() {
       `}</style>
 
       {/* Header */}
-      <div className="header">
+      <div className="header headerbackground">
         <div className="header-inner">
           <div>
-            <div className="header h1" style={{ margin: 0 }}>
-              CourseHarvester
+            <div className="header header-text" style={{ margin: 0 }}>
+              Planpaths Course Database
             </div>
             <div className="tagline">
               Extract course data from PDF • Word • PowerPoint • HTML • TXT
@@ -1380,7 +1382,7 @@ export default function CourseHarvester() {
                     marginBottom: 12,
                   }}
                 >
-                  <div style={{ fontWeight: 600, fontSize: 13, color: '#92400e', marginBottom: 8 }}>
+                  <div style={{ fontWeight: 600, fontSize: 13, color: '#31225C', marginBottom: 8 }}>
                     API Quota Info
                   </div>
                   <div style={{ fontSize: 12, color: '#78350f', lineHeight: 1.6 }}>
@@ -1454,9 +1456,9 @@ export default function CourseHarvester() {
                     fontSize: '13px'
                   }}>
                     <div style={{ marginBottom: '8px', fontWeight: 600 }}>
-                      📄 Page Range ({totalPages} total pages)
+                      Page Range ({totalPages} total pages)
                       {cachedPageRange && (
-                        <span style={{ marginLeft: '8px', fontSize: '12px', color: '#059669' }}>
+                        <span style={{ marginLeft: '8px', fontSize: '12px', color: '#603AC8' }}>
                           ✓ Cached: pages {cachedPageRange.start}-{cachedPageRange.end}
                         </span>
                       )}
@@ -1530,7 +1532,7 @@ export default function CourseHarvester() {
                           <div style={{
                             marginBottom: '8px',
                             fontWeight: 600,
-                            color: willExceedQuota ? '#991b1b' : isWarning ? '#92400e' : '#166534',
+                            color: willExceedQuota ? '#991b1b' : isWarning ? '#31225C' : '#31225C',
                           }}>
                             {willExceedQuota ? '⚠️ Warning: Quota Exceeded' : isWarning ? '💡 Batch Processing' : '✅ Sufficient Quota'}
                           </div>
@@ -1538,7 +1540,7 @@ export default function CourseHarvester() {
                           <div style={{
                             marginLeft: '0px',
                             lineHeight: '1.6',
-                            color: willExceedQuota ? '#7f1d1d' : isWarning ? '#92400e' : '#166534',
+                            color: willExceedQuota ? '#7f1d1d' : isWarning ? '#31225C' : '#31225C',
                           }}>
                             <div style={{ marginBottom: '6px' }}>
                               <strong>Processing pages {pageRangeStart}-{pageRangeEnd > 0 ? pageRangeEnd : totalPages} ({pagesToProcess} page{pagesToProcess !== 1 ? 's' : ''}):</strong>
@@ -1548,7 +1550,7 @@ export default function CourseHarvester() {
                               <div>Available: <strong>{tokensRemaining.toLocaleString()}</strong></div>
                               <div>Range: {costEstimate.min.toLocaleString()}-{costEstimate.max.toLocaleString()}</div>
                               <div>
-                                Remaining: <strong style={{ color: willExceedQuota ? '#dc2626' : '#10b981' }}>
+                                Remaining: <strong style={{ color: willExceedQuota ? '#dc2626' : '#603AC8' }}>
                                   {willExceedQuota ? `❌ -${(costEstimate.recommended - tokensRemaining).toLocaleString()}` : (tokensRemaining - costEstimate.recommended).toLocaleString()}
                                 </strong>
                               </div>
@@ -1625,16 +1627,16 @@ export default function CourseHarvester() {
                 {extractionProgress.isExtracting && (
                   <div style={{
                     padding: '16px',
-                    backgroundColor: '#f0f9ff',
+                    backgroundColor: '#F4F0FF',
                     borderRadius: '8px',
-                    border: '1px solid #bfdbfe',
+                    border: '1px solid #603AC8',
                     marginTop: '12px',
                   }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
-                      <div style={{ fontWeight: 600, fontSize: '13px', color: '#1e40af' }}>
+                      <div style={{ fontWeight: 600, fontSize: '13px', color: '#31225C' }}>
                         📊 Extraction Progress
                       </div>
-                      <div style={{ fontSize: '12px', color: '#1e40af' }}>
+                      <div style={{ fontSize: '12px', color: '#31225C' }}>
                         {extractionProgress.pagesProcessed}/{extractionProgress.totalPages} pages
                       </div>
                     </div>
@@ -1652,7 +1654,7 @@ export default function CourseHarvester() {
                       <div style={{
                         width: `${(extractionProgress.pagesProcessed / Math.max(extractionProgress.totalPages, 1)) * 100}%`,
                         height: '100%',
-                        background: 'linear-gradient(90deg, #3b82f6 0%, #8b5cf6 50%, #ec4899 100%)',
+                        background: 'linear-gradient(90deg, #603AC8 0%, #31225C 100%)',
                         borderRadius: '6px',
                         transition: 'width 0.4s cubic-bezier(0.4, 0, 0.2, 1)',
                         boxShadow: '0 0 10px rgba(59, 130, 246, 0.5)',
@@ -1671,20 +1673,20 @@ export default function CourseHarvester() {
                         padding: '8px',
                         backgroundColor: '#f0f9ff',
                         borderRadius: '4px',
-                        borderLeft: '3px solid #3b82f6',
+                        borderLeft: '3px solid #603AC8',
                       }}>
                         <div style={{ color: '#6b7280', marginBottom: '2px' }}>📚 Courses Found</div>
-                        <div style={{ fontSize: '16px', fontWeight: 700, color: '#1e40af' }}>{extractionProgress.coursesFound}</div>
+                        <div style={{ fontSize: '16px', fontWeight: 700, color: '#31225C' }}>{extractionProgress.coursesFound}</div>
                       </div>
                       
                       <div style={{
                         padding: '8px',
                         backgroundColor: '#fef3c7',
                         borderRadius: '4px',
-                        borderLeft: '3px solid #f59e0b',
+                        borderLeft: '3px solid #603AC8',
                       }}>
                         <div style={{ color: '#6b7280', marginBottom: '2px' }}>📄 Pages Processed</div>
-                        <div style={{ fontSize: '16px', fontWeight: 700, color: '#92400e' }}>
+                        <div style={{ fontSize: '16px', fontWeight: 700, color: '#31225C' }}>
                           {extractionProgress.pagesProcessed}/{extractionProgress.totalPages}
                         </div>
                       </div>
@@ -1693,10 +1695,10 @@ export default function CourseHarvester() {
                         padding: '8px',
                         backgroundColor: '#f0fdf4',
                         borderRadius: '4px',
-                        borderLeft: '3px solid #10b981',
+                        borderLeft: '3px solid #603AC8',
                       }}>
                         <div style={{ color: '#6b7280', marginBottom: '2px' }}>⏱️ Time Elapsed</div>
-                        <div style={{ fontSize: '16px', fontWeight: 700, color: '#166534' }}>
+                        <div style={{ fontSize: '16px', fontWeight: 700, color: '#31225C' }}>
                           {Math.round((Date.now() - extractionProgress.startTime) / 1000)}s
                         </div>
                       </div>
@@ -1704,12 +1706,12 @@ export default function CourseHarvester() {
                       {extractionProgress.estimatedTimeRemaining > 0 && (
                         <div style={{
                           padding: '8px',
-                          backgroundColor: '#ede9fe',
+                          backgroundColor: '#F4F0FF',
                           borderRadius: '4px',
-                          borderLeft: '3px solid #8b5cf6',
+                          borderLeft: '3px solid #603AC8',
                         }}>
                           <div style={{ color: '#6b7280', marginBottom: '2px' }}>⏰ Est. Time Remaining</div>
-                          <div style={{ fontSize: '16px', fontWeight: 700, color: '#6d28d9' }}>
+                          <div style={{ fontSize: '16px', fontWeight: 700, color: '#31225C' }}>
                             {Math.round(extractionProgress.estimatedTimeRemaining / 1000)}s
                           </div>
                         </div>
@@ -1775,13 +1777,13 @@ export default function CourseHarvester() {
                     {/* Free Tier Usage Stats */}
                     <div style={{
                       padding: '12px 16px',
-                      backgroundColor: '#f0f9ff',
+                      backgroundColor: '#F4F0FF',
                       borderRadius: '8px',
                       marginBottom: '16px',
                       fontSize: '12px',
-                      border: '1px solid #bfdbfe',
+                      border: '1px solid #603AC8',
                     }}>
-                      <div style={{ fontWeight: 600, marginBottom: '8px', color: '#1e40af' }}>Free Tier Usage</div>
+                      <div style={{ fontWeight: 600, marginBottom: '8px', color: '#31225C' }}>Free Tier Usage</div>
                       <div style={{ display: 'flex', flexWrap: 'wrap', gap: '12px', color: '#1f2937' }}>
                         <div style={{ flex: '1 1 calc(50% - 6px)', minWidth: '150px' }}>
                           <div style={{ marginBottom: '4px' }}>Tokens: <span style={{ fontWeight: 600 }}>{Math.min(usageStats.tokensUsedToday, 1000000).toLocaleString()}</span>/{usageStats.tokensLimitPerDay.toLocaleString()}</div>
@@ -1789,7 +1791,7 @@ export default function CourseHarvester() {
                             <div style={{
                               width: `${Math.min((usageStats.tokensUsedToday / usageStats.tokensLimitPerDay) * 100, 100)}%`,
                               height: '100%',
-                              backgroundColor: usageStats.tokensUsedToday > usageStats.tokensLimitPerDay * 0.8 ? '#ef4444' : '#3b82f6',
+                              backgroundColor: usageStats.tokensUsedToday > usageStats.tokensLimitPerDay * 0.8 ? '#ef4444' : '#603AC8',
                               borderRadius: '3px',
                               transition: 'width 0.3s'
                             }} />
