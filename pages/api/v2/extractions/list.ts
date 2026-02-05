@@ -22,7 +22,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       return res.status(503).json({ error: 'Database connection failed' })
     }
 
-    const limit = Math.min(parseInt(req.query.limit as string) || 10, 100)
+    const limit = Math.min(parseInt(req.query.limit as string) || 10, 1000)
     const skip = parseInt(req.query.skip as string) || 0
 
     // For now use default user; will be from auth later
