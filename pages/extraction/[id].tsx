@@ -3,6 +3,8 @@ import Head from 'next/head';
 import Link from 'next/link';
 import { useRouter } from 'next/router';
 import Header from '@/components/Header';
+import ReuploadModal from '@/components/ReuploadModal';
+import { normalizeCourse } from '@/lib/normalize';
 import { 
   FileText, 
   Download, 
@@ -20,7 +22,8 @@ import {
   ChevronDown,
   ChevronUp,
   ExternalLink,
-  Filter
+  Filter,
+  Upload
 } from 'lucide-react';
 
 interface Course {
@@ -61,9 +64,11 @@ export default function ExtractionDetailPage() {
   const [expandedCourse, setExpandedCourse] = useState<number | null>(null);
   const [copiedShare, setCopiedShare] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
+  const [showReuploadModal, setShowReuploadModal] = useState(false);
 
   useEffect(() => {
     if (id) {
+      // Normalize id (router.query can be string | string[])
       fetchExtraction();
     }
   }, [id]);
@@ -71,10 +76,17 @@ export default function ExtractionDetailPage() {
   const fetchExtraction = async () => {
     try {
       setLoading(true);
-      const response = await fetch(`/api/v2/extractions/${id}`);
+      const idStr = Array.isArray(id) ? id[0] : id;
+      const response = await fetch(`/api/v2/extractions/${idStr}`);
       const data = await response.json();
-      
+      console.debug('[fetchExtraction] response', data);
+
       if (data.success) {
+        // Debug: log sample courses
+        if (data.data?.courses && data.data.courses.length > 0) {
+          console.debug('[fetchExtraction] First course:', data.data.courses[0]);
+          console.debug('[fetchExtraction] First course keys:', Object.keys(data.data.courses[0]));
+        }
         setExtraction(data.data);
       } else {
         setError('Failed to load extraction');
@@ -89,8 +101,29 @@ export default function ExtractionDetailPage() {
 
   const handleExport = async (format: 'csv' | 'json') => {
     if (!extraction) return;
-    
-    const courses = extraction.courses || [];
+    const idStr = Array.isArray(id) ? id[0] : id;
+
+    // Ensure we have the latest courses before exporting (re-fetch if empty)
+    let courses = extraction.courses || [];
+    if (!courses || courses.length === 0) {
+      try {
+        const resp = await fetch(`/api/v2/extractions/${idStr}`);
+        const latest = await resp.json();
+        if (latest?.success && latest.data?.courses) {
+          courses = latest.data.courses || [];
+        }
+      } catch (err) {
+        console.error('Failed to re-fetch extraction for export', err);
+      }
+    }
+
+    if (!courses || courses.length === 0) {
+      // Friendly feedback when no courses exist
+      if (typeof window !== 'undefined') {
+        window.alert('No extracted courses available to export.');
+      }
+      return;
+    }
     
     let content: string;
     let filename: string;
@@ -98,22 +131,24 @@ export default function ExtractionDetailPage() {
 
     if (format === 'csv') {
       const headers = ['S.No', 'Category', 'CourseName', 'CourseCode', 'GradeLevel', 'Length', 'Prerequisite', 'Credit', 'CourseDescription'];
-      const rows = [headers.join(',')];
+      const rows: string[] = [headers.join(',')];
       courses.forEach((course: Course, idx: number) => {
-        const row = [
-          idx + 1,
-          `"${(course.Category || '').replace(/"/g, '""')}"`,
-          `"${(course.CourseName || '').replace(/"/g, '""')}"`,
-          `"${(course.CourseCode || '').replace(/"/g, '""')}"`,
-          `"${(course.GradeLevel || '').replace(/"/g, '""')}"`,
-          `"${(course.Length || '').replace(/"/g, '""')}"`,
-          `"${(course.Prerequisite || '').replace(/"/g, '""')}"`,
-          `"${(course.Credit || '').replace(/"/g, '""')}"`,
-          `"${(course.CourseDescription || '').replace(/"/g, '""')}"`,
+        const nc = normalizeCourse(course as any);
+        const cells = [
+          String(idx + 1),
+          `"${(nc.Category || '').replace(/"/g, '""')}"`,
+          `"${(nc.CourseName || '').replace(/"/g, '""')}"`,
+          `"${(nc.CourseCode || '').replace(/"/g, '""')}"`,
+          `"${(nc.GradeLevel || '').replace(/"/g, '""')}"`,
+          `"${(nc.Length || '').replace(/"/g, '""')}"`,
+          `"${(nc.Prerequisite || '').replace(/"/g, '""')}"`,
+          `"${(nc.Credit || '').replace(/"/g, '""')}"`,
+          `"${(nc.CourseDescription || '').replace(/"/g, '""')}"`,
         ];
-        rows.push(row.join(','));
+        rows.push(cells.join(','));
       });
-      content = rows.join('\n');
+      // Add BOM for Excel compatibility
+      content = '\uFEFF' + rows.join('\n');
       filename = `${extraction.filename.replace(/\.[^/.]+$/, '')}_courses.csv`;
       mimeType = 'text/csv';
     } else {
@@ -182,31 +217,37 @@ export default function ExtractionDetailPage() {
 
   // Get unique categories
   const categories = extraction?.courses 
-    ? ['all', ...new Set(extraction.courses.map(c => c.Category || 'Uncategorized').filter(Boolean))]
+    ? ['all', ...new Set(extraction.courses.map(c => {
+        const nc = normalizeCourse(c);
+        return nc.Category || 'Uncategorized';
+      }).filter(Boolean))]
     : ['all'];
 
   // Filter and sort courses
   const filteredCourses = (extraction?.courses || [])
     .filter(course => {
+      const nc = normalizeCourse(course);
       const matchesSearch = !searchQuery || 
-        (course.CourseName || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
-        (course.CourseCode || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
-        (course.CourseDescription || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
-        (course.Category || '').toLowerCase().includes(searchQuery.toLowerCase());
+        (nc.CourseName || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+        (nc.CourseCode || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+        (nc.CourseDescription || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+        (nc.Category || '').toLowerCase().includes(searchQuery.toLowerCase());
       
       const matchesCategory = selectedCategory === 'all' || 
-        (course.Category || 'Uncategorized') === selectedCategory;
+        (nc.Category || 'Uncategorized') === selectedCategory;
       
       return matchesSearch && matchesCategory;
     })
     .sort((a, b) => {
+      const na = normalizeCourse(a);
+      const nb = normalizeCourse(b);
       let comparison = 0;
       if (sortBy === 'name') {
-        comparison = (a.CourseName || '').localeCompare(b.CourseName || '');
+        comparison = (na.CourseName || '').localeCompare(nb.CourseName || '');
       } else if (sortBy === 'category') {
-        comparison = (a.Category || '').localeCompare(b.Category || '');
+        comparison = (na.Category || '').localeCompare(nb.Category || '');
       } else if (sortBy === 'grade') {
-        comparison = (a.GradeLevel || '').localeCompare(b.GradeLevel || '');
+        comparison = (na.GradeLevel || '').localeCompare(nb.GradeLevel || '');
       }
       return sortOrder === 'asc' ? comparison : -comparison;
     });
@@ -355,6 +396,26 @@ export default function ExtractionDetailPage() {
               </div>
               
               <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+                <button
+                  onClick={() => setShowReuploadModal(true)}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                    padding: '10px 16px',
+                    background: 'rgba(255,255,255,0.15)',
+                    color: 'white',
+                    border: '1px solid rgba(255,255,255,0.3)',
+                    borderRadius: '8px',
+                    cursor: 'pointer',
+                    fontWeight: 500,
+                    fontSize: '13px',
+                    transition: 'all 0.2s',
+                  }}
+                >
+                  <Upload size={16} />
+                  Re-upload
+                </button>
                 <button
                   onClick={shareExtraction}
                   style={{
@@ -607,7 +668,9 @@ export default function ExtractionDetailPage() {
                     </td>
                   </tr>
                 ) : (
-                  filteredCourses.map((course, idx) => (
+                  filteredCourses.map((course, idx) => {
+                    const nc = normalizeCourse(course);
+                    return (
                     <React.Fragment key={idx}>
                       <tr
                         onClick={() => setExpandedCourse(expandedCourse === idx ? null : idx)}
@@ -624,10 +687,10 @@ export default function ExtractionDetailPage() {
                         }}
                       >
                         <td style={{ padding: '16px 20px', fontWeight: 600, color: '#603AC8' }}>{idx + 1}</td>
-                        <td style={{ padding: '16px 20px', fontWeight: 500, color: '#1F2937' }}>{course.CourseName || '-'}</td>
-                        <td style={{ padding: '16px 20px', color: '#6B7280', fontFamily: 'monospace', fontSize: '13px' }}>{course.CourseCode || '-'}</td>
+                        <td style={{ padding: '16px 20px', fontWeight: 500, color: '#1F2937' }}>{nc.CourseName || '-'}</td>
+                        <td style={{ padding: '16px 20px', color: '#6B7280', fontFamily: 'monospace', fontSize: '13px' }}>{nc.CourseCode || '-'}</td>
                         <td style={{ padding: '16px 20px' }}>
-                          {course.Category ? (
+                          {nc.Category ? (
                             <span style={{
                               padding: '4px 10px',
                               background: '#F4F0FF',
@@ -636,12 +699,12 @@ export default function ExtractionDetailPage() {
                               fontSize: '12px',
                               fontWeight: 500,
                             }}>
-                              {course.Category}
+                              {nc.Category}
                             </span>
                           ) : '-'}
                         </td>
-                        <td style={{ padding: '16px 20px', textAlign: 'center', color: '#6B7280' }}>{course.GradeLevel || '-'}</td>
-                        <td style={{ padding: '16px 20px', textAlign: 'center', fontWeight: 600, color: '#059669' }}>{course.Credit || '-'}</td>
+                        <td style={{ padding: '16px 20px', textAlign: 'center', color: '#6B7280' }}>{nc.GradeLevel || '-'}</td>
+                        <td style={{ padding: '16px 20px', textAlign: 'center', fontWeight: 600, color: '#059669' }}>{nc.Credit || '-'}</td>
                         <td style={{ padding: '16px 20px', textAlign: 'center' }}>
                           {expandedCourse === idx ? <ChevronUp size={18} color="#603AC8" /> : <ChevronDown size={18} color="#9CA3AF" />}
                         </td>
@@ -658,23 +721,23 @@ export default function ExtractionDetailPage() {
                               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px', marginBottom: '16px' }}>
                                 <div>
                                   <div style={{ fontSize: '11px', color: '#6B7280', marginBottom: '4px' }}>Length</div>
-                                  <div style={{ fontSize: '14px', fontWeight: 500, color: '#374151' }}>{course.Length || 'Not specified'}</div>
+                                  <div style={{ fontSize: '14px', fontWeight: 500, color: '#374151' }}>{nc.Length || 'Not specified'}</div>
                                 </div>
                                 <div>
                                   <div style={{ fontSize: '11px', color: '#6B7280', marginBottom: '4px' }}>Prerequisite</div>
-                                  <div style={{ fontSize: '14px', fontWeight: 500, color: '#374151' }}>{course.Prerequisite || 'None'}</div>
+                                  <div style={{ fontSize: '14px', fontWeight: 500, color: '#374151' }}>{nc.Prerequisite || 'None'}</div>
                                 </div>
-                                {course.Details && (
+                                {nc.Details && nc.Details !== '-' && (
                                   <div>
                                     <div style={{ fontSize: '11px', color: '#6B7280', marginBottom: '4px' }}>Additional Details</div>
-                                    <div style={{ fontSize: '14px', fontWeight: 500, color: '#374151' }}>{course.Details}</div>
+                                    <div style={{ fontSize: '14px', fontWeight: 500, color: '#374151' }}>{nc.Details}</div>
                                   </div>
                                 )}
                               </div>
-                              {course.CourseDescription && (
+                              {nc.CourseDescription && (
                                 <div>
                                   <div style={{ fontSize: '11px', color: '#6B7280', marginBottom: '6px' }}>Description</div>
-                                  <div style={{ fontSize: '14px', color: '#374151', lineHeight: '1.6' }}>{course.CourseDescription}</div>
+                                  <div style={{ fontSize: '14px', color: '#374151', lineHeight: '1.6' }}>{nc.CourseDescription}</div>
                                 </div>
                               )}
                             </div>
@@ -682,12 +745,22 @@ export default function ExtractionDetailPage() {
                         </tr>
                       )}
                     </React.Fragment>
-                  ))
+                  );
+                  })
                 )}
               </tbody>
             </table>
           </div>
         </main>
+
+        {/* Re-upload Modal */}
+        <ReuploadModal
+          isOpen={showReuploadModal}
+          onClose={() => setShowReuploadModal(false)}
+          extractionId={Array.isArray(id) ? id[0] : (id || '')}
+          currentFilename={extraction?.filename || ''}
+          onSuccess={fetchExtraction}
+        />
       </div>
     </>
   );

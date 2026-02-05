@@ -25,6 +25,15 @@ export default function Header({ transparent = false }: HeaderProps) {
 
   return (
     <>
+      <style jsx global>{`
+        .header a {
+          text-decoration: none !important;
+        }
+        .header a:hover {
+          text-decoration: none !important;
+        }
+      `}</style>
+
       <style jsx>{`
         .header {
           position: fixed;
@@ -32,85 +41,90 @@ export default function Header({ transparent = false }: HeaderProps) {
           left: 0;
           right: 0;
           z-index: 100;
-          background: ${transparent ? 'rgba(255, 255, 255, 0.95)' : 'rgba(255, 255, 255, 0.98)'};
-          backdrop-filter: blur(10px);
-          border-bottom: 1px solid #F4F0FF;
-          padding: 12px 24px;
+          background: white;
+          border-bottom: 1px solid #e5e7eb;
+          padding: 14px 32px;
+          box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+          border-radius: 0 0 20px 20px;
         }
         .header-inner {
-          max-width: 1200px;
+          max-width: 1400px;
           margin: 0 auto;
           display: flex;
           align-items: center;
           justify-content: space-between;
+          gap: 24px;
         }
         .logo-link {
-          text-decoration: none;
           display: flex;
           align-items: center;
-          gap: 10px;
+          gap: 12px;
+          flex-shrink: 0;
         }
         .logo-img {
-          width: 36px;
-          height: 36px;
+          width: 30px;
+          height: 30px;
           border-radius: 8px;
+          flex-shrink: 0;
         }
         .logo-text {
-          font-size: 20px;
-          font-weight: 700;
-          color: #31225C;
-        }
-        .logo-text-highlight {
+          font-size: 25px;
+          font-weight: 800;
           color: #603AC8;
+          padding: 12px;
         }
         .nav {
           display: flex;
           align-items: center;
           gap: 8px;
+          margin-left: auto;
         }
         .nav-link {
-          display: flex;
+          display: inline-flex;
           align-items: center;
-          gap: 6px;
-          padding: 8px 14px;
-          color: #31225C;
-          text-decoration: none;
+          gap: 8px;
+          padding: 10px 14px;
+          color: #6b7280;
           font-size: 14px;
           font-weight: 500;
           border-radius: 8px;
           transition: all 0.2s ease;
+          background: transparent;
+        }
+        .nav-link svg {
+          flex-shrink: 0;
+          width: 18px;
+          height: 18px;
         }
         .nav-link:hover {
-          background: #F4F0FF;
+          color: #4f46e5;
+          background: #f3f4f6;
         }
         .nav-link.active {
-          background: #F4F0FF;
-          color: #603AC8;
+          color: #4f46e5;
+          background: #ede9fe;
         }
         .nav-link-text {
-          display: inline;
+          white-space: nowrap;
+          padding: 6px;
         }
         .get-started-btn {
           margin-left: 12px;
-          padding: 10px 20px;
-          background: linear-gradient(135deg, #603AC8, #31225C);
+          padding: 8px 16px;
+          background: #4f46e5;
           color: white;
           border-radius: 8px;
-          text-decoration: none;
           font-weight: 600;
           font-size: 14px;
-          transition: all 0.3s ease;
-          box-shadow: 0 4px 15px rgba(96, 58, 200, 0.3);
-          display: flex;
+          transition: all 0.2s ease;
+          display: inline-flex;
           align-items: center;
           gap: 6px;
+          white-space: nowrap;
         }
         .get-started-btn:hover {
-          box-shadow: 0 6px 20px rgba(96, 58, 200, 0.4);
+          background: #4338ca;
           transform: translateY(-1px);
-        }
-        .get-started-text {
-          display: inline;
         }
 
         /* Mobile styles - hide text, show only icons */
@@ -125,14 +139,8 @@ export default function Header({ transparent = false }: HeaderProps) {
             display: none;
           }
           .nav-link {
-            padding: 10px;
-          }
-          .get-started-text {
-            display: none;
-          }
-          .get-started-btn {
-            margin-left: 8px;
-            padding: 10px;
+            padding: 8px;
+            gap: 0;
           }
         }
 
@@ -142,17 +150,14 @@ export default function Header({ transparent = false }: HeaderProps) {
             padding: 8px 12px;
           }
           .logo-img {
-            width: 32px;
-            height: 32px;
+            width: 36px;
+            height: 36px;
           }
           .nav {
-            gap: 4px;
+            gap: 10px;
           }
           .nav-link {
-            padding: 8px;
-          }
-          .get-started-btn {
-            padding: 8px;
+            padding: px;
           }
         }
       `}</style>
@@ -167,7 +172,7 @@ export default function Header({ transparent = false }: HeaderProps) {
               className="logo-img"
             />
             <span className="logo-text">
-              Course<span className="logo-text-highlight">Harvester</span>
+              Planpaths Data Miner
             </span>
           </Link>
 
@@ -196,10 +201,6 @@ export default function Header({ transparent = false }: HeaderProps) {
             >
               <FolderOpen size={18} />
               <span className="nav-link-text">History</span>
-            </Link>
-            <Link href="/courseharvester" className="get-started-btn" title="Get Started">
-              <Sparkles size={16} />
-              <span className="get-started-text">Get Started</span>
             </Link>
           </nav>
         </div>

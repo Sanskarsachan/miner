@@ -3,6 +3,7 @@ import Head from 'next/head';
 import Link from 'next/link';
 import { useRouter } from 'next/router';
 import Header from '@/components/Header';
+import { normalizeCourse } from '@/lib/normalize';
 import { 
   FileText, 
   Download, 
@@ -50,6 +51,8 @@ interface Extraction {
 export default function V2ExtractionsPage() {
   const router = useRouter();
   const [extractions, setExtractions] = useState<Extraction[]>([]);
+  const [displayCount, setDisplayCount] = useState(10);
+  const [totalCount, setTotalCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selectedExtraction, setSelectedExtraction] = useState<Extraction | null>(null);
@@ -72,7 +75,7 @@ export default function V2ExtractionsPage() {
   const fetchExtractions = async () => {
     try {
       setLoading(true);
-      const response = await fetch('/api/v2/extractions/list?limit=100&skip=0');
+      const response = await fetch('/api/v2/extractions/list?limit=500&skip=0');
       const data = await response.json();
       
       if (data.success) {
@@ -86,6 +89,8 @@ export default function V2ExtractionsPage() {
           tokens_used: ext.tokens_used || 0,
         }));
         setExtractions(mappedData);
+        setTotalCount(mappedData.length);
+        setDisplayCount(10);
       } else {
         setError('Failed to load extractions');
       }
@@ -120,11 +125,19 @@ export default function V2ExtractionsPage() {
 
   const handleExport = async (extraction: Extraction, format: 'csv' | 'json') => {
     try {
-      // Fetch full extraction data with courses
+      // Fetch full extraction data with courses (ensure latest)
       const response = await fetch(`/api/v2/extractions/${extraction._id}`);
       const data = await response.json();
-      
+      console.debug('[handleExport] fetched extraction', data);
+
       const courses = data.data?.courses || [];
+
+      if (!courses || courses.length === 0) {
+        if (typeof window !== 'undefined') {
+          window.alert('No extracted courses available to export for this file.');
+        }
+        return;
+      }
       
       let content: string;
       let filename: string;
@@ -134,20 +147,22 @@ export default function V2ExtractionsPage() {
         const headers = ['S.No', 'Category', 'CourseName', 'CourseCode', 'GradeLevel', 'Length', 'Prerequisite', 'Credit', 'CourseDescription'];
         const rows = [headers.join(',')];
         courses.forEach((course: any, idx: number) => {
-          const row = [
-            idx + 1,
-            `"${(course.Category || '').replace(/"/g, '""')}"`,
-            `"${(course.CourseName || '').replace(/"/g, '""')}"`,
-            `"${(course.CourseCode || '').replace(/"/g, '""')}"`,
-            `"${(course.GradeLevel || '').replace(/"/g, '""')}"`,
-            `"${(course.Length || '').replace(/"/g, '""')}"`,
-            `"${(course.Prerequisite || '').replace(/"/g, '""')}"`,
-            `"${(course.Credit || '').replace(/"/g, '""')}"`,
-            `"${(course.CourseDescription || '').replace(/"/g, '""')}"`,
-          ];
-          rows.push(row.join(','));
+            const nc = normalizeCourse(course);
+            const cells = [
+              String(idx + 1),
+              `"${(nc.Category || '').replace(/"/g, '""')}"`,
+              `"${(nc.CourseName || '').replace(/"/g, '""')}"`,
+              `"${(nc.CourseCode || '').replace(/"/g, '""')}"`,
+              `"${(nc.GradeLevel || '').replace(/"/g, '""')}"`,
+              `"${(nc.Length || '').replace(/"/g, '""')}"`,
+              `"${(nc.Prerequisite || '').replace(/"/g, '""')}"`,
+              `"${(nc.Credit || '').replace(/"/g, '""')}"`,
+              `"${(nc.CourseDescription || '').replace(/"/g, '""')}"`,
+            ];
+            rows.push(cells.join(','));
         });
-        content = rows.join('\n');
+        // Add BOM for Excel compatibility
+        content = '\uFEFF' + rows.join('\n');
         filename = `${extraction.filename.replace(/\.[^/.]+$/, '')}_courses.csv`;
         mimeType = 'text/csv';
       } else {
@@ -250,6 +265,8 @@ export default function V2ExtractionsPage() {
       return 0;
     });
 
+  const displayedExtractions = filteredExtractions.slice(0, displayCount);
+
   const getStatusColor = (status: string) => {
     switch (status) {
       case 'completed': return { bg: '#ECFDF5', text: '#059669', dot: '#10B981' };
@@ -312,6 +329,28 @@ export default function V2ExtractionsPage() {
           table th:nth-child(5),
           table td:nth-child(5) {
             display: none;
+          }
+        }
+        
+        /* Responsive grid - 5 columns on desktop, fewer on smaller screens */
+        @media (max-width: 1600px) {
+          div[style*="gridTemplateColumns: repeat(5"] {
+            grid-template-columns: repeat(4, 1fr) !important;
+          }
+        }
+        @media (max-width: 1200px) {
+          div[style*="gridTemplateColumns: repeat(5"] {
+            grid-template-columns: repeat(3, 1fr) !important;
+          }
+        }
+        @media (max-width: 768px) {
+          div[style*="gridTemplateColumns: repeat(5"] {
+            grid-template-columns: repeat(2, 1fr) !important;
+          }
+        }
+        @media (max-width: 480px) {
+          div[style*="gridTemplateColumns: repeat(5"] {
+            grid-template-columns: repeat(1, 1fr) !important;
           }
         }
       `}</style>
@@ -533,14 +572,15 @@ export default function V2ExtractionsPage() {
 
           {/* Grid View */}
           {!loading && filteredExtractions.length > 0 && viewMode === 'grid' && (
-            <div style={{
-              display: 'grid',
-              gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))',
-              gap: '16px',
-            }}>
-              {filteredExtractions.map((extraction) => {
-                const fileIcon = getFileIcon(extraction.filename);
-                const statusColor = getStatusColor(extraction.status);
+            <div>
+              <div style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(5, 1fr)',
+                gap: '16px',
+              }}>
+                {displayedExtractions.map((extraction) => {
+                  const fileIcon = getFileIcon(extraction.filename);
+                  const statusColor = getStatusColor(extraction.status);
                 
                 return (
                   <div
@@ -746,32 +786,64 @@ export default function V2ExtractionsPage() {
                   </div>
                 );
               })}
+              </div>
+              
+              {/* Load More Button */}
+              {displayCount < filteredExtractions.length && (
+                <div style={{ textAlign: 'center', marginTop: '30px' }}>
+                  <button
+                    onClick={() => setDisplayCount(prev => prev + 10)}
+                    style={{
+                      padding: '12px 32px',
+                      background: '#603AC8',
+                      color: 'white',
+                      border: 'none',
+                      borderRadius: '10px',
+                      fontSize: '14px',
+                      fontWeight: 600,
+                      cursor: 'pointer',
+                      transition: 'all 0.2s',
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.background = '#31225C';
+                      e.currentTarget.style.transform = 'scale(1.05)';
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.background = '#603AC8';
+                      e.currentTarget.style.transform = 'scale(1)';
+                    }}
+                  >
+                    Load More ({displayCount} of {filteredExtractions.length})
+                  </button>
+                </div>
+              )}
             </div>
           )}
 
           {/* List View */}
           {!loading && filteredExtractions.length > 0 && viewMode === 'list' && (
-            <div style={{
-              background: 'white',
-              borderRadius: '16px',
-              border: '1px solid #E5E7EB',
-              overflow: 'hidden',
-            }}>
-              <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                <thead>
-                  <tr style={{ background: '#F9FAFB', borderBottom: '1px solid #E5E7EB' }}>
-                    <th style={{ padding: '14px 20px', textAlign: 'left', fontSize: '12px', fontWeight: 600, color: '#6B7280' }}>File</th>
-                    <th style={{ padding: '14px 12px', textAlign: 'center', fontSize: '12px', fontWeight: 600, color: '#6B7280' }}>Courses</th>
-                    <th style={{ padding: '14px 12px', textAlign: 'center', fontSize: '12px', fontWeight: 600, color: '#6B7280' }}>Size</th>
-                    <th style={{ padding: '14px 12px', textAlign: 'center', fontSize: '12px', fontWeight: 600, color: '#6B7280' }}>Pages</th>
-                    <th style={{ padding: '14px 12px', textAlign: 'center', fontSize: '12px', fontWeight: 600, color: '#6B7280' }}>Date & Time</th>
-                    <th style={{ padding: '14px 20px', textAlign: 'right', fontSize: '12px', fontWeight: 600, color: '#6B7280' }}>Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {filteredExtractions.map((extraction) => {
-                    const fileIcon = getFileIcon(extraction.filename);
-                    const statusColor = getStatusColor(extraction.status);
+            <div>
+              <div style={{
+                background: 'white',
+                borderRadius: '16px',
+                border: '1px solid #E5E7EB',
+                overflow: 'hidden',
+              }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                  <thead>
+                    <tr style={{ background: '#F9FAFB', borderBottom: '1px solid #E5E7EB' }}>
+                      <th style={{ padding: '14px 20px', textAlign: 'left', fontSize: '12px', fontWeight: 600, color: '#6B7280' }}>File</th>
+                      <th style={{ padding: '14px 12px', textAlign: 'center', fontSize: '12px', fontWeight: 600, color: '#6B7280' }}>Courses</th>
+                      <th style={{ padding: '14px 12px', textAlign: 'center', fontSize: '12px', fontWeight: 600, color: '#6B7280' }}>Size</th>
+                      <th style={{ padding: '14px 12px', textAlign: 'center', fontSize: '12px', fontWeight: 600, color: '#6B7280' }}>Pages</th>
+                      <th style={{ padding: '14px 12px', textAlign: 'center', fontSize: '12px', fontWeight: 600, color: '#6B7280' }}>Date & Time</th>
+                      <th style={{ padding: '14px 20px', textAlign: 'right', fontSize: '12px', fontWeight: 600, color: '#6B7280' }}>Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {displayedExtractions.map((extraction) => {
+                      const fileIcon = getFileIcon(extraction.filename);
+                      const statusColor = getStatusColor(extraction.status);
                     
                     return (
                       <tr
@@ -885,6 +957,37 @@ export default function V2ExtractionsPage() {
                   })}
                 </tbody>
               </table>
+              </div>
+              
+              {/* Load More Button */}
+              {displayCount < filteredExtractions.length && (
+                <div style={{ textAlign: 'center', marginTop: '30px' }}>
+                  <button
+                    onClick={() => setDisplayCount(prev => prev + 10)}
+                    style={{
+                      padding: '12px 32px',
+                      background: '#603AC8',
+                      color: 'white',
+                      border: 'none',
+                      borderRadius: '10px',
+                      fontSize: '14px',
+                      fontWeight: 600,
+                      cursor: 'pointer',
+                      transition: 'all 0.2s',
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.background = '#31225C';
+                      e.currentTarget.style.transform = 'scale(1.05)';
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.background = '#603AC8';
+                      e.currentTarget.style.transform = 'scale(1)';
+                    }}
+                  >
+                    Load More ({displayCount} of {filteredExtractions.length})
+                  </button>
+                </div>
+              )}
             </div>
           )}
         </main>

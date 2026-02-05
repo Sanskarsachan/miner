@@ -2,6 +2,7 @@ import Head from 'next/head'
 import Link from 'next/link'
 import { useRouter } from 'next/router'
 import { useEffect, useState } from 'react'
+import { normalizeCourse } from '@/lib/normalize'
 import { ArrowLeft, Download, Save, X, Plus, Trash2, Search, FileText, Layers, CheckCircle, Edit2 } from 'lucide-react'
 
 interface Course {
@@ -40,20 +41,7 @@ interface ExtractionData {
   status: string
 }
 
-// Normalize course data to handle both formats
-function normalizeCourse(c: Course): Course {
-  return {
-    Category: c.Category || (c as any).category || 'Uncategorized',
-    CourseName: c.CourseName || c.name || '',
-    CourseCode: c.CourseCode || c.code || '',
-    GradeLevel: c.GradeLevel || c.grade_level || '-',
-    Length: c.Length || '-',
-    Prerequisite: c.Prerequisite || '-',
-    Credit: c.Credit || c.credits || '-',
-    Details: c.Details || c.details || '-',
-    CourseDescription: c.CourseDescription || c.description || '-',
-  }
-}
+// Using shared normalize helper from lib/normalize
 
 export default function CourseDetailPage() {
   const router = useRouter()
@@ -86,7 +74,8 @@ export default function CourseDetailPage() {
   const fetchExtraction = async () => {
     try {
       setLoading(true)
-      const response = await fetch(`/api/v2/extractions/${id}`)
+      const idStr = Array.isArray(id) ? id[0] : id
+      const response = await fetch(`/api/v2/extractions/${idStr}`)
       if (!response.ok) throw new Error('Failed to fetch extraction')
       const data = await response.json()
       if (data.success) {
@@ -197,6 +186,10 @@ export default function CourseDetailPage() {
 
   const downloadCSV = () => {
     if (!extraction) return
+    if (!extraction.courses || extraction.courses.length === 0) {
+      if (typeof window !== 'undefined') window.alert('No courses available to export.')
+      return
+    }
     
     const headers = ['S.No', 'Category', 'CourseName', 'CourseCode', 'GradeLevel', 'Length', 'Prerequisite', 'Credit', 'Details', 'CourseDescription']
     const escape = (s: any) => {
@@ -223,7 +216,9 @@ export default function CourseDetailPage() {
       })
     )
 
-    const blob = new Blob([rows.join('\n')], { type: 'text/csv; charset=utf-8;' })
+    // Add BOM for Excel compatibility
+    const csvContent = '\uFEFF' + rows.join('\n')
+    const blob = new Blob([csvContent], { type: 'text/csv; charset=utf-8;' })
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
     a.href = url

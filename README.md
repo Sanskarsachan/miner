@@ -2,22 +2,24 @@
 
 > **Open Source** | MIT License | Production Ready | MongoDB + Gemini AI
 
-**Last Updated**: January 27, 2026  
-**Version**: 2.1.0  
-**Status**: ✅ Production Ready with Real-time Analytics
+**Last Updated**: February 6, 2026  
+**Version**: 2.2.0  
+**Status**: ✅ Production Ready with Master Database + Real-time Analytics
 
 ---
 
 ## 🎯 Project Overview
 
-**Course Harvester** is a full-stack Next.js application that intelligently extracts structured course information from PDF documents using Google's Gemini 2.5-flash AI. It features real-time progress tracking, MongoDB persistence, token analytics, intelligent batch processing, and a responsive dashboard.
+**Course Harvester** is a full-stack Next.js application that intelligently extracts structured course information from PDF documents using Google's Gemini AI. It features real-time progress tracking, MongoDB persistence, token analytics, intelligent batch processing, and a **Master Database system for course data management and mapping**.
 
 ### 🌟 Key Capabilities
 
 - 🤖 **AI-Powered Extraction** - Uses Gemini 2.5-flash for intelligent course detection
+- 📚 **Master Database System** - Import courses from CSV/TSV or extract from PDFs with 5-page batching
+- 🔗 **Course Mapping** - Match school extractions against master database for data standardization
 - 📊 **Real-time Analytics** - Track token usage, extraction efficiency, and costs
 - 💾 **MongoDB Persistence** - Save and retrieve extractions with full metadata
-- 🎯 **Intelligent Batching** - Smart quota warnings and batch size recommendations
+- 🎯 **Intelligent Batching** - Smart quota warnings and 5-page PDF batch processing
 - 📈 **Live Progress Tracking** - Real-time page/course counts during extraction
 - 🔄 **Deduplication Logic** - Removes duplicate courses while preserving data
 - 🚀 **Performance Optimized** - 30-40% faster with chunking and caching
@@ -93,6 +95,26 @@
   
   created_at: Date
 }
+
+// Master Database Collection (NEW)
+{
+  _id: ObjectId,
+  category: string,
+  subCategory: string,
+  courseCode: string,
+  courseName: string,
+  courseTitle: string,
+  levelLength: string,
+  length: string,
+  level: string,
+  gradReq: string,
+  credit: string,
+  filename: string,  // Source file name for tracking
+  addedAt: Date,
+  
+  // Flexible field support
+  [key: string]: any
+}
 ```
 
 ---
@@ -117,6 +139,7 @@
 │   ├── index.tsx                     # Landing page
 │   ├── courseharvester.tsx           # Main extraction UI (1,825 lines)
 │   ├── tokens.tsx                    # Token analytics dashboard
+│   ├── map.tsx                       # Master database UI (858 lines) - NEW
 │   │
 │   ├── api/
 │   │   ├── generate.ts               # Gemini chat API
@@ -129,10 +152,15 @@
 │   │       ├── analytics/
 │   │       │   └── tokens.ts         # Token analytics API
 │   │       │
-│   │       └── extractions/
-│   │           ├── [id].ts           # GET/DELETE single extraction
-│   │           ├── list.ts           # GET paginated list
-│   │           └── save.ts           # POST save extraction
+│   │       ├── extractions/
+│   │       │   ├── [id].ts           # GET/DELETE single extraction
+│   │       │   ├── list.ts           # GET paginated list
+│   │       │   └── save.ts           # POST save extraction
+│   │       │
+│   │       └── master-db/            # Master Database APIs - NEW
+│   │           ├── import.ts         # POST save courses to master DB
+│   │           ├── list.ts           # GET all master database courses
+│   │           └── delete.ts         # DELETE course from master DB
 │   │
 │   └── v2/
 │       ├── index.tsx                 # V2 redirect
@@ -264,7 +292,66 @@ Visit `/tokens` to see:
 - Most courses extracted files
 - Efficiency leaders
 
-### 3. **Saved Extractions**
+### 3. **Master Database System** (NEW - `/map` page)
+
+The Master Database provides a centralized repository for course reference data. This is the foundation for Phase 3 course mapping and standardization.
+
+#### Import Methods
+
+**CSV/TSV Files**
+```
+Upload CSV/TSV with tab-separated headers:
+Category | Sub-Category | Course Code | Course Name | Course Title | 
+Level/Length | Length | Level | Graduation Requirement | Credit | Filename
+```
+- No API key required
+- Instant parsing and import
+- Perfect for bulk data entry
+
+**PDF Files** (NEW)
+- Automatic text extraction using PDF.js
+- Intelligent 5-page batching for cost optimization
+- Real-time progress tracking
+- Uses Gemini API for structured extraction
+- Cost-effective: 80% fewer API calls than page-by-page processing
+
+#### Batching Strategy for PDFs
+
+```
+Example: 20-page PDF
+├─ Batch 1: Pages 1-5   (1 API call) → Extract courses
+├─ Batch 2: Pages 6-10  (1 API call after 1.5s delay)
+├─ Batch 3: Pages 11-15 (1 API call after 1.5s delay)
+└─ Batch 4: Pages 16-20 (1 API call after 1.5s delay)
+
+Total: 4 API calls instead of 20
+Cost reduction: ~80% fewer API calls
+```
+
+#### Features
+- **Search & Filter**: Find courses by name, code, category, or source file
+- **Export**: Download master database as CSV
+- **Delete**: Remove individual courses
+- **Source Tracking**: All courses tagged with source filename
+- **Real-time Progress**: Monitor extraction with page count and course count
+- **Flexible Schema**: Supports additional custom fields
+
+#### Workflow
+
+1. Navigate to `/map`
+2. For **PDF extraction**:
+   - Enter your Gemini API key (or use saved one)
+   - Select PDF file
+   - Click "Import Data"
+   - Watch real-time progress: 📄 Pages processed, 📚 Courses found, 🔄 Batch #
+3. For **CSV/TSV import**:
+   - Select CSV/TSV file (no API key needed)
+   - Click "Import Data"
+   - Instant parsing and storage
+4. View results in searchable table
+5. Export as CSV or delete courses as needed
+
+### 4. **Saved Extractions**
 
 #### Sidebar Features
 - Toggle open/close with button (top-right)
@@ -372,6 +459,17 @@ private deduplicateCourses(courses: Course[]): Course[] {
 | `d32d3bc` | Jan 26 | feat | Token analytics + data quality | `/tokens` dashboard |
 | `0ab5958` | Jan 25 | merge | Integrate v2-database | MongoDB persistence |
 
+### Recent Updates (February 6, 2026) - Phase 2: Master Database
+
+| Commit | Date | Type | Description | Impact |
+|--------|------|------|-------------|--------|
+| NEW | Feb 6 | feat | Master Database page at `/map` | CSV/TSV/PDF import interface |
+| NEW | Feb 6 | feat | PDF extraction with 5-page batching | 80% cost reduction |
+| NEW | Feb 6 | feat | Real-time extraction progress UI | Shows pages, courses, batches |
+| NEW | Feb 6 | feat | Master DB CRUD APIs | import, list, delete endpoints |
+| NEW | Feb 6 | feat | API key management | localStorage persistence |
+| NEW | Feb 6 | feat | CSV parsing and import | Instant data import |
+
 ### Feature Evolution Timeline
 
 **Phase 1: Foundation** (Commits: bd1929d → d0bf7d8)
@@ -413,6 +511,7 @@ private deduplicateCourses(courses: Course[]): Course[] {
 | Bundle Size | 24.7 kB | ✅ Excellent |
 | Build Time | ~4s | ✅ Fast |
 | Extraction Speed | 30-40% faster | ✅ Optimized |
+| PDF Batching Cost Reduction | 80% fewer API calls | ✅ Excellent |
 | API Call Reduction | 60-70% (cache) | ✅ Efficient |
 | TypeScript Errors | 0 | ✅ Clean |
 | MongoDB Queries | <50ms | ✅ Fast |
@@ -421,10 +520,12 @@ private deduplicateCourses(courses: Course[]): Course[] {
 
 1. **Semantic Chunking** - Groups related content to reduce API calls
 2. **IndexedDB Caching** - Stores processed pages locally
-3. **Batch Processing** - Processes 3 pages at once
-4. **Deduplication** - Removes redundant courses efficiently
-5. **Lazy Loading** - Components load on demand
-6. **Memoization** - Caches expensive calculations
+3. **Batch Processing** - Processes 3 pages at once (main extraction), 5 pages (master DB PDFs)
+4. **PDF Batching** - 5-page batches reduce API costs by 80%
+5. **Deduplication** - Removes redundant courses efficiently
+6. **Lazy Loading** - Components load on demand
+7. **Memoization** - Caches expensive calculations
+8. **Rate Limiting** - 1.5s delay between batches prevents quota throttling
 
 ---
 
@@ -492,26 +593,45 @@ setExtractionProgress(prev => ({
 
 ## 🎯 Next Steps & Roadmap
 
+### Phase 2: Master Database (COMPLETED ✅)
+
+- [x] **Master Database Page** - `/map` page with CSV/TSV/PDF import
+- [x] **PDF Extraction** - Extract courses from PDFs with intelligent batching
+- [x] **Real-time Progress** - Show pages processed, courses found, batch number
+- [x] **API Key Management** - Store/retrieve Gemini API key from localStorage
+- [x] **CRUD Operations** - Import, view, search, filter, export, delete courses
+- [x] **Database Persistence** - MongoDB master_courses collection
+
+### Phase 3: Course Mapping (NEXT PRIORITY)
+
+- [ ] **Matching Algorithm** - Compare school extractions against master database
+- [ ] **Similarity Scoring** - Name/code matching with confidence scores
+- [ ] **Mapping UI** - Visual interface to review and confirm matches
+- [ ] **Batch Mapping** - Apply matches to multiple extractions
+- [ ] **Data Standardization** - Normalize extracted courses using master data
+
 ### Immediate Priorities (This Week)
 
-- [ ] **User Authentication** - Replace `user_guest` with real auth
-- [ ] **Multi-file Upload** - Process multiple PDFs in queue
-- [ ] **Advanced Filters** - Search by course name, grade level, category
-- [ ] **Export Enhancements** - Excel format, custom field selection
+- [ ] **Mapping Algorithm** - Build similarity matching for course names/codes
+- [ ] **Mapping Dashboard** - Create `/mapping` page to view and confirm matches
+- [ ] **Confidence Scores** - Show match confidence (0-100%)
 - [ ] **Error Alerts** - Toast notifications for failures
+- [ ] **Batch Operations** - Map multiple extractions at once
 
 ### Short-term Goals (This Month)
 
+- [ ] **User Authentication** - Replace `user_guest` with real auth
+- [ ] **Multi-file Upload** - Process multiple PDFs in queue
 - [ ] **API Key Management** - Save multiple API keys per user
 - [ ] **Scheduled Extractions** - Cron jobs for batch processing
 - [ ] **Email Notifications** - Alert when extraction completes
-- [ ] **Version History** - Track changes to extractions
-- [ ] **Collaborative Features** - Share extractions with team
 
 ### Long-term Vision (This Quarter)
 
-- [ ] **Multi-AI Support** - Claude, OpenAI, Mistral integration
+- [ ] **Advanced Filters** - Search by any course field in master database
+- [ ] **Field Mapping** - Customize which fields to extract
 - [ ] **OCR Integration** - Process scanned PDFs
+- [ ] **Multi-AI Support** - Claude, OpenAI, Mistral integration
 - [ ] **Advanced Analytics** - Charts, trends, cost projections
 - [ ] **API Webhooks** - External integrations
 - [ ] **White-label Option** - Customizable branding
@@ -527,6 +647,7 @@ setExtractionProgress(prev => ({
 // Add compound indexes
 db.extractions.createIndex({ user_id: 1, created_at: -1, status: 1 })
 db.token_analytics.createIndex({ user_id: 1, created_at: -1 })
+db.master_courses.createIndex({ courseName: 1, courseCode: 1 })  // For mapping
 
 // Use projection to reduce payload
 db.extractions.find(
@@ -816,6 +937,102 @@ Get token usage analytics.
 
 ---
 
+## 📚 Master Database API Documentation (NEW)
+
+### POST /api/v2/master-db/import
+
+Save courses to the master database from CSV/TSV or PDF extraction.
+
+**Request**:
+```json
+{
+  "filename": "course_catalog.pdf",
+  "courses": [
+    {
+      "category": "Computer Science",
+      "subCategory": "Programming",
+      "courseCode": "CS101",
+      "courseName": "Introduction to Programming",
+      "courseTitle": "Intro to Programming",
+      "levelLength": "Semester",
+      "length": "16 weeks",
+      "level": "Undergraduate",
+      "gradReq": "Yes",
+      "credit": "3",
+      "filename": "course_catalog.pdf"
+    }
+  ]
+}
+```
+
+**Response**:
+```json
+{
+  "success": true,
+  "count": 45,
+  "message": "Successfully imported 45 courses"
+}
+```
+
+### GET /api/v2/master-db/list
+
+Fetch all courses from the master database.
+
+**Response**:
+```json
+{
+  "success": true,
+  "data": [
+    {
+      "_id": "507f1f77bcf86cd799439011",
+      "category": "Computer Science",
+      "subCategory": "Programming",
+      "courseCode": "CS101",
+      "courseName": "Introduction to Programming",
+      "courseTitle": "Intro to Programming",
+      "levelLength": "Semester",
+      "length": "16 weeks",
+      "level": "Undergraduate",
+      "gradReq": "Yes",
+      "credit": "3",
+      "filename": "course_catalog.pdf",
+      "addedAt": "2026-02-06T10:30:00Z"
+    }
+  ],
+  "count": 142
+}
+```
+
+### DELETE /api/v2/master-db/delete
+
+Remove a course from the master database.
+
+**Query Params**:
+- `id` (required) - MongoDB ObjectId of the course to delete
+
+**Example**:
+```
+DELETE /api/v2/master-db/delete?id=507f1f77bcf86cd799439011
+```
+
+**Response**:
+```json
+{
+  "success": true,
+  "message": "Course deleted successfully"
+}
+```
+
+**Error Response**:
+```json
+{
+  "success": false,
+  "message": "Course not found"
+}
+```
+
+---
+
 ## 🤝 Contributing
 
 This is an open-source project! Contributions welcome.
@@ -872,10 +1089,28 @@ Permission is hereby granted, free of charge, to any person obtaining a copy of 
 - **Issues**: Use GitHub Issues for bug reports
 - **Questions**: Open GitHub Discussions
 - **Documentation**: See ISSUES_AND_FIXES.md for detailed troubleshooting
+- **Master DB**: See PDF_EXTRACTION_IMPLEMENTATION.md for detailed technical details
 - **Updates**: Check git log for latest changes
+
+---
+
+## 📚 Master Database System Summary
+
+The Master Database system (completed February 6, 2026) provides:
+
+✅ **CSV/TSV Import** - Instant parsing of tab-separated course data  
+✅ **PDF Extraction** - AI-powered extraction with intelligent batching  
+✅ **5-Page Batching** - 80% cost reduction vs page-by-page processing  
+✅ **Real-time Progress** - Track extraction with pages, courses, batches  
+✅ **CRUD Operations** - Create, read, update, delete course records  
+✅ **Search & Filter** - Find courses by any field  
+✅ **Export** - Download master database as CSV  
+✅ **Source Tracking** - Maintain filename lineage for audit trails  
+
+**Ready for Phase 3**: Course Mapping & Data Standardization
 
 ---
 
 **⭐ Star this repo if you find it useful!**
 
-**Last Updated**: January 27, 2026 | **Maintained by**: Sanskar Sachan
+**Last Updated**: February 6, 2026 | **Maintained by**: Sanskar Sachan
