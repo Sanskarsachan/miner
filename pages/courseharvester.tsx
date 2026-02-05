@@ -544,6 +544,8 @@ export default function CourseHarvester() {
         textContent = res.value
       } else if (['html', 'htm', 'txt'].includes(ext)) {
         textContent = await selectedFile.text()
+      } else if (ext === 'csv') {
+        textContent = await selectedFile.text()
       } else if (['ppt', 'pptx'].includes(ext)) {
         // For PPTX, keep original logic
         const ab = await selectedFile.arrayBuffer()
@@ -1611,12 +1613,12 @@ export default function CourseHarvester() {
                 >
                   <div style={{ fontWeight: 600 }}>Drag & drop a file here, or click to select</div>
                   <div className="muted" style={{ marginTop: 8 }}>
-                    Accepted: .pdf, .doc, .docx, .ppt, .pptx, .html, .htm, .txt — Max 10MB
+                    Accepted: .pdf, .doc, .docx, .ppt, .pptx, .html, .htm, .txt, .csv — Max 10MB
                   </div>
                   <input
                     ref={fileInputRef}
                     type="file"
-                    accept=".pdf,.doc,.docx,.ppt,.pptx,.html,.htm,.txt"
+                    accept=".pdf,.doc,.docx,.ppt,.pptx,.html,.htm,.txt,.csv"
                     onChange={(e) => handleFile(e.target.files?.[0] || null)}
                     style={{ display: 'none' }}
                   />
