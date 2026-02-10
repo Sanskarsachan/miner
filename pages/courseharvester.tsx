@@ -1474,27 +1474,19 @@ export default function CourseHarvester() {
             {/* Left Column */}
             <div className="left">
               {/* API Key Card */}
-              <div className="card">
-                <label style={{ display: 'block', fontWeight: 600, marginBottom: 8 }}>
-                  Gemini API Key
-                </label>
+              <div className="card" style={{ 
+                background: 'linear-gradient(135deg, #ffffff 0%, #f8f7ff 100%)',
+                borderLeft: '4px solid #603AC8',
+              }}>
                 <div className="input-group">
                   <ApiKeySelector
                     value={selectedApiKeyId}
                     onChange={setSelectedApiKeyId}
                     showStats={true}
                   />
-                  <button 
-                    type="button" 
-                    onClick={(e) => { e.preventDefault(); verifyKey(); }} 
-                    className="secondary"
-                    disabled={!selectedApiKeyId}
-                  >
-                    Verify
-                  </button>
                 </div>
-                <div className="muted" style={{ marginTop: 8 }}>
-                  Select an API key from the managed pool. Keys are monitored and quotas are tracked.
+                <div className="muted" style={{ marginTop: 12, fontSize: '12px' }}>
+                  ✨ Select from the managed API key pool. All requests are automatically tracked and monitored.
                 </div>
               </div>
 

@@ -781,23 +781,49 @@ Return ONLY a valid JSON array, no other text. Example format:
             <p className="subtitle">Import and manage your master course database from CSV/TSV files or extract courses from PDF files using AI</p>
           </div>
 
-          <div className="card">
-            <h2 className="card-title">Import Master Data</h2>
+          <div className="card" style={{
+            background: 'linear-gradient(135deg, #ffffff 0%, #f8f7ff 100%)',
+            borderLeft: '4px solid #603AC8',
+          }}>
+            <h2 className="card-title" style={{
+              background: 'linear-gradient(135deg, #603AC8 0%, #31225C 100%)',
+              backgroundClip: 'text',
+              WebkitBackgroundClip: 'text',
+              color: 'transparent',
+              marginBottom: '20px',
+            }}>Master Database Management</h2>
 
             {error && <div className="alert alert-error">{error}</div>}
             {success && <div className="alert alert-success">✓ Data imported successfully!</div>}
             {successMessage && <div className="alert alert-success">{successMessage}</div>}
 
-            <div className="input-group">
-              <ApiKeySelector
-                value={selectedApiKeyId}
-                onChange={setSelectedApiKeyId}
-                showStats={false}
-              />
+            <div style={{ marginBottom: '20px' }}>
+              <div style={{
+                padding: '16px',
+                background: 'linear-gradient(135deg, rgba(96, 58, 200, 0.05) 0%, rgba(49, 34, 92, 0.02) 100%)',
+                borderRadius: '12px',
+                border: '1px solid rgba(96, 58, 200, 0.1)',
+              }}>
+                <ApiKeySelector
+                  value={selectedApiKeyId}
+                  onChange={setSelectedApiKeyId}
+                  showStats={true}
+                />
+              </div>
             </div>
 
             <div className="input-group">
-              <label className="label">Upload CSV/TSV or PDF File</label>
+              <label className="label" style={{ 
+                fontSize: '15px',
+                fontWeight: '600',
+                color: '#1f2937',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                marginBottom: '12px'
+              }}>
+                📁 Upload Course Data
+              </label>
               <div
                 className="drop-zone"
                 onDrop={handleDragDrop}
