@@ -572,7 +572,12 @@ const StatItem = ({ value, label }: { value: string; label: string }) => (
 )
 
 // Features data
-const features = [
+const features: Array<{
+  icon: any;
+  title: string;
+  description: string;
+  badge?: string;
+}> = [
   { icon: FileText, title: 'Multi-Format Support', description: 'Extract from PDF, DOCX, PPTX, HTML, TXT and more. Works with any curriculum document.' },
   { icon: Bot, title: 'AI-Powered Extraction', description: 'Powered by Google Gemini AI for intelligent, context-aware data extraction.' },
   { icon: Zap, title: 'Real-Time Processing', description: 'Watch courses appear as they are extracted. Live progress tracking included.' },

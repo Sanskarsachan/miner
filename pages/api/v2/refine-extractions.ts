@@ -95,7 +95,7 @@ export default async function handler(
     const masterCatalog = (await masterDbCollection
       .find({})
       .limit(10000)
-      .toArray()) as MasterCourse[];
+      .toArray()) as unknown as MasterCourse[];
 
     if (masterCatalog.length === 0) {
       return res.status(400).json({

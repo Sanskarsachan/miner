@@ -105,11 +105,11 @@ export function validateGeminiResponse(
       validMappings.push({
         source_course: {
           name: mapping.source_name,
-          code: mapping.source_code,
+          code: undefined, // Gemini response doesn't include source course code
         },
         mapped_code: mapping.mapped_code,
         confidence: mapping.confidence,
-        match_method: mapping.match_method as any,
+        match_method: 'SEMANTIC_MATCH' as const, // All Gemini mappings use semantic matching
         reasoning: mapping.reasoning,
         flags: mapping.should_flag
           ? [{ reason: 'Flagged by Gemini', severity: 'medium' }]
@@ -197,11 +197,7 @@ function validateMapping(
     errors.push(`Mapping ${index} (${mapping.source_name}): Missing "reasoning"`);
   }
 
-  if (!mapping.match_method) {
-    errors.push(
-      `Mapping ${index} (${mapping.source_name}): Missing "match_method"`
-    );
-  }
+  // Note: match_method is not present in Gemini response; we assign it during processing
 
   // Validate code against constraint list
   const normalizedCode = normalize(mapping.mapped_code);
