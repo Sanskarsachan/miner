@@ -5,7 +5,9 @@
  * Request Body:
  * {
  *   extractionId: string (MongoDB ObjectId)
- *   apiKey: string (Gemini API key)
+ *   apiKeyId?: string (MongoDB ObjectId of API key - from dropdown)
+ *   schoolName?: string (for usage tracking)
+ *   fileName?: string (for usage tracking)
  * }
  * 
  * Response:
@@ -13,6 +15,7 @@
  *   success: boolean
  *   data: MappingResult (totalProcessed, newlyMapped, stillUnmapped, etc.)
  *   error?: string
+ *   message?: string
  * }
  */
 
@@ -29,10 +32,17 @@ import {
   MasterCourse,
   MappingResult,
 } from '@/lib/mapping-engine';
+import {
+  getApiKey,
+  logApiUsage,
+  validateApiKey,
+} from '@/lib/api-key-manager';
 
 interface RequestBody {
   extractionId: string;
-  apiKey: string;
+  apiKeyId?: string; // ID of API key to use from pool
+  schoolName?: string; // Optional: school name for tracking
+  fileName?: string; // Optional: file name for tracking
 }
 
 interface ApiResponse {
@@ -53,8 +63,18 @@ export default async function handler(
     });
   }
 
+  let startTime = Date.now();
+  let apiKeyUsed: ObjectId | null = null;
+  let tokensUsed = 0;
+  let requestsCount = 0;
+  let schoolName = '';
+  let fileName = '';
+
   try {
-    const { extractionId, apiKey } = req.body as RequestBody;
+    const { extractionId, apiKeyId, schoolName: reqSchoolName, fileName: reqFileName } = req.body as RequestBody;
+
+    schoolName = reqSchoolName || '';
+    fileName = reqFileName || '';
 
     // Validate input
     if (!extractionId || !ObjectId.isValid(extractionId)) {
@@ -64,17 +84,46 @@ export default async function handler(
       });
     }
 
-    if (!apiKey) {
+    const db = await connectDB();
+
+    // Get API key from pool (new flow) or specific key
+    let apiKey: string | null = null;
+    if (apiKeyId) {
+      // User selected specific API key
+      if (!ObjectId.isValid(apiKeyId)) {
+        return res.status(400).json({
+          success: false,
+          error: 'Invalid API key ID',
+        });
+      }
+
+      // Validate key has quota
+      const hasQuota = await validateApiKey(db, new ObjectId(apiKeyId));
+      if (!hasQuota) {
+        return res.status(400).json({
+          success: false,
+          error: 'Selected API key has no quota remaining',
+        });
+      }
+
+      const selectedKey = await getApiKey(db, new ObjectId(apiKeyId));
+      if (!selectedKey) {
+        return res.status(404).json({
+          success: false,
+          error: 'API key not found',
+        });
+      }
+
+      apiKey = selectedKey.key;
+      apiKeyUsed = new ObjectId(apiKeyId);
+    } else {
       return res.status(400).json({
         success: false,
-        error: 'API key required for semantic mapping',
+        error: 'Please select an API key from the dropdown',
       });
     }
 
     console.log(`[refine-extractions] Processing extraction: ${extractionId}`);
-
-    // Connect to database
-    const db = await connectDB();
 
     // STEP 1: Fetch extraction and master catalog
     const extractionsCollection = db.collection('extractions');
@@ -175,6 +224,27 @@ export default async function handler(
       deterministicStats
     );
 
+    // Log API usage
+    if (apiKeyUsed) {
+      requestsCount = unmappedAfterDeterministic.length > 0 ? 1 : 0; // 1 per Gemini call
+      tokensUsed = summary.details.semanticMatches || 0; // Estimate based on semantic matches
+
+      try {
+        await logApiUsage(db, apiKeyUsed, {
+          extraction_id: new ObjectId(extractionId),
+          user_id: extraction.user_id || 'unknown',
+          school_name: schoolName || 'Unknown School',
+          file_name: fileName || extraction.filename,
+          requests_count: requestsCount,
+          tokens_used: tokensUsed,
+          success: true,
+          estimated_cost_cents: Math.round(tokensUsed * 0.0000001), // Rough estimate
+        });
+      } catch (loggingError) {
+        console.warn('[refine-extractions] Failed to log API usage:', loggingError);
+      }
+    }
+
     return res.status(200).json({
       success: true,
       message: `Successfully refined ${summary.totalProcessed} courses. ${summary.newlyMapped} mapped, ${summary.stillUnmapped} unmapped, ${summary.flaggedForReview} flagged for review.`,
@@ -182,6 +252,24 @@ export default async function handler(
     });
   } catch (error) {
     console.error('[refine-extractions] Error:', error);
+
+    // Log failed usage
+    if (apiKeyUsed) {
+      const db = await connectDB();
+      try {
+        await logApiUsage(db, apiKeyUsed, {
+          user_id: 'unknown',
+          school_name: schoolName || 'Unknown School',
+          file_name: fileName || 'unknown',
+          requests_count: requestsCount,
+          tokens_used: tokensUsed,
+          success: false,
+          error_message: error instanceof Error ? error.message : 'Unknown error',
+        });
+      } catch (loggingError) {
+        console.warn('[refine-extractions] Failed to log failed API usage:', loggingError);
+      }
+    }
 
     return res.status(500).json({
       success: false,
