@@ -6,6 +6,7 @@ import { DocumentCache } from '@/lib/DocumentCache'
 import CourseHarvesterSidebar, { type SavedExtraction } from '@/components/CourseHarvesterSidebar'
 import Toast, { type ToastType } from '@/components/Toast'
 import Header from '@/components/Header'
+import ApiKeySelector from '@/components/ApiKeySelector'
 import { FileText, BarChart3, BookOpen, Clock, FolderOpen, X, CheckCircle, AlertTriangle, XCircle, Lightbulb, AlertCircle, Key } from 'lucide-react'
 
 interface FileHistory {
@@ -171,8 +172,7 @@ function estimateTokenCost(pages: number): { min: number; max: number; recommend
 }
 
 export default function CourseHarvester() {
-  const [apiKey, setApiKey] = useState('')
-  const [remember, setRemember] = useState(false)
+  const [selectedApiKeyId, setSelectedApiKeyId] = useState('')
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
   const [status, setStatus] = useState('')
   const [verified, setVerified] = useState(false)
@@ -230,12 +230,6 @@ export default function CourseHarvester() {
   }
 
   useEffect(() => {
-    const saved = localStorage.getItem('gh_api_key')
-    if (saved) {
-      setApiKey(saved)
-      setRemember(true)
-    }
-
     // Initialize document cache
     cacheRef.current = new DocumentCache()
 
@@ -257,7 +251,7 @@ export default function CourseHarvester() {
       // Cmd/Ctrl + E: Trigger extraction
       if ((e.metaKey || e.ctrlKey) && e.key === 'e') {
         e.preventDefault()
-        if (selectedFile && apiKey && !extractionProgress.isExtracting) {
+        if (selectedFile && selectedApiKeyId && !extractionProgress.isExtracting) {
           extract()
         }
       }
@@ -277,12 +271,7 @@ export default function CourseHarvester() {
 
     window.addEventListener('keydown', handleKeyPress)
     return () => window.removeEventListener('keydown', handleKeyPress)
-  }, [selectedFile, apiKey, extractionProgress.isExtracting])
-
-  useEffect(() => {
-    if (remember) localStorage.setItem('gh_api_key', apiKey)
-    else localStorage.removeItem('gh_api_key')
-  }, [remember, apiKey])
+  }, [selectedFile, selectedApiKeyId, extractionProgress.isExtracting])
 
   // Load courses when a saved extraction is selected from sidebar
   useEffect(() => {
@@ -364,56 +353,18 @@ export default function CourseHarvester() {
   }
 
   const verifyKey = async () => {
-    if (!apiKey) {
-      setStatus('Enter API key to verify')
-      showToast('Please enter an API key', 'warning')
+    if (!selectedApiKeyId) {
+      setStatus('Please select an API key from the dropdown')
+      showToast('Please select an API key from the dropdown', 'warning')
       return
     }
-    setStatus('Verifying API key...')
-    try {
-      const r = await fetch('/api/list_models', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ apiKey }),
-      })
-      if (!r.ok) {
-        const t = await r.text()
-        throw new Error(t)
-      }
-      const data = await r.json()
-      const found: any[] = []
-      ;(data.results || []).forEach((r: any) => {
-        if (r.body && r.body.models)
-          r.body.models.forEach((m: any) =>
-            found.push({ endpoint: r.endpoint, name: m.name })
-          )
-      })
-      setModelsList(found)
-      const hasGemini25 = found.some((m) => m.name.includes('gemini-2.5-flash'))
-      if (hasGemini25) {
-        setStatus(
-          `Key verified! Gemini 2.5 Flash available. Free tier: 20 requests/day. Upgrade to paid for unlimited.`
-        )
-        setVerified(true)
-        showToast('API key verified successfully!', 'success')
-      } else {
-        setStatus('Key verified but gemini-2.5-flash not found.')
-        setVerified(found.length > 0)
-        showToast('API key verified but Gemini 2.5 Flash not available', 'warning')
-      }
-    } catch (e) {
-      console.error(e)
-      setStatus(
-        `Key verification failed: ${e instanceof Error ? e.message : 'Unknown error'}`
-      )
-      setVerified(false)
-      showToast(`Verification failed: ${e instanceof Error ? e.message : 'Unknown error'}`, 'error')
-    }
+    setStatus('API key selected from managed pool')
+    showToast('API key selected and ready for extraction', 'success')
   }
 
   const extract = async () => {
     if (!selectedFile) return setStatus('Select a file first')
-    if (!apiKey) return setStatus('Enter your Gemini API key')
+    if (!selectedApiKeyId) return setStatus('Select an API key from the dropdown')
 
     setStatus('Preparing file...')
     
@@ -567,7 +518,7 @@ export default function CourseHarvester() {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            apiKey,
+            apiKeyId: selectedApiKeyId,
             payload: {
               contents: [
                 {
@@ -669,7 +620,7 @@ export default function CourseHarvester() {
         (error) => {
           console.error('Processing error:', error)
         },
-        apiKey  // CRITICAL: Pass the API key
+        selectedApiKeyId  // CRITICAL: Pass the API key ID
       )
 
       const courses = await processor.processDocument(textContent, selectedFile.name)
@@ -865,7 +816,7 @@ export default function CourseHarvester() {
   // Recheck for missed courses - re-extracts and compares with existing
   const recheckForMissedCourses = async () => {
     if (!selectedFile) return setStatus('Select a file first')
-    if (!apiKey) return setStatus('Enter your Gemini API key')
+    if (!selectedApiKeyId) return setStatus('Select an API key from the dropdown')
 
     const existingCourses = [...allCourses]
     const isFirstExtraction = existingCourses.length === 0
@@ -922,7 +873,7 @@ export default function CourseHarvester() {
           }
         },
         (error) => console.error('Recheck error:', error),
-        apiKey
+        selectedApiKeyId
       )
 
       const newExtraction = await processor.processDocument(textContent, selectedFile.name)
@@ -1528,36 +1479,22 @@ export default function CourseHarvester() {
                   Gemini API Key
                 </label>
                 <div className="input-group">
-                  <input
-                    type={apiKey.includes('AI') && apiKey.length > 20 ? 'password' : 'text'}
-                    placeholder="Paste your Gemini API key"
-                    value={apiKey}
-                    onChange={(e) => setApiKey(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') {
-                        e.preventDefault()
-                        verifyKey()
-                      }
-                    }}
-                    style={{ flex: 1 }}
+                  <ApiKeySelector
+                    value={selectedApiKeyId}
+                    onChange={setSelectedApiKeyId}
+                    showStats={true}
                   />
-                  <button type="button" onClick={(e) => { e.preventDefault(); verifyKey(); }} className="secondary">
+                  <button 
+                    type="button" 
+                    onClick={(e) => { e.preventDefault(); verifyKey(); }} 
+                    className="secondary"
+                    disabled={!selectedApiKeyId}
+                  >
                     Verify
                   </button>
                 </div>
                 <div className="muted" style={{ marginTop: 8 }}>
-                  We store the key in localStorage only if you check "Remember" below.
-                </div>
-                <div style={{ marginTop: 8, display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <label>
-                    <input
-                      type="checkbox"
-                      checked={remember}
-                      onChange={(e) => setRemember(e.target.checked)}
-                    />
-                    Remember
-                  </label>
-                  {verified && <span className="verified-badge">✓ Verified</span>}
+                  Select an API key from the managed pool. Keys are monitored and quotas are tracked.
                 </div>
               </div>
 
@@ -1684,7 +1621,7 @@ export default function CourseHarvester() {
                       <button
                         type="button"
                         onClick={recheckForMissedCourses}
-                        disabled={!selectedFile || !apiKey || extractionProgress.isExtracting}
+                        disabled={!selectedFile || !selectedApiKeyId || extractionProgress.isExtracting}
                         className="secondary"
                         style={{ 
                           fontSize: '12px', 
@@ -1766,7 +1703,7 @@ export default function CourseHarvester() {
                 )}
 
                 <div className="controls">
-                  <button type="button" onClick={extract} disabled={!selectedFile || !apiKey}>
+                  <button type="button" onClick={extract} disabled={!selectedFile || !selectedApiKeyId}>
                     Extract Courses
                   </button>
                   <button
