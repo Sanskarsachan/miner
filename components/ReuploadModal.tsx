@@ -54,21 +54,29 @@ export default function ReuploadModal({
 
       const data = await response.json();
 
-      if (!response.ok || !data.success) {
-        throw new Error(data.error || 'Failed to reupload file');
+      if (!response.ok) {
+        throw new Error(data.error || `HTTP ${response.status}: Failed to reupload file`);
+      }
+
+      if (!data.success) {
+        throw new Error(data.error || data.message || 'Failed to reupload file');
       }
 
       setSuccess(true);
+      setLoading(false);
+      
+      // Show success for 2 seconds, then close
       setTimeout(() => {
         onSuccess?.();
         onClose();
         setFile(null);
         setSuccess(false);
         setMergeMode('merge');
-      }, 1500);
+        setError(null);
+      }, 2000);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Error uploading file');
-    } finally {
+      const errorMsg = err instanceof Error ? err.message : 'Error uploading file';
+      setError(errorMsg);
       setLoading(false);
     }
   };

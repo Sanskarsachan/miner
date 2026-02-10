@@ -1,15 +1,6 @@
 import { NextApiRequest, NextApiResponse } from 'next';
-import { MongoClient, Db, ObjectId } from 'mongodb';
-
-const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017';
-const DB_NAME = 'miner';
-const COLLECTION_NAME = 'master_courses';
-
-async function getDB(): Promise<Db> {
-  const client = new MongoClient(MONGODB_URI);
-  await client.connect();
-  return client.db(DB_NAME);
-}
+import { ObjectId } from 'mongodb';
+import { connectDB } from '@/lib/db';
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== 'DELETE') {
@@ -19,12 +10,12 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   try {
     const { id } = req.query;
 
-    if (!id || typeof id !== 'string') {
-      return res.status(400).json({ success: false, message: 'Missing or invalid course ID' });
+    if (!id || typeof id !== 'string' || !ObjectId.isValid(id)) {
+      return res.status(400).json({ success: false, message: 'Valid course ID is required' });
     }
 
-    const db = await getDB();
-    const collection = db.collection(COLLECTION_NAME);
+    const db = await connectDB();
+    const collection = db.collection('master_courses');
 
     // Delete course by ID
     const result = await collection.deleteOne({ _id: new ObjectId(id) });
@@ -38,7 +29,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       message: 'Course deleted successfully',
     });
   } catch (error) {
-    console.error('Delete error:', error);
+    console.error('[master-db/delete] Error:', error);
     return res.status(500).json({
       success: false,
       message: error instanceof Error ? error.message : 'Failed to delete course',
