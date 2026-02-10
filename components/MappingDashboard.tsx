@@ -5,6 +5,7 @@
 
 import React, { useState } from 'react';
 import { CheckCircle, AlertCircle, XCircle, Loader } from 'lucide-react';
+import ApiKeySelector from '@/components/ApiKeySelector';
 
 interface MappingResult {
   totalProcessed: number;
@@ -34,11 +35,11 @@ export default function MappingDashboard({
   const [isRefining, setIsRefining] = useState(false);
   const [result, setResult] = useState<MappingResult | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [apiKey, setApiKey] = useState('');
+  const [selectedApiKeyId, setSelectedApiKeyId] = useState('');
 
   const handleStartRefinement = async () => {
-    if (!apiKey.trim()) {
-      setError('Please enter your Gemini API key');
+    if (!selectedApiKeyId.trim()) {
+      setError('Please select an API key from the dropdown');
       return;
     }
 
@@ -52,7 +53,7 @@ export default function MappingDashboard({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           extractionId,
-          apiKey,
+          apiKeyId: selectedApiKeyId,
         }),
       });
 
@@ -292,18 +293,16 @@ export default function MappingDashboard({
         )}
 
         <div className="input-section">
-          <input
-            type="password"
-            className="api-key-input"
-            placeholder="Enter Gemini API key (aistudio.google.com)"
-            value={apiKey}
-            onChange={(e) => setApiKey(e.target.value)}
+          <ApiKeySelector
+            value={selectedApiKeyId}
+            onChange={setSelectedApiKeyId}
+            showStats={true}
             disabled={isRefining}
           />
           <button
             className="refine-btn"
             onClick={handleStartRefinement}
-            disabled={isRefining || !extractionId}
+            disabled={isRefining || !extractionId || !selectedApiKeyId}
           >
             {isRefining ? (
               <>

@@ -1,7 +1,11 @@
 import type { NextApiRequest, NextApiResponse } from 'next'
+import { ObjectId } from 'mongodb'
+import { connectDB } from '@/lib/db'
+import { getApiKey } from '@/lib/api-key-manager'
 
 interface RequestBody {
-  apiKey: string
+  apiKey?: string // Legacy: raw API key
+  apiKeyId?: string // New: API key pool ID
   payload: any
 }
 
@@ -16,10 +20,28 @@ export default async function handler(
   }
 
   try {
-    const { apiKey, payload } = (req.body || {}) as RequestBody
+    const { apiKey, apiKeyId, payload } = (req.body || {}) as RequestBody
 
-    if (!apiKey) {
-      return res.status(400).json({ error: 'apiKey required in body' })
+    let actualApiKey = apiKey // Legacy: use provided key
+
+    // New: look up key from pool
+    if (apiKeyId && !apiKey) {
+      if (!ObjectId.isValid(apiKeyId)) {
+        return res.status(400).json({ error: 'Invalid API key ID format' })
+      }
+
+      const db = await connectDB()
+      const keyData = await getApiKey(db, new ObjectId(apiKeyId))
+
+      if (!keyData) {
+        return res.status(404).json({ error: 'API key not found' })
+      }
+
+      actualApiKey = keyData.key
+    }
+
+    if (!actualApiKey) {
+      return res.status(400).json({ error: 'apiKey or apiKeyId required' })
     }
 
     if (!payload) {
@@ -40,7 +62,7 @@ export default async function handler(
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'X-Goog-Api-Key': apiKey, // Use header instead of URL parameter
+        'X-Goog-Api-Key': actualApiKey, // Use header instead of URL parameter
       },
       body: JSON.stringify(payload),
     })

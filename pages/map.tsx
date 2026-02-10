@@ -3,6 +3,7 @@ import { Download, Trash2, Search, AlertCircle, CheckCircle, Zap } from 'lucide-
 import Script from 'next/script';
 import Header from '@/components/Header';
 import { SecondaryMappingComparisonView } from '@/components/SecondaryMappingComparison';
+import ApiKeySelector from '@/components/ApiKeySelector';
 
 interface MasterCourse {
   _id?: string;
@@ -36,7 +37,7 @@ export default function MapPage() {
   const [masterData, setMasterData] = useState<MasterCourse[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [filterField, setFilterField] = useState<string>('courseName');
-  const [apiKey, setApiKey] = useState('');
+  const [selectedApiKeyId, setSelectedApiKeyId] = useState('');
   const [extractionProgress, setExtractionProgress] = useState<ExtractionProgress>({
     pagesProcessed: 0,
     totalPages: 0,
@@ -54,13 +55,8 @@ export default function MapPage() {
   const [showComparisonView, setShowComparisonView] = useState(false);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
-  // Load API key from localStorage on mount
-  useEffect(() => {
-    const savedKey = localStorage.getItem('geminiApiKey');
-    if (savedKey) {
-      setApiKey(savedKey);
-    }
-  }, []);
+  // API key is now managed via dropdown selector
+  // No need to load from localStorage
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFile = e.target.files?.[0];
@@ -136,7 +132,7 @@ export default function MapPage() {
 
   const extractCoursesFromText = async (text: string): Promise<MasterCourse[]> => {
     try {
-      if (!apiKey) {
+      if (!selectedApiKeyId) {
         throw new Error('API key is required for course extraction');
       }
 
@@ -166,7 +162,7 @@ Return ONLY a valid JSON array, no other text. Example format:
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          apiKey: apiKey,
+          apiKeyId: selectedApiKeyId,
           payload: payload,
         }),
       });
@@ -235,8 +231,8 @@ Return ONLY a valid JSON array, no other text. Example format:
       return;
     }
 
-    if (file.type === 'application/pdf' && !apiKey) {
-      setError('Please enter your Gemini API Key to extract from PDFs');
+    if (file.type === 'application/pdf' && !selectedApiKeyId) {
+      setError('Please select an API key to extract from PDFs');
       return;
     }
 
@@ -412,8 +408,8 @@ Return ONLY a valid JSON array, no other text. Example format:
    * - Allows side-by-side comparison
    */
   const triggerSecondaryAIMapping = async (extractionId: string) => {
-    if (!apiKey) {
-      setError('Gemini API key is required for AI mapping. Please enter it above and save.');
+    if (!selectedApiKeyId) {
+      setError('Please select an API key for AI mapping.');
       return;
     }
 
@@ -426,7 +422,7 @@ Return ONLY a valid JSON array, no other text. Example format:
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'x-gemini-api-key': apiKey,
+          'x-api-key-id': selectedApiKeyId,
         },
         body: JSON.stringify({
           extractionId,
@@ -793,16 +789,10 @@ Return ONLY a valid JSON array, no other text. Example format:
             {successMessage && <div className="alert alert-success">{successMessage}</div>}
 
             <div className="input-group">
-              <label className="label">Gemini API Key (Required for PDF extraction)</label>
-              <input
-                type="password"
-                value={apiKey}
-                onChange={(e) => {
-                  setApiKey(e.target.value);
-                  localStorage.setItem('geminiApiKey', e.target.value);
-                }}
-                placeholder="Enter your Gemini API key from aistudio.google.com"
-                style={{ marginBottom: '16px' }}
+              <ApiKeySelector
+                value={selectedApiKeyId}
+                onChange={setSelectedApiKeyId}
+                showStats={false}
               />
             </div>
 
@@ -853,7 +843,7 @@ Return ONLY a valid JSON array, no other text. Example format:
               <button
                 className="btn-primary"
                 onClick={uploadToDatabase}
-                disabled={loading || !file || (file.type === 'application/pdf' && !apiKey)}
+                disabled={loading || !file || (file.type === 'application/pdf' && !selectedApiKeyId)}
               >
                 {loading ? (file.type === 'application/pdf' ? 'Extracting & Importing...' : 'Importing...') : 'Import Data'}
               </button>
