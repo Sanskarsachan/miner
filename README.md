@@ -3,25 +3,27 @@
 > **Open Source** | MIT License | Production Ready | MongoDB + Gemini AI
 
 **Last Updated**: February 6, 2026  
-**Version**: 2.2.0  
-**Status**: ✅ Production Ready with Master Database + Real-time Analytics
+**Version**: 2.3.0  
+**Status**: ✅ Production Ready with Master Database + Course Mapping Engine (Phase 3 Complete)
 
 ---
 
 ## 🎯 Project Overview
 
-**Course Harvester** is a full-stack Next.js application that intelligently extracts structured course information from PDF documents using Google's Gemini AI. It features real-time progress tracking, MongoDB persistence, token analytics, intelligent batch processing, and a **Master Database system for course data management and mapping**.
+**Course Harvester** is a full-stack Next.js application that intelligently extracts structured course information from PDF documents using Google's Gemini AI. It features real-time progress tracking, MongoDB persistence, token analytics, intelligent batch processing, and a **comprehensive Master Database system with AI-powered course mapping**.
 
 ### 🌟 Key Capabilities
 
 - 🤖 **AI-Powered Extraction** - Uses Gemini 2.5-flash for intelligent course detection
 - 📚 **Master Database System** - Import courses from CSV/TSV or extract from PDFs with 5-page batching
-- 🔗 **Course Mapping** - Match school extractions against master database for data standardization
-- 📊 **Real-time Analytics** - Track token usage, extraction efficiency, and costs
+- 🔗 **Intelligent Course Mapping** - 6-step deterministic→semantic→validation mapping engine
+- 📊 **Real-time Analytics** - Track token usage, extraction efficiency, mapping success rates
 - 💾 **MongoDB Persistence** - Save and retrieve extractions with full metadata
 - 🎯 **Intelligent Batching** - Smart quota warnings and 5-page PDF batch processing
 - 📈 **Live Progress Tracking** - Real-time page/course counts during extraction
 - 🔄 **Deduplication Logic** - Removes duplicate courses while preserving data
+- ✅ **Code Matching** - Direct and trimmed code comparison (60% success rate)
+- 🧠 **AI Semantic Matching** - AI-powered keyword matching for complex course names
 - 🚀 **Performance Optimized** - 30-40% faster with chunking and caching
 - 📱 **Responsive UI** - Beautiful, color-coded interface with animations
 
@@ -126,6 +128,8 @@
 │   ├── CourseHarvesterSidebar.tsx    # File list with actions (View/Download/Delete)
 │   ├── ExtractionDetailCard.tsx      # Metadata display cards
 │   ├── ExtractionDetailModal.tsx     # Full extraction view modal
+│   ├── MappingDashboard.tsx          # Course refinement UI with stats - PHASE 3
+│   ├── ReuploadModal.tsx             # File re-upload dialog
 │   └── V2Sidebar.tsx                 # Alternative sidebar component
 │
 ├── lib/
@@ -133,13 +137,16 @@
 │   ├── DocumentCache.ts              # IndexedDB caching layer
 │   ├── db.ts                         # MongoDB connection manager
 │   ├── extraction.service.ts         # CRUD operations service
+│   ├── mapping-engine.ts             # 6-step course mapping system - PHASE 3
+│   ├── normalize.ts                  # Data normalization utilities
 │   └── types.ts                      # TypeScript interfaces
 │
 ├── pages/
 │   ├── index.tsx                     # Landing page
-│   ├── courseharvester.tsx           # Main extraction UI (1,825 lines)
+│   ├── courseharvester.tsx           # Phase 1: Main extraction UI (1,825 lines)
 │   ├── tokens.tsx                    # Token analytics dashboard
-│   ├── map.tsx                       # Master database UI (858 lines) - NEW
+│   ├── map.tsx                       # Phase 2: Master database UI (858 lines)
+│   ├── refine/[id].tsx               # Phase 3: Course mapping refinement
 │   │
 │   ├── api/
 │   │   ├── generate.ts               # Gemini chat API
@@ -154,13 +161,19 @@
 │   │       │
 │   │       ├── extractions/
 │   │       │   ├── [id].ts           # GET/DELETE single extraction
+│   │       │   ├── debug.ts          # Debug endpoint
 │   │       │   ├── list.ts           # GET paginated list
+│   │       │   ├── reupload.ts       # RE-upload file for extraction
 │   │       │   └── save.ts           # POST save extraction
 │   │       │
-│   │       └── master-db/            # Master Database APIs - NEW
-│   │           ├── import.ts         # POST save courses to master DB
-│   │           ├── list.ts           # GET all master database courses
-│   │           └── delete.ts         # DELETE course from master DB
+│   │       ├── master-db/            # Master Database APIs
+│   │       │   ├── import.ts         # POST save courses to master DB
+│   │       │   ├── list.ts           # GET all master database courses
+│   │       │   ├── delete.ts         # DELETE course from master DB
+│   │       │   ├── finalize.ts       # Finalize master DB
+│   │       │   └── save-page.ts      # Save extracted page
+│   │       │
+│   │       └── refine-extractions.ts # PHASE 3: Deterministic→Semantic→Validation
 │   │
 │   └── v2/
 │       ├── index.tsx                 # V2 redirect
