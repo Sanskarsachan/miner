@@ -81,7 +81,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         }
       )
       
-      console.log(`[v2/save] MERGED ${newCourses.length} new courses into ${filename} (total: ${mergedCourses.length})`)
+      console.log(`[v2/save] ✅ MERGED ${newCourses.length} new courses into ${filename} (total: ${mergedCourses.length})`)
       
       return res.status(200).json({
         success: true,
@@ -100,7 +100,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       user_id: userId,
       username: username || 'user_guest',
       filename,
-      file_size: req.body.file_size || req.body.metadata?.file_size || 0,
+      file_size: 0,
       file_type: filename.split('.').pop() || 'unknown',
       upload_date: new Date(),
       courses: courses.map((c: any) => ({
@@ -124,11 +124,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       is_refined: false,
       created_at: new Date(),
       updated_at: new Date(),
-      metadata: {
-        file_size: req.body.file_size || req.body.metadata?.file_size || 0,
-        total_pages: total_pages || 0,
-        pages_processed: req.body.metadata?.pages_processed || total_pages || 0,
-      },
     }
 
     const result = await collection.insertOne(extraction as any)
@@ -148,7 +143,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       created_at: new Date(),
     })
 
-    console.log(`[v2/save] Saved ${courses.length} courses from ${filename} (${tokens_used || 0} tokens)`)
+    console.log(`[v2/save] ✅ Saved ${courses.length} courses from ${filename} (${tokens_used || 0} tokens)`)
 
     return res.status(200).json({
       success: true,

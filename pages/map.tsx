@@ -1,9 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Download, Trash2, Search, AlertCircle, CheckCircle, Zap } from 'lucide-react';
+import { Download, Trash2, Search, AlertCircle, CheckCircle } from 'lucide-react';
 import Script from 'next/script';
 import Header from '@/components/Header';
-import { SecondaryMappingComparisonView } from '@/components/SecondaryMappingComparison';
-import ApiKeySelector from '@/components/ApiKeySelector';
 
 interface MasterCourse {
   _id?: string;
@@ -37,7 +35,7 @@ export default function MapPage() {
   const [masterData, setMasterData] = useState<MasterCourse[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [filterField, setFilterField] = useState<string>('courseName');
-  const [selectedApiKeyId, setSelectedApiKeyId] = useState('');
+  const [apiKey, setApiKey] = useState('');
   const [extractionProgress, setExtractionProgress] = useState<ExtractionProgress>({
     pagesProcessed: 0,
     totalPages: 0,
@@ -46,17 +44,14 @@ export default function MapPage() {
   });
   const [isExtracting, setIsExtracting] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  
-  // Secondary AI Mapping state
-  const [showSecondaryMappingUI, setShowSecondaryMappingUI] = useState(false);
-  const [secondaryMappingLoading, setSecondaryMappingLoading] = useState(false);
-  const [selectedExtractionId, setSelectedExtractionId] = useState<string | null>(null);
-  const [secondaryMappingResults, setSecondaryMappingResults] = useState<any>(null);
-  const [showComparisonView, setShowComparisonView] = useState(false);
-  const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
-  // API key is now managed via dropdown selector
-  // No need to load from localStorage
+  // Load API key from localStorage on mount
+  useEffect(() => {
+    const savedKey = localStorage.getItem('geminiApiKey');
+    if (savedKey) {
+      setApiKey(savedKey);
+    }
+  }, []);
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFile = e.target.files?.[0];
@@ -132,7 +127,7 @@ export default function MapPage() {
 
   const extractCoursesFromText = async (text: string): Promise<MasterCourse[]> => {
     try {
-      if (!selectedApiKeyId) {
+      if (!apiKey) {
         throw new Error('API key is required for course extraction');
       }
 
@@ -162,7 +157,7 @@ Return ONLY a valid JSON array, no other text. Example format:
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          apiKeyId: selectedApiKeyId,
+          apiKey: apiKey,
           payload: payload,
         }),
       });
@@ -231,8 +226,8 @@ Return ONLY a valid JSON array, no other text. Example format:
       return;
     }
 
-    if (file.type === 'application/pdf' && !selectedApiKeyId) {
-      setError('Please select an API key to extract from PDFs');
+    if (file.type === 'application/pdf' && !apiKey) {
+      setError('Please enter your Gemini API Key to extract from PDFs');
       return;
     }
 
@@ -397,57 +392,6 @@ Return ONLY a valid JSON array, no other text. Example format:
       }
     } catch (err) {
       setError('Failed to delete course');
-    }
-  };
-
-  /**
-   * Trigger secondary AI mapping for an extraction
-   * This is a safe, non-destructive workflow that:
-   * - Does NOT modify primary mapping
-   * - Stores results in courses[].secondaryMapping
-   * - Allows side-by-side comparison
-   */
-  const triggerSecondaryAIMapping = async (extractionId: string) => {
-    if (!selectedApiKeyId) {
-      setError('Please select an API key for AI mapping.');
-      return;
-    }
-
-    setSecondaryMappingLoading(true);
-    setError(null);
-    setSuccessMessage(null);
-
-    try {
-      const response = await fetch('/api/v2/ai-remap', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-api-key-id': selectedApiKeyId,
-        },
-        body: JSON.stringify({
-          extractionId,
-          dryRun: false,
-        }),
-      });
-
-      const result = await response.json();
-
-      if (!result.success) {
-        setError(result.error || 'Failed to run AI mapping');
-        setSecondaryMappingLoading(false);
-        return;
-      }
-
-      // Store results and show comparison view
-      setSecondaryMappingResults(result);
-      setSelectedExtractionId(extractionId);
-      setShowComparisonView(true);
-      setSuccessMessage('✓ AI mapping completed! View the comparison below.');
-    } catch (err) {
-      const errorMsg = err instanceof Error ? err.message : String(err);
-      setError(`AI mapping error: ${errorMsg}`);
-    } finally {
-      setSecondaryMappingLoading(false);
     }
   };
 
@@ -781,49 +725,28 @@ Return ONLY a valid JSON array, no other text. Example format:
             <p className="subtitle">Import and manage your master course database from CSV/TSV files or extract courses from PDF files using AI</p>
           </div>
 
-          <div className="card" style={{
-            background: 'linear-gradient(135deg, #ffffff 0%, #f8f7ff 100%)',
-            borderLeft: '4px solid #603AC8',
-          }}>
-            <h2 className="card-title" style={{
-              background: 'linear-gradient(135deg, #603AC8 0%, #31225C 100%)',
-              backgroundClip: 'text',
-              WebkitBackgroundClip: 'text',
-              color: 'transparent',
-              marginBottom: '20px',
-            }}>Master Database Management</h2>
+          <div className="card">
+            <h2 className="card-title">Import Master Data</h2>
 
             {error && <div className="alert alert-error">{error}</div>}
             {success && <div className="alert alert-success">✓ Data imported successfully!</div>}
-            {successMessage && <div className="alert alert-success">{successMessage}</div>}
 
-            <div style={{ marginBottom: '20px' }}>
-              <div style={{
-                padding: '16px',
-                background: 'linear-gradient(135deg, rgba(96, 58, 200, 0.05) 0%, rgba(49, 34, 92, 0.02) 100%)',
-                borderRadius: '12px',
-                border: '1px solid rgba(96, 58, 200, 0.1)',
-              }}>
-                <ApiKeySelector
-                  value={selectedApiKeyId}
-                  onChange={setSelectedApiKeyId}
-                  showStats={true}
-                />
-              </div>
+            <div className="input-group">
+              <label className="label">Gemini API Key (Required for PDF extraction)</label>
+              <input
+                type="password"
+                value={apiKey}
+                onChange={(e) => {
+                  setApiKey(e.target.value);
+                  localStorage.setItem('geminiApiKey', e.target.value);
+                }}
+                placeholder="Enter your Gemini API key from aistudio.google.com"
+                style={{ marginBottom: '16px' }}
+              />
             </div>
 
             <div className="input-group">
-              <label className="label" style={{ 
-                fontSize: '15px',
-                fontWeight: '600',
-                color: '#1f2937',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '8px',
-                marginBottom: '12px'
-              }}>
-                📁 Upload Course Data
-              </label>
+              <label className="label">Upload CSV/TSV or PDF File</label>
               <div
                 className="drop-zone"
                 onDrop={handleDragDrop}
@@ -869,7 +792,7 @@ Return ONLY a valid JSON array, no other text. Example format:
               <button
                 className="btn-primary"
                 onClick={uploadToDatabase}
-                disabled={loading || !file || (file.type === 'application/pdf' && !selectedApiKeyId)}
+                disabled={loading || !file || (file.type === 'application/pdf' && !apiKey)}
               >
                 {loading ? (file.type === 'application/pdf' ? 'Extracting & Importing...' : 'Importing...') : 'Import Data'}
               </button>
@@ -980,126 +903,6 @@ Return ONLY a valid JSON array, no other text. Example format:
                 <p style={{ fontSize: '14px' }}>No data yet. Import a CSV/TSV file to get started.</p>
               </div>
             </div>
-          )}
-
-          {/* Secondary AI Mapping Feature Card */}
-          <div className="card" style={{ borderLeft: '4px solid #10b981', background: '#f0fdf4' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px' }}>
-              <Zap size={20} style={{ color: '#10b981' }} />
-              <h2 className="card-title" style={{ margin: 0 }}>On-Demand AI Mapping (Secondary)</h2>
-            </div>
-            <p style={{ fontSize: '13px', color: '#6b7280', marginBottom: '16px' }}>
-              Run Gemini-based AI cleaning and mapping on any extraction. Results are stored separately and don't affect primary mapping. 
-              Perfect for comparing AI-first suggestions with your existing mapping logic.
-            </p>
-
-            {!showSecondaryMappingUI ? (
-              <button
-                className="btn-primary"
-                onClick={() => setShowSecondaryMappingUI(true)}
-                style={{ background: '#10b981', borderColor: '#10b981' }}
-              >
-                <Zap size={16} style={{ marginRight: '8px', display: 'inline' }} />
-                Enable AI Mapping
-              </button>
-            ) : (
-              <div style={{ background: 'white', padding: '16px', borderRadius: '8px', border: '1px solid #d1d5db' }}>
-                <p style={{ fontSize: '13px', fontWeight: 600, marginBottom: '12px', color: '#1f2937' }}>
-                  Select an extraction to run AI mapping:
-                </p>
-                <p style={{ fontSize: '12px', color: '#6b7280', marginBottom: '16px' }}>
-                  Note: You need to have extracted courses first. Use the "Extractions" page to view and select from your uploaded files.
-                </p>
-
-                <div style={{ display: 'flex', gap: '8px' }}>
-                  <input
-                    type="text"
-                    placeholder="Enter extraction ID or paste from extractions page..."
-                    value={selectedExtractionId || ''}
-                    onChange={(e) => setSelectedExtractionId(e.target.value)}
-                    style={{
-                      flex: 1,
-                      padding: '10px 12px',
-                      border: '1px solid #d1d5db',
-                      borderRadius: '8px',
-                      fontSize: '13px',
-                    }}
-                  />
-                  <button
-                    className="btn-primary"
-                    onClick={() => {
-                      if (selectedExtractionId) {
-                        triggerSecondaryAIMapping(selectedExtractionId);
-                      }
-                    }}
-                    disabled={!selectedExtractionId || secondaryMappingLoading}
-                    style={{
-                      background: '#10b981',
-                      borderColor: '#10b981',
-                      opacity: !selectedExtractionId || secondaryMappingLoading ? 0.6 : 1,
-                    }}
-                  >
-                    {secondaryMappingLoading ? '⏳ Running...' : '✨ Run AI Mapping'}
-                  </button>
-                  <button
-                    onClick={() => {
-                      setShowSecondaryMappingUI(false);
-                      setSelectedExtractionId(null);
-                    }}
-                    style={{
-                      padding: '10px 16px',
-                      background: '#e5e7eb',
-                      color: '#1f2937',
-                      border: 'none',
-                      borderRadius: '8px',
-                      cursor: 'pointer',
-                      fontWeight: 600,
-                      fontSize: '13px',
-                    }}
-                  >
-                    Close
-                  </button>
-                </div>
-
-                {secondaryMappingResults && (
-                  <div style={{ marginTop: '16px', padding: '12px', background: '#f0fdf4', borderRadius: '8px', border: '1px solid #86efac' }}>
-                    <div style={{ fontSize: '13px', fontWeight: 600, color: '#166534', marginBottom: '8px' }}>
-                      ✓ AI Mapping Completed
-                    </div>
-                    <div style={{ fontSize: '12px', color: '#15803d', lineHeight: '1.6' }}>
-                      <div>Total Courses: {secondaryMappingResults.stats?.totalCourses || 0}</div>
-                      <div>Processed: {secondaryMappingResults.stats?.processed || 0}</div>
-                      <div>High Confidence (≥85%): {secondaryMappingResults.stats?.highConfidence || 0}</div>
-                      <button
-                        onClick={() => setShowComparisonView(true)}
-                        style={{
-                          marginTop: '8px',
-                          padding: '6px 12px',
-                          background: '#10b981',
-                          color: 'white',
-                          border: 'none',
-                          borderRadius: '6px',
-                          cursor: 'pointer',
-                          fontSize: '12px',
-                          fontWeight: 600,
-                        }}
-                      >
-                        View Comparison →
-                      </button>
-                    </div>
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
-
-          {/* Comparison View Modal */}
-          {showComparisonView && selectedExtractionId && secondaryMappingResults && (
-            <SecondaryMappingComparisonView
-              extractionId={selectedExtractionId}
-              courses={secondaryMappingResults.results || []}
-              onClose={() => setShowComparisonView(false)}
-            />
           )}
         </div>
       </div>

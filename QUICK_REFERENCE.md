@@ -109,7 +109,7 @@ const CONFIDENCE_THRESHOLD = 75; // % below this gets flagged
 
 ### Gemini Model (in `refine-extractions.ts`)
 ```typescript
-// Uses 'gemini-2.5-flash' (change if needed)
+// Uses 'gemini-1.5-flash' (the correct Gemini model name)
 ```
 
 ---

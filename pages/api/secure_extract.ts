@@ -139,8 +139,8 @@ ${text}`
     logEntry.promptLength = prompt.length
     console.log('[secure_extract] Prompt built, length:', prompt.length)
     
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`
-    console.log('[secure_extract] Calling Gemini API...')
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`
+    console.log('[secure_extract] Calling Gemini API with model: gemini-1.5-flash')
 
     let response: Response | undefined
     let retryCount = 0
@@ -201,7 +201,8 @@ ${text}`
       let retryAfter = 0
       let retrySucceeded = false
       
-      console.log('[secure_extract] API Error - Full response:', responseText.substring(0, 500))
+      console.error('[secure_extract] ❌ API Error - Status:', response.status)
+      console.error('[secure_extract] ❌ Full response:', responseText.substring(0, 500))
       
       try {
         const errorData = JSON.parse(responseText)
@@ -339,7 +340,7 @@ ${text}`
     // Success - save log and return
     requestLogs.unshift(logEntry)
     if (requestLogs.length > 10) requestLogs.pop()
-    console.log('[secure_extract] === EXTRACTION COMPLETE ===', courses.length, 'courses')
+    console.log('[secure_extract] ✅ === EXTRACTION COMPLETE ===', courses.length, 'courses')
     
     return res.status(200).json(courses)
   } catch (error) {
