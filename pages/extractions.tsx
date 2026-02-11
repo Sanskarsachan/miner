@@ -74,9 +74,13 @@ export default function V2ExtractionsPage() {
 
   const fetchExtractions = async () => {
     try {
-      setLoading(true);
+setLoading(true);
+      setError(null);
+      console.log('[Extractions] Fetching extractions...');
       const response = await fetch('/api/v2/extractions/list?limit=500&skip=0');
       const data = await response.json();
+      
+      console.log('[Extractions] API response:', data);
       
       if (data.success) {
         // Map metadata fields to top-level for easier access
@@ -88,15 +92,17 @@ export default function V2ExtractionsPage() {
           file_size: ext.metadata?.file_size || ext.file_size || 0,
           tokens_used: ext.tokens_used || 0,
         }));
+        console.log('[Extractions] Mapped data:', mappedData.length, 'extractions');
         setExtractions(mappedData);
         setTotalCount(mappedData.length);
         setDisplayCount(10);
       } else {
-        setError('Failed to load extractions');
+        console.error('[Extractions] API returned error:', data);
+        setError(data.error || 'Failed to load extractions');
       }
     } catch (err) {
+      console.error('[Extractions] Fetch error:', err);
       setError('Error fetching extractions');
-      console.error(err);
     } finally {
       setLoading(false);
     }
@@ -312,17 +318,21 @@ export default function V2ExtractionsPage() {
         }
         @keyframes spin { to { transform: rotate(360deg); } }
         
-        /* Hide on mobile */
+        /* Mobile Responsive Utilities */
         @media (max-width: 640px) {
           .hide-on-mobile { display: none !important; }
         }
         
         /* Responsive table */
-        @media (max-width: 900px) {
-          table th:nth-child(3),
-          table td:nth-child(3),
+        @media (max-width: 1024px) {
           table th:nth-child(4),
           table td:nth-child(4) {
+            display: none;
+          }
+        }
+        @media (max-width: 768px) {
+          table th:nth-child(3),
+          table td:nth-child(3) {
             display: none;
           }
         }
@@ -333,25 +343,44 @@ export default function V2ExtractionsPage() {
           }
         }
         
-        /* Responsive grid - 5 columns on desktop, fewer on smaller screens */
+        /* Responsive grid */
+        .extractions-grid {
+          display: grid;
+          grid-template-columns: repeat(5, 1fr);
+          gap: 16px;
+        }
         @media (max-width: 1600px) {
-          div[style*="gridTemplateColumns: repeat(5"] {
-            grid-template-columns: repeat(4, 1fr) !important;
+          .extractions-grid {
+            grid-template-columns: repeat(4, 1fr);
           }
         }
         @media (max-width: 1200px) {
-          div[style*="gridTemplateColumns: repeat(5"] {
-            grid-template-columns: repeat(3, 1fr) !important;
+          .extractions-grid {
+            grid-template-columns: repeat(3, 1fr);
           }
         }
-        @media (max-width: 768px) {
-          div[style*="gridTemplateColumns: repeat(5"] {
-            grid-template-columns: repeat(2, 1fr) !important;
+        @media (max-width: 900px) {
+          .extractions-grid {
+            grid-template-columns: repeat(2, 1fr);
           }
         }
-        @media (max-width: 480px) {
-          div[style*="gridTemplateColumns: repeat(5"] {
-            grid-template-columns: repeat(1, 1fr) !important;
+        @media (max-width: 640px) {
+          .extractions-grid {
+            grid-template-columns: 1fr;
+            gap: 12px;
+          }
+        }
+        
+        /* Mobile toolbar adjustments */
+        @media (max-width: 640px) {
+          .toolbar-controls {
+            width: 100%;
+          }
+          .toolbar-controls > div,
+          .toolbar-controls > select,
+          .toolbar-controls > button {
+            flex: 1 1 auto !important;
+            min-width: unset !important;
           }
         }
       `}</style>
@@ -370,14 +399,14 @@ export default function V2ExtractionsPage() {
           padding: '16px 20px',
           boxShadow: '0 4px 20px rgba(96, 58, 200, 0.3)',
         }}>
-          <div style={{ maxWidth: '1400px', margin: '0 auto', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '12px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+          <div style={{ maxWidth: '1400px', margin: '0 auto', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '16px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flex: '1 1 auto' }}>
               <FolderOpen size={22} style={{ flexShrink: 0 }} />
-              <div>
-                <h1 style={{ margin: 0, fontSize: '20px', fontWeight: 700 }}>
+              <div style={{ minWidth: 0 }}>
+                <h1 style={{ margin: 0, fontSize: 'clamp(18px, 4vw, 20px)', fontWeight: 700 }}>
                   Saved Extractions
                 </h1>
-                <p style={{ margin: '2px 0 0', fontSize: '13px', opacity: 0.85 }}>
+                <p style={{ margin: '2px 0 0', fontSize: 'clamp(12px, 3vw, 13px)', opacity: 0.85, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                   {extractions.length} file{extractions.length !== 1 ? 's' : ''} • {extractions.reduce((sum, e) => sum + (e.total_courses || 0), 0)} total courses
                 </p>
               </div>
@@ -396,10 +425,13 @@ export default function V2ExtractionsPage() {
                 fontWeight: 600,
                 fontSize: '13px',
                 transition: 'all 0.2s',
+                whiteSpace: 'nowrap',
+                flexShrink: 0,
               }}
             >
               <Plus size={16} />
               <span className="hide-on-mobile">New Extraction</span>
+              <span style={{ display: 'none' }} className="show-on-mobile">New</span>
             </Link>
           </div>
         </div>
@@ -407,7 +439,7 @@ export default function V2ExtractionsPage() {
         {/* Main Content */}
         <main style={{ maxWidth: '1400px', margin: '0 auto', padding: '20px 16px' }}>
           {/* Toolbar */}
-          <div style={{
+          <div className="toolbar-controls" style={{
             display: 'flex',
             gap: '10px',
             marginBottom: '20px',
@@ -416,10 +448,11 @@ export default function V2ExtractionsPage() {
           }}>
             {/* Search */}
             <div style={{
-              flex: '1 1 200px',
+              flex: '1 1 250px',
+              minWidth: '200px',
               position: 'relative',
             }}>
-              <Search size={18} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: '#9CA3AF' }} />
+              <Search size={18} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: '#9CA3AF', pointerEvents: 'none' }} />
               <input
                 type="text"
                 placeholder="Search files..."
@@ -450,6 +483,7 @@ export default function V2ExtractionsPage() {
                 fontSize: '14px',
                 background: 'white',
                 cursor: 'pointer',
+                minWidth: '140px',
               }}
             >
               <option value="date">Sort by Date</option>
@@ -463,6 +497,7 @@ export default function V2ExtractionsPage() {
               border: '2px solid #E5E7EB',
               borderRadius: '10px',
               overflow: 'hidden',
+              flexShrink: 0,
             }}>
               <button
                 onClick={() => setViewMode('grid')}
@@ -475,6 +510,7 @@ export default function V2ExtractionsPage() {
                   display: 'flex',
                   alignItems: 'center',
                 }}
+                title="Grid View"
               >
                 <Grid size={18} />
               </button>
@@ -490,6 +526,7 @@ export default function V2ExtractionsPage() {
                   display: 'flex',
                   alignItems: 'center',
                 }}
+                title="List View"
               >
                 <List size={18} />
               </button>
@@ -504,16 +541,18 @@ export default function V2ExtractionsPage() {
                 border: '2px solid #E5E7EB',
                 borderRadius: '10px',
                 background: 'white',
-                cursor: 'pointer',
+                cursor: loading ? 'not-allowed' : 'pointer',
                 display: 'flex',
                 alignItems: 'center',
                 gap: '8px',
                 color: '#374151',
                 fontWeight: 500,
+                opacity: loading ? 0.6 : 1,
+                flexShrink: 0,
               }}
             >
               <RefreshCw size={18} style={{ animation: loading ? 'spin 1s linear infinite' : 'none' }} />
-              Refresh
+              <span className="hide-on-mobile">Refresh</span>
             </button>
           </div>
 
@@ -533,8 +572,52 @@ export default function V2ExtractionsPage() {
             </div>
           )}
 
+          {/* Error State */}
+          {!loading && error && (
+            <div style={{
+              textAlign: 'center',
+              padding: '60px 20px',
+              background: 'white',
+              borderRadius: '16px',
+              border: '2px solid #FEE2E2',
+            }}>
+              <div style={{
+                width: '64px',
+                height: '64px',
+                borderRadius: '50%',
+                background: '#FEE2E2',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                margin: '0 auto 16px',
+              }}>
+                <FolderOpen size={32} style={{ color: '#DC2626' }} />
+              </div>
+              <h3 style={{ margin: '0 0 8px', color: '#374151', fontSize: '18px' }}>Failed to Load Extractions</h3>
+              <p style={{ margin: '0 0 24px', color: '#6B7280', fontSize: '14px' }}>{error}</p>
+              <button
+                onClick={fetchExtractions}
+                style={{
+                  padding: '12px 24px',
+                  background: '#603AC8',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '8px',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                }}
+              >
+                <RefreshCw size={18} />
+                Try Again
+              </button>
+            </div>
+          )}
+
           {/* Empty State */}
-          {!loading && filteredExtractions.length === 0 && (
+          {!loading && !error && filteredExtractions.length === 0 && (
             <div style={{
               textAlign: 'center',
               padding: '80px 20px',
@@ -572,13 +655,9 @@ export default function V2ExtractionsPage() {
           )}
 
           {/* Grid View */}
-          {!loading && filteredExtractions.length > 0 && viewMode === 'grid' && (
+          {!loading && !error && filteredExtractions.length > 0 && viewMode === 'grid' && (
             <div>
-              <div style={{
-                display: 'grid',
-                gridTemplateColumns: 'repeat(5, 1fr)',
-                gap: '16px',
-              }}>
+              <div className="extractions-grid">
                 {displayedExtractions.map((extraction) => {
                   const fileIcon = getFileIcon(extraction.filename);
                   const statusColor = getStatusColor(extraction.status);
@@ -822,15 +901,16 @@ export default function V2ExtractionsPage() {
           )}
 
           {/* List View */}
-          {!loading && filteredExtractions.length > 0 && viewMode === 'list' && (
+          {!loading && !error && filteredExtractions.length > 0 && viewMode === 'list' && (
             <div>
               <div style={{
                 background: 'white',
                 borderRadius: '16px',
                 border: '1px solid #E5E7EB',
-                overflow: 'hidden',
+                overflow: 'auto',
+                WebkitOverflowScrolling: 'touch',
               }}>
-                <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: '600px' }}>
                   <thead>
                     <tr style={{ background: '#F9FAFB', borderBottom: '1px solid #E5E7EB' }}>
                       <th style={{ padding: '14px 20px', textAlign: 'left', fontSize: '12px', fontWeight: 600, color: '#6B7280' }}>File</th>
