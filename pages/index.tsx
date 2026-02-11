@@ -377,7 +377,7 @@ const Home: NextPage = () => {
               <img src="/PlanpathsIcon.png" alt="Planpaths" style={{ width: '20px', height: '20px', borderRadius: '4px' }} />
               <span style={{ fontWeight: 600 }}>Planpaths Data Miner</span>
             </div>
-            <div style={{ display: 'flex', gap: '24px', fontSize: '14px', opacity: 0.8', flexWrap: 'wrap' }}>
+            <div style={{ display: 'flex', gap: '24px', fontSize: '14px', opacity: 0.8, flexWrap: 'wrap' }}>
               <Link href="/courseharvester" style={{ color: 'white', textDecoration: 'none' }}>Harvester</Link>
               <Link href="/masterdatabase" style={{ color: 'white', textDecoration: 'none' }}>Master DB</Link>
               <Link href="/map" style={{ color: 'white', textDecoration: 'none' }}>Mapping</Link>
