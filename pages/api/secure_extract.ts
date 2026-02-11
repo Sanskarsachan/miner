@@ -366,13 +366,15 @@ ${text}`
     if (responseContent.trim() === '[]') {
       console.error('[secure_extract] ❌❌❌ GEMINI RETURNED LITERAL EMPTY ARRAY "[]" ❌❌❌')
       console.error('[secure_extract] This means Gemini processed the request but found NO courses')
+      console.error('[secure_extract] API Key ID used:', apiKeyId || 'legacy direct key')
       console.error('[secure_extract] Input text length:', text.length)
       console.error('[secure_extract] Input text preview:', text.substring(0, 500))
       console.error('[secure_extract] Finish reason:', geminiData.candidates?.[0]?.finishReason)
       console.error('[secure_extract] Safety ratings:', JSON.stringify(geminiData.candidates?.[0]?.safetyRatings))
+      console.error('[secure_extract] ⚠️  POSSIBLE CAUSES: 1) Document format not recognized, 2) API key quota exhausted, 3) Safety filters blocking')
       
       // Log to help diagnose - maybe the prompt is bad or text format is wrong
-      logEntry.error = 'Gemini returned empty array - no courses found in document'
+      logEntry.error = `Gemini returned empty array - API key: ${apiKeyId || 'direct'}, finish: ${geminiData.candidates?.[0]?.finishReason}`
       requestLogs.unshift(logEntry)
       if (requestLogs.length > 10) requestLogs.pop()
       
