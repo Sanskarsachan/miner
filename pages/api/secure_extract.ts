@@ -136,20 +136,29 @@ CRITICAL INSTRUCTIONS:
 5. Include ALL courses found, even if details are partial
 6. Use proper JSON escaping for special characters
 
-CATEGORY AND SUBCATEGORY RULES:
-- Category headers appear in pipes like |DANCE| or |AGRICULTURE|
-- If you see a category header in pipes, use it for Category field
-- SubCategory is ONLY used when there's a clear career path header (e.g., "FOOD PRODUCTS & PROCESSING SYSTEMS CAREER PATH")
-- For simple categories like DANCE, ART, MUSIC with no subcategory listed: Set SubCategory to null
-- Don't invent subcategories - use null if not explicitly stated in the document
+CATEGORY AND SUBCATEGORY RULES - CRITICAL:
+- Category headers appear in pipes like |ART-VISUAL ARTS| or |DANCE|
+- SubCategory headers appear as text with dashes underneath (e.g., "ART APPRECIATION/HISTORY/CRITICISM" with "----------" below)
+- The structure is: Category |PIPES| → SubCategory with-dashes → Individual courses with codes
+- ProgramSubjectArea should be NULL for master database courses (it's not used in this format)
+- Do NOT put SubCategory value into ProgramSubjectArea - keep ProgramSubjectArea as null
 
-PROGRAM HEADER RULES - IMPORTANT:
-- The FIRST entry under a new category/subcategory is often a PROGRAM HEADER (not a course)
-- Program headers have NO course code and NO credit
-- DO NOT include program headers in the JSON output - SKIP THEM ENTIRELY
-- Only extract rows that have both a CourseCode AND Credit value
-- Use the program header name for the ProgramSubjectArea field of subsequent courses
-- After the program header, regular courses follow with full details
+EXAMPLE STRUCTURE:
+|ART-VISUAL ARTS|                           ← Category
+ART APPRECIATION/HISTORY/CRITICISM          ← SubCategory (has dashes underneath)
+--------------------------------------------------------------------------
+0100300 AP ART HISTORY 3/Y PF 1.0 ...      ← Course (has code and credit)
+
+Results in:
+- Category: "ART-VISUAL ARTS"
+- SubCategory: "ART APPRECIATION/HISTORY/CRITICISM"
+- ProgramSubjectArea: null
+- CourseCode: "0100300"
+
+COURSE VALIDATION RULES:
+- Only extract rows that have BOTH CourseCode AND Credit
+- Skip section headers (no code = not a course)
+- Skip program headers (no credit = not a course)
 
 COURSE LINE STRUCTURE (typical pattern):
 The Florida course catalog uses a MULTI-LINE format for each course:
@@ -159,11 +168,17 @@ Line 2 (indented): CourseTitle (full name) + sometimes Certification start
 Line 3+ (indented): Certification details (may span multiple lines)
 
 REAL EXAMPLE FROM PDF:
+|ART-VISUAL ARTS|
+ART APPRECIATION/HISTORY/CRITICISM
+--------------------------------------------------------------------------
 0100300 AP ART HISTORY 3/Y PF 1.0 HUMANITIES 6 ART 6
  Advanced Placement Art History CLASSICAL ED (RESTRICTED) 6
  PT FINE PERF ART 7 G
 
 This extracts to:
+- Category: "ART-VISUAL ARTS" (from |PIPES|)
+- SubCategory: "ART APPRECIATION/HISTORY/CRITICISM" (section header with dashes)
+- ProgramSubjectArea: null (not used in master DB)
 - CourseCode: "0100300"
 - CourseAbbrevTitle: "AP ART HISTORY"
 - CourseDuration: "3" (from "3/Y")
@@ -175,11 +190,16 @@ This extracts to:
 - Certification: "CLASSICAL ED (RESTRICTED) 6 PT FINE PERF ART 7 G"
 
 Another REAL EXAMPLE:
+ART COMPREHENSIVE
+--------------------------------------------------------------------------
 0101310 2-D STUDIO ART 2 2/Y PF 1.0 ART 6
  Two-Dimensional Studio Art 2 CLASSICAL ED (RESTRICTED) 6
  PT FINE PERF ART 7 G
 
 Extracts to:
+- Category: "ART-VISUAL ARTS" (carry from previous |PIPES| header)
+- SubCategory: "ART COMPREHENSIVE" (new section header with dashes)
+- ProgramSubjectArea: null
 - CourseCode: "0101310"
 - CourseAbbrevTitle: "2-D STUDIO ART 2"
 - CourseDuration: "2"
@@ -199,9 +219,9 @@ PARSING INSTRUCTIONS:
 6. Everything after Credit on first line goes into GraduationRequirement
 
 OUTPUT FIELDS (EXACT KEYS):
-- Category: string (from |HEADER| or section header) or null
-- SubCategory: string (career path header ONLY if clearly stated) or null
-- ProgramSubjectArea: string (program/subject area name) or null
+- Category: string (from |HEADER| in pipes) or null
+- SubCategory: string (section header with dashes underneath) or null
+- ProgramSubjectArea: null (NOT USED in master database format - always set to null)
 - CourseCode: string (course number - REQUIRED, must not be null/empty) or null
 - CourseAbbrevTitle: string (abbreviated title from first line) or null
 - CourseTitle: string (full course title/name from indented line) or null
@@ -217,8 +237,8 @@ STRICT EXAMPLE (follow this format exactly):
 [
   {
     "Category": "ART-VISUAL ARTS",
-    "SubCategory": null,
-    "ProgramSubjectArea": "ART APPRECIATION/HISTORY/CRITICISM",
+    "SubCategory": "ART APPRECIATION/HISTORY/CRITICISM",
+    "ProgramSubjectArea": null,
     "CourseCode": "0100300",
     "CourseAbbrevTitle": "AP ART HISTORY",
     "CourseTitle": "Advanced Placement Art History",
@@ -232,8 +252,8 @@ STRICT EXAMPLE (follow this format exactly):
   },
   {
     "Category": "ART-VISUAL ARTS",
-    "SubCategory": null,
-    "ProgramSubjectArea": "ART COMPREHENSIVE",
+    "SubCategory": "ART COMPREHENSIVE",
+    "ProgramSubjectArea": null,
     "CourseCode": "0101310",
     "CourseAbbrevTitle": "2-D STUDIO ART 2",
     "CourseTitle": "Two-Dimensional Studio Art 2",
@@ -247,7 +267,7 @@ STRICT EXAMPLE (follow this format exactly):
   }
 ]
 
-REMEMBER: Only include rows with BOTH CourseCode AND Credit. Skip program headers!
+REMEMBER: Only include rows with BOTH CourseCode AND Credit. ProgramSubjectArea is ALWAYS null for master database!
 
 DOCUMENT TO EXTRACT FROM:
 ${inputText}`
