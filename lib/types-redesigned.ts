@@ -475,3 +475,136 @@ export interface SafeMappingResponse {
   error?: string;
   errors?: string[];
 }
+
+// ============================================================================
+// API KEY MANAGEMENT TYPES
+// ============================================================================
+
+/**
+ * Gemini API Key with quota tracking
+ * Store multiple API keys and track usage per day
+ * 
+ * Rate Limit: 20 RPM per API key
+ * Quota: 19 RPM usable (1 reserved for safety)
+ */
+export interface GeminiApiKey {
+  _id?: ObjectId;
+  
+  // Key metadata
+  key: string; // Encrypted in production
+  nickname: string; // User-friendly name
+  provider: 'gemini' | 'openai'; // Future support for other providers
+  created_at: Date;
+  updated_at: Date;
+  
+  // Status
+  is_active: boolean;
+  is_deleted: boolean;
+  last_used?: Date;
+  
+  // Daily quota management (20 RPM = 1200 per hour)
+  quota: {
+    daily_limit: number; // Default: 20 RPM * 1440 min = 28,800 requests per day
+    used_today: number; // Reset daily at midnight UTC
+    reset_at: Date; // When quota resets
+  };
+  
+  // Usage tracking
+  usage: {
+    total_requests: number; // All-time
+    total_tokens_used: number;
+    estimated_cost_cents: number; // ~$0.0001 per 1M input tokens, $0.0002 per 1M output
+  };
+  
+  // Daily breakdown
+  daily_usage: {
+    date: string; // YYYY-MM-DD format
+    requests_used: number;
+    tokens_used: number;
+  }[];
+}
+
+/**
+ * API Usage Log - Track what schools/extractions used which API key on which day
+ */
+export interface ApiUsageLog {
+  _id?: ObjectId;
+  
+  // References
+  api_key_id: ObjectId;
+  extraction_id?: ObjectId;
+  user_id: ObjectId | string;
+  
+  // What was processed
+  school_name?: string;
+  file_name?: string;
+  
+  // Usage details
+  date: Date;
+  requests_count: number; // How many requests used this API key
+  tokens_used: number;
+  prompt_tokens?: number;
+  completion_tokens?: number;
+  
+  // Status
+  success: boolean;
+  error_message?: string;
+  
+  // Cost tracking
+  estimated_cost_cents: number;
+}
+
+/**
+ * API Key selection for extraction/mapping processes
+ * User selects which API key to use before processing
+ */
+export interface ApiKeySelection {
+  api_key_id: ObjectId;
+  nickname: string;
+  rpd_remaining: number; // Remaining requests per day
+  daily_limit: number;
+  percentage_used: number; // 0-100
+}
+
+/**
+ * API Key Dashboard Statistics
+ * Shows aggregated stats for viewing
+ */
+export interface ApiKeyStats {
+  api_key_id: ObjectId;
+  nickname: string;
+  is_active: boolean;
+  
+  // Today's usage
+  today: {
+    requests_used: number;
+    requests_remaining: number;
+    requests_limit: number;
+    percentage_used: number;
+    tokens_used: number;
+  };
+  
+  // Historical
+  this_month: {
+    requests_used: number;
+    tokens_used: number;
+    days_active: number;
+  };
+  
+  // All-time
+  all_time: {
+    total_requests: number;
+    total_tokens: number;
+    estimated_cost_cents: number;
+    days_since_created: number;
+  };
+  
+  // Schools using this key today
+  schools_today: {
+    school_name: string;
+    requests_count: number;
+  }[];
+  
+  last_used?: Date;
+  created_at: Date;
+}
