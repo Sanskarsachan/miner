@@ -12,9 +12,8 @@
 import { ObjectId, Db, Collection } from 'mongodb';
 import { GeminiApiKey, ApiUsageLog, ApiKeySelection, ApiKeyStats } from './types-redesigned';
 
-const DAILY_LIMIT_RPM = 20; // Requests per minute
-const DAILY_LIMIT = DAILY_LIMIT_RPM * 1440; // ~28,800 per day
-const USABLE_LIMIT = DAILY_LIMIT_RPM * 19; // Use 19, reserve 1 for safety
+const DAILY_LIMIT_RPD = 20; // Requests per day (FREE tier limit)
+const USABLE_LIMIT = 19; // Use 19, reserve 1 for safety
 
 /**
  * Select the best available API key
