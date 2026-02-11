@@ -303,7 +303,24 @@ ${text}`
     let geminiData
     try {
       geminiData = JSON.parse(responseText)
-      console.log('[secure_extract] Parsed Gemini JSON response')
+      console.log('[secure_extract] ✅ Parsed Gemini JSON response')
+      console.log('[secure_extract] Response keys:', Object.keys(geminiData))
+      console.log('[secure_extract] Full response structure:', JSON.stringify(geminiData).substring(0, 1000))
+      
+      // Check if prompt was blocked
+      if (geminiData.promptFeedback?.blockReason) {
+        console.error('[secure_extract] ❌ PROMPT WAS BLOCKED!')
+        console.error('[secure_extract] Block reason:', geminiData.promptFeedback.blockReason)
+        console.error('[secure_extract] Safety ratings:', JSON.stringify(geminiData.promptFeedback.safetyRatings))
+        logEntry.error = `Prompt blocked: ${geminiData.promptFeedback.blockReason}`
+        requestLogs.unshift(logEntry)
+        if (requestLogs.length > 10) requestLogs.pop()
+        return res.status(200).json({ 
+          error: 'CONTENT_BLOCKED',
+          reason: geminiData.promptFeedback.blockReason,
+          message: 'The content was blocked by Gemini safety filters. Try a different document.'
+        })
+      }
     } catch (e) {
       console.error('[secure_extract] Failed to parse Gemini response as JSON')
       console.error('[secure_extract] Response was:', responseText.substring(0, 500))
@@ -317,10 +334,18 @@ ${text}`
     const responseContent = geminiData.candidates?.[0]?.content?.parts?.[0]?.text
     logEntry.geminiContentLength = responseContent?.length || 0
     
+    console.log('[secure_extract] Has candidates?', !!geminiData.candidates)
+    console.log('[secure_extract] Candidates count:', geminiData.candidates?.length || 0)
+    console.log('[secure_extract] First candidate:', JSON.stringify(geminiData.candidates?.[0]).substring(0, 500))
+    console.log('[secure_extract] Finish reason:', geminiData.candidates?.[0]?.finishReason)
+    console.log('[secure_extract] Safety ratings:', JSON.stringify(geminiData.candidates?.[0]?.safetyRatings))
+    console.log('[secure_extract] Prompt feedback:', JSON.stringify(geminiData.promptFeedback))
+    
     if (!responseContent) {
-      console.error('[secure_extract] No text content in Gemini response')
+      console.error('[secure_extract] ❌ No text content in Gemini response')
       console.error('[secure_extract] Candidates:', JSON.stringify(geminiData.candidates).substring(0, 500))
       console.error('[secure_extract] Full response keys:', Object.keys(geminiData))
+      console.error('[secure_extract] FULL GEMINI RESPONSE:', JSON.stringify(geminiData))
       logEntry.error = 'No text content in Gemini response'
       requestLogs.unshift(logEntry)
       if (requestLogs.length > 10) requestLogs.pop()
