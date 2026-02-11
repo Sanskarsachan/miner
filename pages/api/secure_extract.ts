@@ -342,18 +342,55 @@ ${text}`
     console.log('[secure_extract] Prompt feedback:', JSON.stringify(geminiData.promptFeedback))
     
     if (!responseContent) {
-      console.error('[secure_extract] ❌ No text content in Gemini response')
-      console.error('[secure_extract] Candidates:', JSON.stringify(geminiData.candidates).substring(0, 500))
+      console.error('[secure_extract] ❌❌❌ NO TEXT CONTENT IN GEMINI RESPONSE ❌❌❌')
+      console.error('[secure_extract] Candidates:', JSON.stringify(geminiData.candidates))
       console.error('[secure_extract] Full response keys:', Object.keys(geminiData))
-      console.error('[secure_extract] FULL GEMINI RESPONSE:', JSON.stringify(geminiData))
+      console.error('[secure_extract] ===== FULL GEMINI RESPONSE START =====')
+      console.error(JSON.stringify(geminiData, null, 2))
+      console.error('[secure_extract] ===== FULL GEMINI RESPONSE END =====')
       logEntry.error = 'No text content in Gemini response'
       requestLogs.unshift(logEntry)
       if (requestLogs.length > 10) requestLogs.pop()
-      return res.status(200).json([])
+      
+      // Return error object instead of empty array so frontend knows it failed
+      return res.status(500).json({ 
+        error: 'GEMINI_NO_CONTENT',
+        message: 'Gemini returned no content. Check server logs for full response.',
+        hasCandidates: !!geminiData.candidates,
+        candidatesCount: geminiData.candidates?.length || 0,
+        finishReason: geminiData.candidates?.[0]?.finishReason,
+        blockReason: geminiData.promptFeedback?.blockReason,
+        fullResponse: geminiData
+      })
     }
 
     console.log('[secure_extract] Gemini returned text, length:', responseContent.length)
     console.log('[secure_extract] Content preview (first 500):', responseContent.substring(0, 500))
+    console.log('[secure_extract] Content preview (last 200):', responseContent.substring(Math.max(0, responseContent.length - 200)))
+
+    // CRITICAL CHECK: If Gemini literally returned "[]" as text, that's a problem
+    if (responseContent.trim() === '[]') {
+      console.error('[secure_extract] ❌❌❌ GEMINI RETURNED LITERAL EMPTY ARRAY "[]" ❌❌❌')
+      console.error('[secure_extract] This means Gemini processed the request but found NO courses')
+      console.error('[secure_extract] Input text length:', text.length)
+      console.error('[secure_extract] Input text preview:', text.substring(0, 500))
+      console.error('[secure_extract] Finish reason:', geminiData.candidates?.[0]?.finishReason)
+      console.error('[secure_extract] Safety ratings:', JSON.stringify(geminiData.candidates?.[0]?.safetyRatings))
+      
+      // Log to help diagnose - maybe the prompt is bad or text format is wrong
+      logEntry.error = 'Gemini returned empty array - no courses found in document'
+      requestLogs.unshift(logEntry)
+      if (requestLogs.length > 10) requestLogs.pop()
+      
+      return res.status(200).json({
+        error: 'NO_COURSES_FOUND',
+        message: 'Gemini processed the document but found no courses. The document may not contain course information in a recognizable format.',
+        textLength: text.length,
+        textPreview: text.substring(0, 300),
+        finishReason: geminiData.candidates?.[0]?.finishReason,
+        safetyRatings: geminiData.candidates?.[0]?.safetyRatings
+      })
+    }
 
     // Extract JSON array from response
     let courses: Course[] = []
