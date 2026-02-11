@@ -234,17 +234,30 @@ PARSING INSTRUCTIONS - CRITICAL:
 6. Everything after Credit on first line goes into GraduationRequirement
 
 STEP-BY-STEP PARSING FOR "0100300 AP ART HISTORY 3/Y PF 1.0 HUMANITIES 6 ART 6":
-Step 1: CourseCode = "0100300"
-Step 2: CourseAbbrevTitle = "AP ART HISTORY"
-Step 3: Duration/Term = "3/Y" → SPLIT IT: CourseDuration="3", CourseTerm="Y"
-Step 4: GradeLevel = "PF"
-Step 5: Credit = "1.0"
-Step 6: GraduationRequirement = "HUMANITIES 6 ART 6" (everything after credit)
+Position 1: CourseCode = "0100300" (first token)
+Position 2-4: CourseAbbrevTitle = "AP ART HISTORY" (words until you hit a pattern like X/Y)
+Position 5: Duration/Term = "3/Y" (the X/Y pattern - THIS IS CRITICAL TO EXTRACT!)
+           → SPLIT THIS: CourseDuration="3" (before slash), CourseTerm="Y" (after slash)
+           → If you can't split: CourseDuration="3/Y", CourseTerm=null
+Position 6: GradeLevel = "PF" (after the X/Y pattern)
+Position 7: Credit = "1.0" (the decimal number)
+Position 8+: GraduationRequirement = "HUMANITIES 6 ART 6" (everything remaining on the line)
 
-DURATION/TERM EXAMPLES (MUST EXTRACT BOTH):
-- "0100300 AP ART HISTORY 3/Y PF 1.0" → CourseDuration="3", CourseTerm="Y"
-- "0100310 INTRO TO ART HIST 2/S PF 0.5" → CourseDuration="2", CourseTerm="S"
-- "0101310 2-D STUDIO ART 2 2/Y PF 1.0" → CourseDuration="2", CourseTerm="Y"
+CRITICAL REGEX-LIKE PATTERN TO FIND DURATION/TERM:
+Look for: [NUMBER]/[LETTER] pattern (examples: 3/Y, 2/S, 1/Y, 4/S)
+This appears AFTER the course abbreviation and BEFORE the grade level
+
+DURATION/TERM EXAMPLES (LOOK FOR THE X/Y PATTERN):
+Line: "0100300 AP ART HISTORY 3/Y PF 1.0 HUMANITIES 6 ART 6"
+      └─Code─┘ └──AbbrevTitle──┘ └─┘ └─Grade Credit
+                                  │
+                              Find this! "3/Y"
+Extract: CourseDuration="3", CourseTerm="Y" (or CourseDuration="3/Y" if you can't split)
+
+More examples:
+- "0100310 INTRO TO ART HIST 2/S PF 0.5" → CourseDuration="2", CourseTerm="S" (or "2/S")
+- "0101310 2-D STUDIO ART 2 2/Y PF 1.0" → CourseDuration="2", CourseTerm="Y" (or "2/Y")
+- "0100330 ART HIST & CRIT 1 H 3/Y PF 1.0" → CourseDuration="3", CourseTerm="Y" (or "3/Y")
 
 OUTPUT FIELDS (EXACT KEYS - MUST INCLUDE ALL):
 - Category: string (from |HEADER| in pipes) or null
@@ -254,8 +267,8 @@ OUTPUT FIELDS (EXACT KEYS - MUST INCLUDE ALL):
 - CourseAbbrevTitle: string (abbreviated title from first line) or null
 - CourseTitle: string (full course title/name from indented line) or null
 - GradeLevel: string (grade level like "PF") or null
-- CourseDuration: string **REQUIRED** (the NUMBER before "/" like "3" from "3/Y") or null
-- CourseTerm: string **REQUIRED** (the LETTER after "/" like "Y" from "3/Y" or "S" from "2/S") or null
+- CourseDuration: string (the NUMBER before "/" like "3" from "3/Y", OR if you can't split it, put the full "3/Y" here) or null
+- CourseTerm: string (the LETTER after "/" like "Y" from "3/Y" or "S" from "2/S") or null
 - GraduationRequirement: string (requirements from END of first line, after Credit) or null
 - Credit: string (credit value - REQUIRED for valid courses) or null
 - Certification: string (certification requirements from indented lines below course title) or null
@@ -264,6 +277,7 @@ OUTPUT FIELDS (EXACT KEYS - MUST INCLUDE ALL):
 STRICT EXAMPLE (follow this format exactly):
 
 INPUT LINE: "0100300 AP ART HISTORY 3/Y PF 1.0 HUMANITIES 6 ART 6"
+                                      ↑↑↑ FIND THIS PATTERN!
 EXTRACT:
 [
   {
@@ -274,8 +288,8 @@ EXTRACT:
     "CourseAbbrevTitle": "AP ART HISTORY",
     "CourseTitle": "Advanced Placement Art History",
     "GradeLevel": "PF",
-    "CourseDuration": "3",        ← NUMBER before the slash in "3/Y"
-    "CourseTerm": "Y",            ← LETTER after the slash in "3/Y"
+    "CourseDuration": "3",        ← Extract "3" from "3/Y" (or put "3/Y" if can't split)
+    "CourseTerm": "Y",            ← Extract "Y" from "3/Y" (or null if can't split)
     "GraduationRequirement": "HUMANITIES 6 ART 6",
     "Credit": "1.0",
     "Certification": "CLASSICAL ED (RESTRICTED) 6 PT FINE PERF ART 7 G",
@@ -289,8 +303,8 @@ EXTRACT:
     "CourseAbbrevTitle": "2-D STUDIO ART 2",
     "CourseTitle": "Two-Dimensional Studio Art 2",
     "GradeLevel": "PF",
-    "CourseDuration": "2",        ← NUMBER before the slash in "2/Y"
-    "CourseTerm": "Y",            ← LETTER after the slash in "2/Y"
+    "CourseDuration": "2",        ← Extract "2" from "2/Y" (or put "2/Y" if can't split)
+    "CourseTerm": "Y",            ← Extract "Y" from "2/Y" (or null if can't split)
     "GraduationRequirement": "ART 6",
     "Credit": "1.0",
     "Certification": "CLASSICAL ED (RESTRICTED) 6 PT FINE PERF ART 7 G",
