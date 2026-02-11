@@ -5,12 +5,21 @@ import { getApiKey, logApiUsage } from '@/lib/api-key-manager'
 
 interface Course {
   Category?: string
+  SubCategory?: string
+  ProgramSubjectArea?: string
   CourseName?: string
   CourseCode?: string
+  CourseAbbrevTitle?: string
+  CourseTitle?: string
   GradeLevel?: string
+  LevelLength?: string
+  CourseLevel?: string
   Length?: string
-  Prerequisite?: string
+  CourseLength?: string
+  GraduationRequirement?: string
   Credit?: string
+  Certification?: string
+  Prerequisite?: string
   Details?: string
   CourseDescription?: string
 }
@@ -49,7 +58,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   try {
-    const { text, apiKey, apiKeyId, filename } = req.body
+    const { text, apiKey, apiKeyId, filename, extractionType } = req.body
 
     let actualApiKey = apiKey // Direct key (legacy)
     let keyIdForLogging: ObjectId | null = null
@@ -113,8 +122,97 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     console.log('[secure_extract] First 300 chars:', text.substring(0, 300))
     console.log('[secure_extract] Last 200 chars:', text.substring(text.length - 200))
 
-    // Build prompt that explicitly asks for JSON
-    const prompt = `You are a course data extraction expert. Extract ALL course information from the provided document.
+    const normalizedExtractionType = typeof extractionType === 'string' ? extractionType.trim().toLowerCase() : ''
+
+    const buildPrompt = (mode: string, inputText: string) => {
+      if (mode === 'master_db' || mode === 'master-db') {
+        return `You are a Florida course catalog extraction expert. Extract ALL course information from the provided Florida DOE master course catalog.
+
+CRITICAL INSTRUCTIONS:
+1. Return ONLY a valid JSON array with NO additional text, markdown, or code blocks
+2. Start with [ and end with ]
+3. For missing fields: Use null (NOT "N/A", NOT empty string, NOT "-")
+4. Fix character encoding issues: Replace garbled characters with readable text
+5. Include ALL courses found, even if details are partial
+6. Use proper JSON escaping for special characters
+
+CATEGORY AND SUBCATEGORY RULES:
+- Category headers appear in pipes like |DANCE| or |AGRICULTURE|
+- If you see a category header in pipes, use it for Category field
+- SubCategory is ONLY used when there's a clear career path header (e.g., "FOOD PRODUCTS & PROCESSING SYSTEMS CAREER PATH")
+- For simple categories like DANCE, ART, MUSIC with no subcategory listed: Set SubCategory to null
+- Don't invent subcategories - use null if not explicitly stated in the document
+
+PROGRAM HEADER RULES - IMPORTANT:
+- The FIRST entry under a new category/subcategory is often a PROGRAM HEADER (not a course)
+- Program headers have NO course code and NO credit
+- DO NOT include program headers in the JSON output - SKIP THEM ENTIRELY
+- Only extract rows that have both a CourseCode AND Credit value
+- Use the program header name for the ProgramSubjectArea field of subsequent courses
+- After the program header, regular courses follow with full details
+
+COURSE LINE STRUCTURE (typical pattern):
+CourseCode CourseName CourseLength GradeLevel Credit Certification CourseAbbrevTitle ProgramSubjectArea [other codes]
+
+Example line:
+0300300 WORLD DANCE 2/Y PF 1.0 ANY FIELD WHEN CERT REFLECTS BACHELOR OR HIGHER World Dance DANCE 6 CLASSICAL ED (RESTRICTED) 6 PT FINE PERF ART 7 G
+
+Extracts to:
+- CourseCode: "0300300"
+- CourseTitle: "WORLD DANCE"
+- CourseDuration: "2"
+- CourseTerm: "Y"
+- GradeLevel: "PF"
+- Credit: "1.0"
+- Certification: "ANY FIELD WHEN CERT REFLECTS BACHELOR OR HIGHER"
+- CourseAbbrevTitle: "World Dance"
+- ProgramSubjectArea: "DANCE"
+
+Example with 2/S (2 semesters):
+- CourseDuration: "2"
+- CourseTerm: "S"
+
+OUTPUT FIELDS (EXACT KEYS):
+- Category: string (from |HEADER| or section header) or null
+- SubCategory: string (career path header ONLY if clearly stated) or null
+- ProgramSubjectArea: string (program/subject area name) or null
+- CourseCode: string (course number - REQUIRED, must not be null/empty) or null
+- CourseAbbrevTitle: string (abbreviated title) or null
+- CourseTitle: string (full course title/name) or null
+- GradeLevel: string (grade level) or null
+- CourseDuration: string (just the number like "2", "3") or null
+- CourseTerm: string (just the term like "Y" for year, "S" for semester) or null
+- GraduationRequirement: string (requirements) or null
+- Credit: string (credit value - REQUIRED for valid courses) or null
+- Certification: string (certification requirements) or null
+- CourseLevel: string (course level if stated) or null
+
+STRICT EXAMPLE (follow this format exactly):
+[
+  {
+    "Category": "DANCE",
+    "SubCategory": null,
+    "ProgramSubjectArea": "DANCE",
+    "CourseCode": "0300300",
+    "CourseAbbrevTitle": "World Dance",
+    "CourseTitle": "WORLD DANCE",
+    "GradeLevel": "PF",
+    "CourseDuration": "2",
+    "CourseTerm": "Y",
+    "GraduationRequirement": null,
+    "Credit": "1.0",
+    "Certification": "ANY FIELD WHEN CERT REFLECTS BACHELOR OR HIGHER",
+    "CourseLevel": null
+  }
+]
+
+REMEMBER: Only include rows with BOTH CourseCode AND Credit. Skip program headers!
+
+DOCUMENT TO EXTRACT FROM:
+${inputText}`
+      }
+
+      return `You are a course data extraction expert. Extract ALL course information from the provided document.
 
 CRITICAL INSTRUCTIONS:
 1. Return ONLY a valid JSON array with NO additional text, markdown, or code blocks
@@ -163,7 +261,11 @@ STRICT EXAMPLE (follow this format exactly):
 ]
 
 DOCUMENT TO EXTRACT FROM:
-${text}`
+${inputText}`
+  }
+
+  // Build prompt that explicitly asks for JSON
+  const prompt = buildPrompt(normalizedExtractionType, text)
 
     logEntry.promptLength = prompt.length
     console.log('[secure_extract] Prompt built, length:', prompt.length)
@@ -385,19 +487,36 @@ ${text}`
     // Extract JSON array from response
     let courses: Course[] = []
     try {
-      // Try to find JSON array in the response
-      const jsonMatch = responseContent.match(/\[[\s\S]*\]/)
-      
-      if (!jsonMatch) {
-        console.error('[secure_extract] Could not find JSON array in response')
-        console.error('[secure_extract] Full response text:', responseContent)
-        logEntry.error = 'No JSON array found in Gemini content'
-        requestLogs.unshift(logEntry)
-        if (requestLogs.length > 10) requestLogs.pop()
-        return res.status(200).json([])
+      const recoverPartialJsonArray = (text: string): string | null => {
+        const cleaned = text.replace(/```json|```/g, '')
+        const start = cleaned.indexOf('[')
+        if (start === -1) return null
+        const lastBrace = cleaned.lastIndexOf('}')
+        if (lastBrace === -1 || lastBrace <= start) return null
+        return cleaned.slice(start, lastBrace + 1) + ']'
       }
 
-      const jsonStr = jsonMatch[0]
+      // Try to find JSON array in the response
+      const jsonMatch = responseContent.match(/\[[\s\S]*\]/)
+      let jsonStr = ''
+
+      if (jsonMatch) {
+        jsonStr = jsonMatch[0]
+      } else {
+        const recovered = recoverPartialJsonArray(responseContent)
+        if (!recovered) {
+          console.error('[secure_extract] Could not find JSON array in response')
+          console.error('[secure_extract] Full response text:', responseContent)
+          logEntry.error = 'No JSON array found in Gemini content'
+          requestLogs.unshift(logEntry)
+          if (requestLogs.length > 10) requestLogs.pop()
+          return res.status(200).json([])
+        }
+
+        jsonStr = recovered
+        console.warn('[secure_extract] Recovered partial JSON array from truncated response')
+      }
+
       console.log('[secure_extract] Found JSON array, length:', jsonStr.length)
       
       courses = JSON.parse(jsonStr)
