@@ -24,6 +24,17 @@ export function normalizeCourse(c: any) {
         ['category', 'Category', 'CategoryName', 'subject', 'Subject', 'Department', 'department'],
         'Uncategorized'
       ) || 'Uncategorized',
+    Program: getField(
+      [
+        'program',
+        'Program',
+        'ProgramSubjectArea',
+        'programSubjectArea',
+        'Program/Subject Area',
+        'mappedProgramSubjectArea',
+      ],
+      ''
+    ),
     CourseName: getField(['name', 'CourseName', 'title', 'courseName', 'course_name', 'Name'], ''),
     CourseCode: getField(['code', 'CourseCode', 'course_id', 'courseCode', 'Code', 'ID', 'id'], ''),
     GradeLevel: getField(
@@ -44,6 +55,7 @@ export function normalizeCourse(c: any) {
 export function getEmptyCourse() {
   return {
     Category: 'Uncategorized',
+    Program: '',
     CourseName: '',
     CourseCode: '',
     GradeLevel: '-',

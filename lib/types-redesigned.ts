@@ -364,6 +364,7 @@ export interface MasterCourse {
   
   category: string;
   sub_category: string;
+  program_subject_area?: string;
   course_code: string;
   course_name: string;
   course_title: string;
@@ -372,6 +373,7 @@ export interface MasterCourse {
   level?: string;
   grad_requirement?: string;
   credits?: string;
+  certification?: string;
   
   // Metadata
   source_file?: string;

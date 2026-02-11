@@ -144,13 +144,14 @@ export default function V2ExtractionsPage() {
       let mimeType: string;
 
       if (format === 'csv') {
-        const headers = ['S.No', 'Category', 'CourseName', 'CourseCode', 'GradeLevel', 'Length', 'Prerequisite', 'Credit', 'CourseDescription'];
+        const headers = ['S.No', 'Category', 'Program', 'CourseName', 'CourseCode', 'GradeLevel', 'Length', 'Prerequisite', 'Credit', 'CourseDescription'];
         const rows = [headers.join(',')];
         courses.forEach((course: any, idx: number) => {
             const nc = normalizeCourse(course);
             const cells = [
               String(idx + 1),
               `"${(nc.Category || '').replace(/"/g, '""')}"`,
+              `"${(nc.Program || '').replace(/"/g, '""')}"`,
               `"${(nc.CourseName || '').replace(/"/g, '""')}"`,
               `"${(nc.CourseCode || '').replace(/"/g, '""')}"`,
               `"${(nc.GradeLevel || '').replace(/"/g, '""')}"`,

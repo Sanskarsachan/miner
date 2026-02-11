@@ -130,13 +130,14 @@ export default function ExtractionDetailPage() {
     let mimeType: string;
 
     if (format === 'csv') {
-      const headers = ['S.No', 'Category', 'CourseName', 'CourseCode', 'GradeLevel', 'Length', 'Prerequisite', 'Credit', 'CourseDescription'];
+      const headers = ['S.No', 'Category', 'Program', 'CourseName', 'CourseCode', 'GradeLevel', 'Length', 'Prerequisite', 'Credit', 'CourseDescription'];
       const rows: string[] = [headers.join(',')];
       courses.forEach((course: Course, idx: number) => {
         const nc = normalizeCourse(course as any);
         const cells = [
           String(idx + 1),
           `"${(nc.Category || '').replace(/"/g, '""')}"`,
+          `"${(nc.Program || '').replace(/"/g, '""')}"`,
           `"${(nc.CourseName || '').replace(/"/g, '""')}"`,
           `"${(nc.CourseCode || '').replace(/"/g, '""')}"`,
           `"${(nc.GradeLevel || '').replace(/"/g, '""')}"`,
@@ -618,6 +619,7 @@ export default function ExtractionDetailPage() {
                       {sortBy === 'name' && (sortOrder === 'asc' ? <ChevronUp size={14} /> : <ChevronDown size={14} />)}
                     </div>
                   </th>
+                  <th style={{ padding: '14px 20px', textAlign: 'left', fontSize: '12px', fontWeight: 600, color: '#6B7280' }}>Program</th>
                   <th style={{ padding: '14px 20px', textAlign: 'left', fontSize: '12px', fontWeight: 600, color: '#6B7280' }}>Code</th>
                   <th 
                     onClick={() => toggleSort('category')}
@@ -644,7 +646,7 @@ export default function ExtractionDetailPage() {
               <tbody>
                 {filteredCourses.length === 0 ? (
                   <tr>
-                    <td colSpan={7} style={{ padding: '60px 20px', textAlign: 'center' }}>
+                    <td colSpan={8} style={{ padding: '60px 20px', textAlign: 'center' }}>
                       <div style={{ color: '#9CA3AF', marginBottom: '8px' }}>
                         {searchQuery || selectedCategory !== 'all' ? 'No courses match your filters' : 'No courses found'}
                       </div>
@@ -688,6 +690,7 @@ export default function ExtractionDetailPage() {
                       >
                         <td style={{ padding: '16px 20px', fontWeight: 600, color: '#603AC8' }}>{idx + 1}</td>
                         <td style={{ padding: '16px 20px', fontWeight: 500, color: '#1F2937' }}>{nc.CourseName || '-'}</td>
+                        <td style={{ padding: '16px 20px', color: '#6B7280' }}>{nc.Program || '-'}</td>
                         <td style={{ padding: '16px 20px', color: '#6B7280', fontFamily: 'monospace', fontSize: '13px' }}>{nc.CourseCode || '-'}</td>
                         <td style={{ padding: '16px 20px' }}>
                           {nc.Category ? (
@@ -711,7 +714,7 @@ export default function ExtractionDetailPage() {
                       </tr>
                       {expandedCourse === idx && (
                         <tr style={{ background: '#F4F0FF' }}>
-                          <td colSpan={7} style={{ padding: '0 20px 20px' }}>
+                          <td colSpan={8} style={{ padding: '0 20px 20px' }}>
                             <div style={{
                               background: 'white',
                               borderRadius: '12px',

@@ -270,13 +270,17 @@ export default function RefineExtractionPage() {
           font-weight: 600;
           font-size: 13px;
           color: #374151;
+          display: grid;
+          grid-template-columns: 2fr 1.2fr 1fr 1fr 1fr;
+          gap: 16px;
+          align-items: center;
         }
 
         .table-row {
           padding: 16px 20px;
           border-bottom: 1px solid #e5e7eb;
           display: grid;
-          grid-template-columns: 2fr 1fr 1fr 1fr;
+          grid-template-columns: 2fr 1.2fr 1fr 1fr 1fr;
           gap: 16px;
           align-items: center;
         }
@@ -410,6 +414,7 @@ export default function RefineExtractionPage() {
               <div className="courses-table">
                 <div className="table-header">
                   <div>Course Name</div>
+                  <div>Program</div>
                   <div>Course Code</div>
                   <div>Mapped Code</div>
                   <div>Status</div>
@@ -418,6 +423,9 @@ export default function RefineExtractionPage() {
                 {extraction.courses.slice(0, 20).map((course, idx) => (
                   <div key={idx} className="table-row">
                     <div className="course-name">{course.CourseName || course.courseName || '-'}</div>
+                    <div style={{ fontSize: '13px', color: '#6b7280' }}>
+                      {course.mappedProgramSubjectArea || course.ProgramSubjectArea || course.programSubjectArea || '-'}
+                    </div>
                     <div style={{ fontSize: '13px', color: '#6b7280' }}>
                       {course.CourseCode || course.courseCode || '-'}
                     </div>
