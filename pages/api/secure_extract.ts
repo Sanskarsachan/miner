@@ -233,6 +233,14 @@ PARSING INSTRUCTIONS - CRITICAL:
    - The letter AFTER the slash is CourseTerm (Y=year, S=semester)
 6. Everything after Credit on first line goes into GraduationRequirement
 
+STEP-BY-STEP PARSING FOR "0100300 AP ART HISTORY 3/Y PF 1.0 HUMANITIES 6 ART 6":
+Step 1: CourseCode = "0100300"
+Step 2: CourseAbbrevTitle = "AP ART HISTORY"
+Step 3: Duration/Term = "3/Y" → SPLIT IT: CourseDuration="3", CourseTerm="Y"
+Step 4: GradeLevel = "PF"
+Step 5: Credit = "1.0"
+Step 6: GraduationRequirement = "HUMANITIES 6 ART 6" (everything after credit)
+
 DURATION/TERM EXAMPLES (MUST EXTRACT BOTH):
 - "0100300 AP ART HISTORY 3/Y PF 1.0" → CourseDuration="3", CourseTerm="Y"
 - "0100310 INTRO TO ART HIST 2/S PF 0.5" → CourseDuration="2", CourseTerm="S"
@@ -254,6 +262,9 @@ OUTPUT FIELDS (EXACT KEYS - MUST INCLUDE ALL):
 - CourseLevel: string (course level if stated) or null
 
 STRICT EXAMPLE (follow this format exactly):
+
+INPUT LINE: "0100300 AP ART HISTORY 3/Y PF 1.0 HUMANITIES 6 ART 6"
+EXTRACT:
 [
   {
     "Category": "ART-VISUAL ARTS",
@@ -263,8 +274,8 @@ STRICT EXAMPLE (follow this format exactly):
     "CourseAbbrevTitle": "AP ART HISTORY",
     "CourseTitle": "Advanced Placement Art History",
     "GradeLevel": "PF",
-    "CourseDuration": "3",
-    "CourseTerm": "Y",
+    "CourseDuration": "3",        ← NUMBER before the slash in "3/Y"
+    "CourseTerm": "Y",            ← LETTER after the slash in "3/Y"
     "GraduationRequirement": "HUMANITIES 6 ART 6",
     "Credit": "1.0",
     "Certification": "CLASSICAL ED (RESTRICTED) 6 PT FINE PERF ART 7 G",
@@ -278,8 +289,8 @@ STRICT EXAMPLE (follow this format exactly):
     "CourseAbbrevTitle": "2-D STUDIO ART 2",
     "CourseTitle": "Two-Dimensional Studio Art 2",
     "GradeLevel": "PF",
-    "CourseDuration": "2",
-    "CourseTerm": "Y",
+    "CourseDuration": "2",        ← NUMBER before the slash in "2/Y"
+    "CourseTerm": "Y",            ← LETTER after the slash in "2/Y"
     "GraduationRequirement": "ART 6",
     "Credit": "1.0",
     "Certification": "CLASSICAL ED (RESTRICTED) 6 PT FINE PERF ART 7 G",
