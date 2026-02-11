@@ -168,8 +168,8 @@ ${text}`
     logEntry.promptLength = prompt.length
     console.log('[secure_extract] Prompt built, length:', prompt.length)
     
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${actualApiKey}`
-    console.log('[secure_extract] Calling Gemini API with model: gemini-1.5-flash')
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=${actualApiKey}`
+    console.log('[secure_extract] Calling Gemini API with model: gemini-1.5-flash-latest')
 
     let response: Response | undefined
     let retryCount = 0
