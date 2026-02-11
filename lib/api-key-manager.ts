@@ -98,26 +98,33 @@ export async function getAvailableApiKeys(db: Db): Promise<ApiKeySelection[]> {
     })
     .toArray()) as any[];
 
-  return keys.map((key) => {
-    // Reset quota if it's a new day
-    let usedToday = key.quota.used_today;
-    const resetDate = new Date(key.quota.reset_at);
-    
-    if (resetDate < today) {
-      usedToday = 0;
-    }
-    
-    const remaining = key.quota.daily_limit - usedToday;
-    const percentageUsed = Math.round((usedToday / key.quota.daily_limit) * 100);
-    
-    return {
-      api_key_id: key._id,
-      nickname: key.nickname,
-      rpd_remaining: remaining,
-      daily_limit: key.quota.daily_limit,
-      percentage_used: percentageUsed,
-    };
-  });
+  const availableKeys = keys
+    .map((key) => {
+      // Reset quota if it's a new day
+      let usedToday = key.quota.used_today;
+      const resetDate = new Date(key.quota.reset_at);
+      
+      if (resetDate < today) {
+        usedToday = 0;
+      }
+      
+      const remaining = key.quota.daily_limit - usedToday;
+      const percentageUsed = Math.round((usedToday / key.quota.daily_limit) * 100);
+      
+      return {
+        api_key_id: key._id,
+        nickname: key.nickname,
+        rpd_remaining: remaining,
+        daily_limit: key.quota.daily_limit,
+        percentage_used: percentageUsed,
+      };
+    })
+    // Filter: Only show keys with more than 1 request remaining (keep 1 in reserve)
+    .filter((key) => key.rpd_remaining > 1)
+    // Sort by most quota available first
+    .sort((a, b) => b.rpd_remaining - a.rpd_remaining);
+
+  return availableKeys;
 }
 
 /**

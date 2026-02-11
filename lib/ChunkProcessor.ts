@@ -53,7 +53,7 @@ export class ChunkProcessor {
   constructor(
     private onProgress: (progress: ProcessProgress) => void = () => {},
     private onError: (error: Error) => void = console.error,
-    private apiKey: string = ''  // NEW: Accept API key from client
+    private apiKeyId: string = ''  // NEW: Accept API key ID from pool
   ) {}
 
   getUsageStats(): APIUsageStats {
@@ -124,12 +124,12 @@ export class ChunkProcessor {
    */
   async processChunk(text: string, filename: string, attempt: number = 1): Promise<Course[]> {
     try {
-      console.log('[ChunkProcessor] Calling /api/secure_extract with', text.length, 'chars, apiKey present:', !!this.apiKey)
+      console.log('[ChunkProcessor] Calling /api/secure_extract with', text.length, 'chars, apiKeyId present:', !!this.apiKeyId)
       
       const response = await fetch('/api/secure_extract', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text, filename, apiKey: this.apiKey }),  // Send API key
+        body: JSON.stringify({ text, filename, apiKeyId: this.apiKeyId }),  // Send API key ID
       })
 
       console.log('[ChunkProcessor] Response status:', response.status)

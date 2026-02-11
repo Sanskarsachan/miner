@@ -1,4 +1,7 @@
 import type { NextApiRequest, NextApiResponse } from 'next'
+import { ObjectId } from 'mongodb'
+import { connectDB } from '@/lib/db'
+import { getApiKey, logApiUsage } from '@/lib/api-key-manager'
 
 interface Course {
   Category?: string
@@ -46,12 +49,38 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   try {
-    const { text, apiKey } = req.body
+    const { text, apiKey, apiKeyId, filename } = req.body
 
-    logEntry.apiKeyPresent = !!apiKey
+    let actualApiKey = apiKey // Direct key (legacy)
+    let keyIdForLogging: ObjectId | null = null
+
+    // New: If apiKeyId is provided, look up the key from database
+    if (apiKeyId && !apiKey) {
+      try {
+        const db = await connectDB()
+        const keyData = await getApiKey(db, apiKeyId)
+        
+        if (!keyData) {
+          logEntry.error = 'API key not found in pool'
+          console.error('[secure_extract] API key not found:', apiKeyId)
+          requestLogs.unshift(logEntry)
+          if (requestLogs.length > 10) requestLogs.pop()
+          return res.status(404).json({ error: 'API key not found' })
+        }
+        
+        actualApiKey = keyData.key
+        keyIdForLogging = typeof apiKeyId === 'string' ? new ObjectId(apiKeyId) : apiKeyId
+        console.log('[secure_extract] Using API key from pool:', keyData.nickname)
+      } catch (dbError) {
+        console.error('[secure_extract] Database error:', dbError)
+        return res.status(500).json({ error: 'Failed to retrieve API key' })
+      }
+    }
+
+    logEntry.apiKeyPresent = !!actualApiKey
     logEntry.textLength = text?.length || 0
 
-    if (!apiKey) {
+    if (!actualApiKey) {
       logEntry.error = 'No API key provided'
       console.error('[secure_extract] No API key provided')
       requestLogs.unshift(logEntry)
@@ -139,7 +168,7 @@ ${text}`
     logEntry.promptLength = prompt.length
     console.log('[secure_extract] Prompt built, length:', prompt.length)
     
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${actualApiKey}`
     console.log('[secure_extract] Calling Gemini API with model: gemini-1.5-flash')
 
     let response: Response | undefined
@@ -341,6 +370,28 @@ ${text}`
     requestLogs.unshift(logEntry)
     if (requestLogs.length > 10) requestLogs.pop()
     console.log('[secure_extract] ✅ === EXTRACTION COMPLETE ===', courses.length, 'courses')
+    
+    // Log API usage if using key pool
+    if (keyIdForLogging) {
+      try {
+        const db = await connectDB()
+        await logApiUsage(db, keyIdForLogging, {
+          extraction_id: undefined,
+          user_id: 'system',
+          school_name: undefined,
+          file_name: filename,
+          requests_count: 1,
+          tokens_used: Math.ceil((logEntry.promptLength || 0) / 4),
+          prompt_tokens: Math.ceil((logEntry.promptLength || 0) / 4),
+          completion_tokens: Math.ceil((logEntry.geminiContentLength || 0) / 4),
+          success: true,
+          estimated_cost_cents: 0,
+        })
+        console.log('[secure_extract] ✅ API usage logged for key:', keyIdForLogging.toString())
+      } catch (logError) {
+        console.error('[secure_extract] Failed to log API usage:', logError)
+      }
+    }
     
     return res.status(200).json(courses)
   } catch (error) {
