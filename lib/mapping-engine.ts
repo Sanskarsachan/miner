@@ -9,10 +9,21 @@ export interface MasterCourse {
   _id?: string;
   courseCode: string;
   courseName: string;
+  courseAbbrevTitle?: string;
   courseTitle: string;
   category: string;
+  subCategory?: string;
+  programSubjectArea?: string;
+  gradeLevel?: string;
+  courseLevel?: string;
+  courseDuration?: string;
+  courseTerm?: string;
+  graduationRequirement?: string;
   description?: string;
   credits?: string;
+  credit?: string;
+  certification?: string;
+  filename?: string;
   [key: string]: any;
 }
 
@@ -24,6 +35,7 @@ export interface ExtractedCourse {
   GradeLevel?: string;
   Length?: string;
   Credit?: string;
+  mappedProgramSubjectArea?: string;
   mappedCode?: string;
   mappingStatus?: 'unmapped' | 'mapped' | 'flagged_for_review';
   matchMethod?: 'CODE_MATCH' | 'CODE_TRIM_MATCH' | 'SEMANTIC_MATCH';
@@ -82,9 +94,11 @@ export async function deterministicPass(
 
     // Match A: Direct code match
     if (masterCodeSet.has(normalized)) {
+      const matchedCourse = masterCodeSet.get(normalized);
       updated.push({
         ...course,
-        mappedCode: masterCodeSet.get(normalized)?.courseCode,
+        mappedCode: matchedCourse?.courseCode,
+        mappedProgramSubjectArea: matchedCourse?.programSubjectArea,
         mappingStatus: 'mapped',
         matchMethod: 'CODE_MATCH',
         confidence: 100,
@@ -103,6 +117,7 @@ export async function deterministicPass(
       updated.push({
         ...course,
         mappedCode: trimmedMatch[1].courseCode,
+        mappedProgramSubjectArea: trimmedMatch[1].programSubjectArea,
         mappingStatus: 'mapped',
         matchMethod: 'CODE_TRIM_MATCH',
         confidence: 85,
@@ -212,15 +227,21 @@ Return ONLY valid JSON array with mappings.`;
     }
 
     // Apply semantic mappings to unmapped courses
+    const masterByCode = new Map(
+      masterCatalog.map((m) => [normalize(m.courseCode), m])
+    );
+
     return unmappedCourses.map((course) => {
       const mapping = mappedResults.find(
         (m: any) => normalize(m.rawName) === normalize(course.CourseName)
       );
 
       if (mapping && mapping.mappedCode) {
+        const matchedMaster = masterByCode.get(normalize(mapping.mappedCode));
         return {
           ...course,
           mappedCode: mapping.mappedCode,
+          mappedProgramSubjectArea: matchedMaster?.programSubjectArea,
           mappingStatus:
             mapping.confidence >= 75 ? 'mapped' : 'flagged_for_review',
           matchMethod: 'SEMANTIC_MATCH',
@@ -249,13 +270,18 @@ export function validateMappings(
   masterCatalog: MasterCourse[]
 ): ExtractedCourse[] {
   const validCodes = new Set(masterCatalog.map((m) => normalize(m.courseCode)));
+  const masterByCode = new Map(
+    masterCatalog.map((m) => [normalize(m.courseCode), m])
+  );
 
   return mappedCourses.map((course) => {
     if (!course.mappedCode) {
       return { ...course, mappingStatus: 'unmapped' };
     }
 
-    if (!validCodes.has(normalize(course.mappedCode))) {
+    const normalizedMapped = normalize(course.mappedCode);
+
+    if (!validCodes.has(normalizedMapped)) {
       return {
         ...course,
         mappingStatus: 'flagged_for_review',
@@ -263,7 +289,12 @@ export function validateMappings(
       };
     }
 
-    return course;
+    const matchedMaster = masterByCode.get(normalizedMapped);
+    return {
+      ...course,
+      mappedProgramSubjectArea:
+        course.mappedProgramSubjectArea || matchedMaster?.programSubjectArea,
+    };
   });
 }
 
@@ -289,6 +320,7 @@ export async function persistMappings(
         {
           $set: {
             'courses.$[elem].mappedCode': course.mappedCode,
+            'courses.$[elem].mappedProgramSubjectArea': course.mappedProgramSubjectArea,
             'courses.$[elem].mappingStatus': course.mappingStatus,
             'courses.$[elem].matchMethod': course.matchMethod,
             'courses.$[elem].matchReasoning': course.matchReasoning,
