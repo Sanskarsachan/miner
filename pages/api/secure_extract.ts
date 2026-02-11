@@ -136,6 +136,16 @@ CRITICAL INSTRUCTIONS:
 5. Include ALL courses found, even if details are partial
 6. Use proper JSON escaping for special characters
 
+⚠️ CRITICAL: DURATION/TERM EXTRACTION ⚠️
+Every course has a Duration/Term field in format "X/Y" where:
+- X = number of periods (1, 2, 3, etc.) → Goes into CourseDuration
+- Y = term type (Y=year, S=semester) → Goes into CourseTerm
+EXAMPLES:
+- "3/Y" → CourseDuration: "3", CourseTerm: "Y"
+- "2/S" → CourseDuration: "2", CourseTerm: "S"
+- "1/Y" → CourseDuration: "1", CourseTerm: "Y"
+YOU MUST EXTRACT BOTH VALUES - DO NOT LEAVE THEM NULL!
+
 CATEGORY AND SUBCATEGORY RULES - CRITICAL:
 - Category headers appear in pipes like |ART-VISUAL ARTS| or |DANCE|
 - SubCategory headers appear as text with dashes underneath (e.g., "ART APPRECIATION/HISTORY/CRITICISM" with "----------" below)
@@ -210,15 +220,25 @@ Extracts to:
 - CourseTitle: "Two-Dimensional Studio Art 2"
 - Certification: "CLASSICAL ED (RESTRICTED) 6 PT FINE PERF ART 7 G"
 
-PARSING INSTRUCTIONS:
+PARSING INSTRUCTIONS - CRITICAL:
 1. First line has: Code, AbbrevTitle, Duration/Term, Grade, Credit, GraduationReq (everything after Credit)
 2. Second line (indented with spaces): Full CourseTitle, may also have start of Certification
 3. Third+ lines (indented with spaces): Additional Certification details
 4. Combine all indented certification text into one Certification field
-5. Split Duration/Term (like "3/Y") into CourseDuration="3" and CourseTerm="Y"
+5. **CRITICAL FOR DURATION/TERM**: The format "3/Y" or "2/S" MUST be split:
+   - "3/Y" → CourseDuration="3", CourseTerm="Y" 
+   - "2/S" → CourseDuration="2", CourseTerm="S"
+   - "1/Y" → CourseDuration="1", CourseTerm="Y"
+   - The number BEFORE the slash is CourseDuration
+   - The letter AFTER the slash is CourseTerm (Y=year, S=semester)
 6. Everything after Credit on first line goes into GraduationRequirement
 
-OUTPUT FIELDS (EXACT KEYS):
+DURATION/TERM EXAMPLES (MUST EXTRACT BOTH):
+- "0100300 AP ART HISTORY 3/Y PF 1.0" → CourseDuration="3", CourseTerm="Y"
+- "0100310 INTRO TO ART HIST 2/S PF 0.5" → CourseDuration="2", CourseTerm="S"
+- "0101310 2-D STUDIO ART 2 2/Y PF 1.0" → CourseDuration="2", CourseTerm="Y"
+
+OUTPUT FIELDS (EXACT KEYS - MUST INCLUDE ALL):
 - Category: string (from |HEADER| in pipes) or null
 - SubCategory: string (section header with dashes underneath) or null
 - ProgramSubjectArea: null (NOT USED in master database format - always set to null)
@@ -226,8 +246,8 @@ OUTPUT FIELDS (EXACT KEYS):
 - CourseAbbrevTitle: string (abbreviated title from first line) or null
 - CourseTitle: string (full course title/name from indented line) or null
 - GradeLevel: string (grade level like "PF") or null
-- CourseDuration: string (just the number like "2", "3" from Duration/Term) or null
-- CourseTerm: string (just the term like "Y" for year, "S" for semester from Duration/Term) or null
+- CourseDuration: string **REQUIRED** (the NUMBER before "/" like "3" from "3/Y") or null
+- CourseTerm: string **REQUIRED** (the LETTER after "/" like "Y" from "3/Y" or "S" from "2/S") or null
 - GraduationRequirement: string (requirements from END of first line, after Credit) or null
 - Credit: string (credit value - REQUIRED for valid courses) or null
 - Certification: string (certification requirements from indented lines below course title) or null
