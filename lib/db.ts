@@ -45,6 +45,16 @@ export async function connectDB(): Promise<Db> {
     return cachedDb
   } catch (error) {
     console.error('[DB] Connection failed:', error)
+    const errorMsg = error instanceof Error ? error.message : String(error)
+    
+    if (errorMsg.includes('ECONNREFUSED') || errorMsg.includes('querySrv')) {
+      console.error('[DB] 💡 MongoDB connection refused. Options:')
+      console.error('   1. Install local MongoDB: brew install mongodb-community')
+      console.error('   2. Start MongoDB: brew services start mongodb-community')
+      console.error('   3. Or fix MongoDB Atlas cluster in .env.local')
+      console.error('   Current URI:', MONGODB_URI.replace(/:[^:]*@/, ':****@'))
+    }
+    
     throw error
   }
 }

@@ -48,10 +48,20 @@ export default function ApiKeySelector({
           onChange(result.data[0].api_key_id);
         }
       } else {
-        setError(result.error || 'Failed to load API keys');
+        const errorMsg = result.error || 'Failed to load API keys';
+        if (errorMsg.includes('ECONNREFUSED') || errorMsg.includes('MongoDB')) {
+          setError('Database connection failed. Check MongoDB setup in .env.local');
+        } else {
+          setError(errorMsg);
+        }
       }
     } catch (err) {
-      setError('Failed to load API keys');
+      const errMsg = err instanceof Error ? err.message : 'Unknown error';
+      if (errMsg.includes('ECONNREFUSED') || errMsg.includes('MongoDB')) {
+        setError('Database unavailable. Install MongoDB or fix connection.');
+      } else {
+        setError('Failed to load API keys');
+      }
       console.error('Error loading API keys:', err);
     } finally {
       setLoading(false);
@@ -78,12 +88,19 @@ export default function ApiKeySelector({
   }
 
   if (error || apiKeys.length === 0) {
+    const isDbError = error && (error.includes('Database') || error.includes('MongoDB') || error.includes('connection'));
     return (
       <div className="border border-red-200 bg-red-50 p-4 rounded-xl flex gap-3 animate-in fade-in">
         <AlertCircle className="h-5 w-5 text-red-600 mt-0.5 flex-shrink-0" />
         <div>
           <p className="text-red-900 text-sm font-medium">{error || 'No API keys available'}</p>
-          <p className="text-red-700 text-xs mt-1">Please contact your administrator to add API keys.</p>
+          {isDbError ? (
+            <p className="text-red-700 text-xs mt-1">
+              Run: <code className="bg-red-100 px-1 py-0.5 rounded">brew install mongodb-community && brew services start mongodb-community</code>
+            </p>
+          ) : (
+            <p className="text-red-700 text-xs mt-1">Please contact your administrator to add API keys.</p>
+          )}
         </div>
       </div>
     );
@@ -166,92 +183,36 @@ export default function ApiKeySelector({
 
       {showStats && selectedKey && (
         <div
-          className="mt-4 p-4 rounded-xl border-2 border-gradient animate-in fade-in slide-in-from-top-2 duration-300"
+          className="mt-3 px-3 py-2 rounded-lg border animate-in fade-in"
           style={{
-            borderImage: 'linear-gradient(135deg, #603ac8 0%, #31225c 100%) 1',
-            background: 'linear-gradient(135deg, rgba(96, 58, 200, 0.08) 0%, rgba(49, 34, 92, 0.04) 100%)',
+            borderColor:
+              selectedKey.rpd_remaining === 0
+                ? '#fecaca'
+                : selectedKey.percentage_used > 80
+                ? '#fde68a'
+                : '#bbf7d0',
+            background:
+              selectedKey.rpd_remaining === 0
+                ? '#fef2f2'
+                : selectedKey.percentage_used > 80
+                ? '#fffbeb'
+                : '#f0fdf4',
           }}
         >
-          <div className="flex items-start justify-between mb-3">
-            <div className="flex-1">
-              <div className="flex items-center gap-2 mb-1">
-                <h4 className="text-sm font-bold text-gray-900">{selectedKey.nickname}</h4>
-                {selectedKey.rpd_remaining > 0 ? (
-                  <CheckCircle2 className="h-4 w-4 text-green-500" />
-                ) : (
-                  <AlertCircle className="h-4 w-4 text-red-500" />
-                )}
-              </div>
-              <p className="text-xs text-gray-600 font-medium">
-                <span className="text-green-600 font-bold">{selectedKey.rpd_remaining}</span>
-                {' '}of{' '}
-                <span className="text-gray-700 font-bold">{selectedKey.daily_limit}</span>
-                {' '}requests remaining
-              </p>
-            </div>
-            <div className="text-right">
-              <Zap className="text-amber-500 h-5 w-5" />
-            </div>
+          <div className="flex items-center gap-2 text-xs font-medium text-gray-700">
+            {selectedKey.rpd_remaining > 0 ? (
+              <CheckCircle2 className="h-4 w-4 text-green-500" />
+            ) : (
+              <AlertCircle className="h-4 w-4 text-red-500" />
+            )}
+            <span>{selectedKey.nickname}</span>
+            <span>•</span>
+            <span>
+              {selectedKey.rpd_remaining}/{selectedKey.daily_limit} left
+            </span>
+            <span>•</span>
+            <span>{selectedKey.percentage_used}% used</span>
           </div>
-
-          {/* Progress Bar */}
-          <div className="space-y-2">
-            <div className="w-full bg-gray-200 rounded-full h-2.5 overflow-hidden">
-              <div
-                className={`h-2.5 rounded-full transition-all duration-500 ${
-                  selectedKey.percentage_used > 80
-                    ? 'bg-gradient-to-r from-red-500 to-red-600'
-                    : selectedKey.percentage_used > 50
-                    ? 'bg-gradient-to-r from-yellow-500 to-amber-500'
-                    : 'bg-gradient-to-r from-green-500 to-emerald-500'
-                }`}
-                style={{
-                  width: `${Math.max(selectedKey.percentage_used, 3)}%`,
-                }}
-              />
-            </div>
-            <div className="flex justify-between">
-              <p
-                className={`text-xs font-bold ${
-                  selectedKey.percentage_used > 80
-                    ? 'text-red-600'
-                    : selectedKey.percentage_used > 50
-                    ? 'text-amber-600'
-                    : 'text-green-600'
-                }`}
-              >
-                {selectedKey.percentage_used}% utilized
-              </p>
-              <p className="text-xs text-gray-500">Quota</p>
-            </div>
-          </div>
-
-          {selectedKey.rpd_remaining === 0 && (
-            <div className="mt-3 p-3 bg-red-50 border-l-4 border-red-500 rounded-l-md">
-              <p className="text-red-800 text-xs font-medium flex items-center gap-2">
-                <AlertCircle size={14} />
-                No requests remaining. Switch to another API key.
-              </p>
-            </div>
-          )}
-
-          {selectedKey.rpd_remaining > 0 && selectedKey.percentage_used > 80 && (
-            <div className="mt-3 p-3 bg-yellow-50 border-l-4 border-yellow-500 rounded-l-md">
-              <p className="text-yellow-800 text-xs font-medium flex items-center gap-2">
-                <AlertCircle size={14} />
-                Running low on quota. Consider switching keys soon.
-              </p>
-            </div>
-          )}
-
-          {selectedKey.rpd_remaining > 0 && selectedKey.percentage_used <= 50 && (
-            <div className="mt-3 p-3 bg-green-50 border-l-4 border-green-500 rounded-l-md">
-              <p className="text-green-800 text-xs font-medium flex items-center gap-2">
-                <CheckCircle2 size={14} />
-                Plenty of quota available for extraction.
-              </p>
-            </div>
-          )}
         </div>
       )}
     </div>
