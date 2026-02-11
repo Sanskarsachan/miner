@@ -24,6 +24,8 @@ export interface Course {
   CourseCode?: string
   GradeLevel?: string
   Length?: string
+  CourseDuration?: string  // For Florida master DB: duration number (from "3/Y")
+  CourseTerm?: string      // For Florida master DB: term letter (from "3/Y")
   Prerequisite?: string
   Credit?: string
   Details?: string
@@ -202,7 +204,11 @@ export class ChunkProcessor {
       }
 
       const courses = this.extractCoursesFromResponse(data)
-      return courses
+      
+      // Post-process: Split Duration/Term if needed
+      const processedCourses = this.normalizeDurationTerm(courses)
+      
+      return processedCourses
     } catch (error: any) {
       // Handle abort/timeout errors
       if (error.name === 'AbortError') {
@@ -250,6 +256,30 @@ export class ChunkProcessor {
       // If we've exhausted retries or it's a non-retryable error, throw
       throw error
     }
+  }
+
+  /**
+   * Normalize Duration/Term fields
+   * If CourseDuration contains "X/Y" format, split it into separate fields
+   */
+  normalizeDurationTerm(courses: Course[]): Course[] {
+    return courses.map(course => {
+      // Check if CourseDuration has the X/Y format
+      if (course.CourseDuration && typeof course.CourseDuration === 'string') {
+        const match = course.CourseDuration.match(/^(\d+)\/([A-Z])$/i)
+        if (match) {
+          // Split: "3/Y" → CourseDuration="3", CourseTerm="Y"
+          const [, duration, term] = match
+          console.log(`[ChunkProcessor] Splitting "${course.CourseDuration}" → Duration="${duration}", Term="${term}"`)
+          return {
+            ...course,
+            CourseDuration: duration,
+            CourseTerm: term,
+          }
+        }
+      }
+      return course
+    })
   }
 
   /**
