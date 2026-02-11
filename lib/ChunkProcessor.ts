@@ -126,11 +126,18 @@ export class ChunkProcessor {
     try {
       console.log('[ChunkProcessor] Calling /api/secure_extract with', text.length, 'chars, apiKeyId present:', !!this.apiKeyId)
       
+      // Create AbortController with 60 second timeout
+      const controller = new AbortController()
+      const timeoutId = setTimeout(() => controller.abort(), 60000) // 60 second timeout
+      
       const response = await fetch('/api/secure_extract', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ text, filename, apiKeyId: this.apiKeyId }),  // Send API key ID
+        signal: controller.signal,
       })
+      
+      clearTimeout(timeoutId) // Clear timeout on successful response
 
       console.log('[ChunkProcessor] Response status:', response.status)
 
@@ -197,13 +204,42 @@ export class ChunkProcessor {
       const courses = this.extractCoursesFromResponse(data)
       return courses
     } catch (error: any) {
+      // Handle abort/timeout errors
+      if (error.name === 'AbortError') {
+        console.error('[ChunkProcessor] Request timed out after 60 seconds')
+        // Retry timeouts
+        if (attempt < this.retryAttempts) {
+          const delay = this.retryDelay * Math.pow(2, attempt - 1)
+          console.log(`[ChunkProcessor] Retrying after timeout (attempt ${attempt + 1}/${this.retryAttempts}) after ${delay}ms`)
+          await new Promise((r) => setTimeout(r, delay))
+          return this.processChunk(text, filename, attempt + 1)
+        }
+        // After exhausting retries, return empty array instead of throwing
+        console.error('[ChunkProcessor] Timeout retry limit reached, returning empty array')
+        return []
+      }
+      
+      // Handle network errors (failed to fetch)
+      if (error.message?.includes('fetch') || error.message?.includes('network')) {
+        console.error('[ChunkProcessor] Network error:', error.message)
+        if (attempt < this.retryAttempts) {
+          const delay = this.retryDelay * Math.pow(2, attempt - 1)
+          console.log(`[ChunkProcessor] Retrying after network error (attempt ${attempt + 1}/${this.retryAttempts}) after ${delay}ms`)
+          await new Promise((r) => setTimeout(r, delay))
+          return this.processChunk(text, filename, attempt + 1)
+        }
+        // After exhausting retries, return empty array instead of throwing
+        console.error('[ChunkProcessor] Network error retry limit reached, returning empty array')
+        return []
+      }
+      
       // Don't retry rate limit errors - throw immediately so UI can show modal
       if (error?.isRateLimit) {
         console.log('[ChunkProcessor] Rate limit error - not retrying, throwing to UI')
         throw error
       }
       
-      // Retry on network errors, but not on validation errors
+      // Retry on other network errors, but not on validation errors
       if (attempt < this.retryAttempts && !(error instanceof SyntaxError)) {
         const delay = this.retryDelay * Math.pow(2, attempt - 1)
         console.log(`[ChunkProcessor] Retrying (attempt ${attempt + 1}/${this.retryAttempts}) after ${delay}ms`)
@@ -338,7 +374,21 @@ export class ChunkProcessor {
     const deduplicated = this.deduplicateCourses(allCourses)
     const dupesRemoved = beforeDedup - deduplicated.length
 
-console.log(`[ChunkProcessor] Deduplication: ${beforeDedup} → ${deduplicated.length} (removed ${dupesRemoved} duplicates)`)
+    console.log(`[ChunkProcessor] Deduplication: ${beforeDedup} → ${deduplicated.length} (removed ${dupesRemoved} duplicates)`)
+
+    // Log completion summary
+    console.log(`[ChunkProcessor] ✅ Document processing complete:`)
+    console.log(`  - Total chunks: ${totalChunks}`)
+    console.log(`  - Courses found: ${deduplicated.length}`)
+    console.log(`  - Duplicates removed: ${dupesRemoved}`)
+    
+    if (deduplicated.length === 0) {
+      console.warn(`[ChunkProcessor] ⚠️  WARNING: No courses found in document "${filename}"`)
+      console.warn(`  - This could mean: empty document, wrong format, or all chunks failed`)
+    }
+
+    return deduplicated
+  }
 
     this.onProgress({
       status: 'processing',

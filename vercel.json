@@ -1,5 +1,13 @@
 {
   "version": 2,
+  "functions": {
+    "pages/api/secure_extract.ts": {
+      "maxDuration": 60
+    },
+    "pages/api/upload_generate.ts": {
+      "maxDuration": 60
+    }
+  },
   "headers": [
     {
       "source": "/(.*)",

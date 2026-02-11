@@ -767,6 +767,24 @@ export default function CourseHarvester() {
         })
         setStatus(`Rate limit reached - pages ${pageRangeStart}-${pageRangeEnd > 0 ? pageRangeEnd : totalPages} not extracted`)
         showToast('API rate limit reached!', 'error')
+      } else if (e instanceof Error && (
+        e.message.includes('fetch') || 
+        e.message.includes('network') || 
+        e.message.includes('timeout') ||
+        e.name === 'AbortError'
+      )) {
+        // Handle timeout and network errors specifically
+        const errorType = e.name === 'AbortError' || e.message.includes('timeout') 
+          ? 'Request timeout (60s exceeded)' 
+          : 'Network error'
+        const coursesExtracted = allCourses.length
+        const suggestion = coursesExtracted > 0 
+          ? `${coursesExtracted} courses were extracted before the error. Try reducing the page range or check your connection.`
+          : 'Try reducing the page range, check your internet connection, or try again.'
+        
+        setStatus(`${errorType} - ${suggestion}`)
+        showToast(`${errorType}: ${suggestion}`, 'error')
+        console.error('[Extract] Network/timeout error:', e.message)
       } else {
         setStatus(`Error: ${e instanceof Error ? e.message : 'Unknown error'}`)
         showToast(`Extraction failed: ${e instanceof Error ? e.message : 'Unknown error'}`, 'error')
