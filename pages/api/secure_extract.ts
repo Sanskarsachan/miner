@@ -126,247 +126,49 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     const buildPrompt = (mode: string, inputText: string) => {
       if (mode === 'master_db' || mode === 'master-db') {
-        return `You are a Florida course catalog extraction expert. Extract ALL course information from the provided Florida DOE master course catalog.
+        return `Extract ALL Florida DOE course catalog data as JSON array. Return ONLY valid JSON starting with [ and ending with ].
 
-CRITICAL INSTRUCTIONS:
-1. Return ONLY a valid JSON array with NO additional text, markdown, or code blocks
-2. Start with [ and end with ]
-3. For missing fields: Use null (NOT "N/A", NOT empty string, NOT "-")
-4. Fix character encoding issues: Replace garbled characters with readable text
-5. Include ALL courses found, even if details are partial
-6. Use proper JSON escaping for special characters
+FORMAT RULES:
+1. Category: from |PIPES| (e.g., |ART-VISUAL ARTS|)
+2. SubCategory: section header with dashes below
+3. ProgramSubjectArea: ALWAYS null (not used in master DB)
+4. Find X/Y pattern (e.g., 3/Y, 2/S):
+   - Number before "/" → CourseDuration
+   - Letter after "/" → CourseTerm
+   - If can't split, put full "3/Y" in CourseDuration
+5. Missing fields: use null (NOT "N/A" or "-")
+6. Only include rows with BOTH CourseCode AND Credit
 
-⚠️ CRITICAL: DURATION/TERM EXTRACTION ⚠️
-Every course has a Duration/Term field in format "X/Y" where:
-- X = number of periods (1, 2, 3, etc.) → Goes into CourseDuration
-- Y = term type (Y=year, S=semester) → Goes into CourseTerm
-EXAMPLES:
-- "3/Y" → CourseDuration: "3", CourseTerm: "Y"
-- "2/S" → CourseDuration: "2", CourseTerm: "S"
-- "1/Y" → CourseDuration: "1", CourseTerm: "Y"
-YOU MUST EXTRACT BOTH VALUES - DO NOT LEAVE THEM NULL!
+LINE PARSING (e.g., "0100300 AP ART HISTORY 3/Y PF 1.0 HUMANITIES 6 ART 6"):
+Position 1: CourseCode = "0100300"
+Position 2-4: CourseAbbrevTitle = "AP ART HISTORY"
+Position 5: Find X/Y → CourseDuration="3", CourseTerm="Y" (or "3/Y" if can't split)
+Position 6: GradeLevel = "PF"
+Position 7: Credit = "1.0"
+Position 8+: GraduationRequirement = "HUMANITIES 6 ART 6"
+Line 2 (indented): CourseTitle = "Advanced Placement Art History"
+Line 3+ (indented): Certification = combined text
 
-CATEGORY AND SUBCATEGORY RULES - CRITICAL:
-- Category headers appear in pipes like |ART-VISUAL ARTS| or |DANCE|
-- SubCategory headers appear as text with dashes underneath (e.g., "ART APPRECIATION/HISTORY/CRITICISM" with "----------" below)
-- The structure is: Category |PIPES| → SubCategory with-dashes → Individual courses with codes
-- ProgramSubjectArea should be NULL for master database courses (it's not used in this format)
-- Do NOT put SubCategory value into ProgramSubjectArea - keep ProgramSubjectArea as null
+OUTPUT FIELDS (JSON keys):
+Category, SubCategory, ProgramSubjectArea (null), CourseCode, CourseAbbrevTitle, CourseTitle, GradeLevel, CourseDuration, CourseTerm, GraduationRequirement, Credit, Certification, CourseLevel
 
-EXAMPLE STRUCTURE:
-|ART-VISUAL ARTS|                           ← Category
-ART APPRECIATION/HISTORY/CRITICISM          ← SubCategory (has dashes underneath)
---------------------------------------------------------------------------
-0100300 AP ART HISTORY 3/Y PF 1.0 ...      ← Course (has code and credit)
+EXAMPLE:
+Input: "0100300 AP ART HISTORY 3/Y PF 1.0 HUMANITIES 6 ART 6"
+Output: {"Category":"ART-VISUAL ARTS","SubCategory":"ART APPRECIATION","ProgramSubjectArea":null,"CourseCode":"0100300","CourseAbbrevTitle":"AP ART HISTORY","CourseTitle":"Advanced Placement Art History","GradeLevel":"PF","CourseDuration":"3","CourseTerm":"Y","GraduationRequirement":"HUMANITIES 6 ART 6","Credit":"1.0","Certification":"...","CourseLevel":null}
 
-Results in:
-- Category: "ART-VISUAL ARTS"
-- SubCategory: "ART APPRECIATION/HISTORY/CRITICISM"
-- ProgramSubjectArea: null
-- CourseCode: "0100300"
-
-COURSE VALIDATION RULES:
-- Only extract rows that have BOTH CourseCode AND Credit
-- Skip section headers (no code = not a course)
-- Skip program headers (no credit = not a course)
-
-COURSE LINE STRUCTURE (typical pattern):
-The Florida course catalog uses a MULTI-LINE format for each course:
-
-Line 1: CourseCode CourseAbbrevTitle Duration/Term GradeLevel Credit GraduationRequirement
-Line 2 (indented): CourseTitle (full name) + sometimes Certification start
-Line 3+ (indented): Certification details (may span multiple lines)
-
-REAL EXAMPLE FROM PDF:
-|ART-VISUAL ARTS|
-ART APPRECIATION/HISTORY/CRITICISM
---------------------------------------------------------------------------
-0100300 AP ART HISTORY 3/Y PF 1.0 HUMANITIES 6 ART 6
- Advanced Placement Art History CLASSICAL ED (RESTRICTED) 6
- PT FINE PERF ART 7 G
-
-This extracts to:
-- Category: "ART-VISUAL ARTS" (from |PIPES|)
-- SubCategory: "ART APPRECIATION/HISTORY/CRITICISM" (section header with dashes)
-- ProgramSubjectArea: null (not used in master DB)
-- CourseCode: "0100300"
-- CourseAbbrevTitle: "AP ART HISTORY"
-- CourseDuration: "3" (from "3/Y")
-- CourseTerm: "Y" (from "3/Y")
-- GradeLevel: "PF"
-- Credit: "1.0"
-- GraduationRequirement: "HUMANITIES 6 ART 6"
-- CourseTitle: "Advanced Placement Art History"
-- Certification: "CLASSICAL ED (RESTRICTED) 6 PT FINE PERF ART 7 G"
-
-Another REAL EXAMPLE:
-ART COMPREHENSIVE
---------------------------------------------------------------------------
-0101310 2-D STUDIO ART 2 2/Y PF 1.0 ART 6
- Two-Dimensional Studio Art 2 CLASSICAL ED (RESTRICTED) 6
- PT FINE PERF ART 7 G
-
-Extracts to:
-- Category: "ART-VISUAL ARTS" (carry from previous |PIPES| header)
-- SubCategory: "ART COMPREHENSIVE" (new section header with dashes)
-- ProgramSubjectArea: null
-- CourseCode: "0101310"
-- CourseAbbrevTitle: "2-D STUDIO ART 2"
-- CourseDuration: "2"
-- CourseTerm: "Y"
-- GradeLevel: "PF"
-- Credit: "1.0"
-- GraduationRequirement: "ART 6"
-- CourseTitle: "Two-Dimensional Studio Art 2"
-- Certification: "CLASSICAL ED (RESTRICTED) 6 PT FINE PERF ART 7 G"
-
-PARSING INSTRUCTIONS - CRITICAL:
-1. First line has: Code, AbbrevTitle, Duration/Term, Grade, Credit, GraduationReq (everything after Credit)
-2. Second line (indented with spaces): Full CourseTitle, may also have start of Certification
-3. Third+ lines (indented with spaces): Additional Certification details
-4. Combine all indented certification text into one Certification field
-5. **CRITICAL FOR DURATION/TERM**: The format "3/Y" or "2/S" MUST be split:
-   - "3/Y" → CourseDuration="3", CourseTerm="Y" 
-   - "2/S" → CourseDuration="2", CourseTerm="S"
-   - "1/Y" → CourseDuration="1", CourseTerm="Y"
-   - The number BEFORE the slash is CourseDuration
-   - The letter AFTER the slash is CourseTerm (Y=year, S=semester)
-6. Everything after Credit on first line goes into GraduationRequirement
-
-STEP-BY-STEP PARSING FOR "0100300 AP ART HISTORY 3/Y PF 1.0 HUMANITIES 6 ART 6":
-Position 1: CourseCode = "0100300" (first token)
-Position 2-4: CourseAbbrevTitle = "AP ART HISTORY" (words until you hit a pattern like X/Y)
-Position 5: Duration/Term = "3/Y" (the X/Y pattern - THIS IS CRITICAL TO EXTRACT!)
-           → SPLIT THIS: CourseDuration="3" (before slash), CourseTerm="Y" (after slash)
-           → If you can't split: CourseDuration="3/Y", CourseTerm=null
-Position 6: GradeLevel = "PF" (after the X/Y pattern)
-Position 7: Credit = "1.0" (the decimal number)
-Position 8+: GraduationRequirement = "HUMANITIES 6 ART 6" (everything remaining on the line)
-
-CRITICAL REGEX-LIKE PATTERN TO FIND DURATION/TERM:
-Look for: [NUMBER]/[LETTER] pattern (examples: 3/Y, 2/S, 1/Y, 4/S)
-This appears AFTER the course abbreviation and BEFORE the grade level
-
-DURATION/TERM EXAMPLES (LOOK FOR THE X/Y PATTERN):
-Line: "0100300 AP ART HISTORY 3/Y PF 1.0 HUMANITIES 6 ART 6"
-      └─Code─┘ └──AbbrevTitle──┘ └─┘ └─Grade Credit
-                                  │
-                              Find this! "3/Y"
-Extract: CourseDuration="3", CourseTerm="Y" (or CourseDuration="3/Y" if you can't split)
-
-More examples:
-- "0100310 INTRO TO ART HIST 2/S PF 0.5" → CourseDuration="2", CourseTerm="S" (or "2/S")
-- "0101310 2-D STUDIO ART 2 2/Y PF 1.0" → CourseDuration="2", CourseTerm="Y" (or "2/Y")
-- "0100330 ART HIST & CRIT 1 H 3/Y PF 1.0" → CourseDuration="3", CourseTerm="Y" (or "3/Y")
-
-OUTPUT FIELDS (EXACT KEYS - MUST INCLUDE ALL):
-- Category: string (from |HEADER| in pipes) or null
-- SubCategory: string (section header with dashes underneath) or null
-- ProgramSubjectArea: null (NOT USED in master database format - always set to null)
-- CourseCode: string (course number - REQUIRED, must not be null/empty) or null
-- CourseAbbrevTitle: string (abbreviated title from first line) or null
-- CourseTitle: string (full course title/name from indented line) or null
-- GradeLevel: string (grade level like "PF") or null
-- CourseDuration: string (the NUMBER before "/" like "3" from "3/Y", OR if you can't split it, put the full "3/Y" here) or null
-- CourseTerm: string (the LETTER after "/" like "Y" from "3/Y" or "S" from "2/S") or null
-- GraduationRequirement: string (requirements from END of first line, after Credit) or null
-- Credit: string (credit value - REQUIRED for valid courses) or null
-- Certification: string (certification requirements from indented lines below course title) or null
-- CourseLevel: string (course level if stated) or null
-
-STRICT EXAMPLE (follow this format exactly):
-
-INPUT LINE: "0100300 AP ART HISTORY 3/Y PF 1.0 HUMANITIES 6 ART 6"
-                                      ↑↑↑ FIND THIS PATTERN!
-EXTRACT:
-[
-  {
-    "Category": "ART-VISUAL ARTS",
-    "SubCategory": "ART APPRECIATION/HISTORY/CRITICISM",
-    "ProgramSubjectArea": null,
-    "CourseCode": "0100300",
-    "CourseAbbrevTitle": "AP ART HISTORY",
-    "CourseTitle": "Advanced Placement Art History",
-    "GradeLevel": "PF",
-    "CourseDuration": "3",        ← Extract "3" from "3/Y" (or put "3/Y" if can't split)
-    "CourseTerm": "Y",            ← Extract "Y" from "3/Y" (or null if can't split)
-    "GraduationRequirement": "HUMANITIES 6 ART 6",
-    "Credit": "1.0",
-    "Certification": "CLASSICAL ED (RESTRICTED) 6 PT FINE PERF ART 7 G",
-    "CourseLevel": null
-  },
-  {
-    "Category": "ART-VISUAL ARTS",
-    "SubCategory": "ART COMPREHENSIVE",
-    "ProgramSubjectArea": null,
-    "CourseCode": "0101310",
-    "CourseAbbrevTitle": "2-D STUDIO ART 2",
-    "CourseTitle": "Two-Dimensional Studio Art 2",
-    "GradeLevel": "PF",
-    "CourseDuration": "2",        ← Extract "2" from "2/Y" (or put "2/Y" if can't split)
-    "CourseTerm": "Y",            ← Extract "Y" from "2/Y" (or null if can't split)
-    "GraduationRequirement": "ART 6",
-    "Credit": "1.0",
-    "Certification": "CLASSICAL ED (RESTRICTED) 6 PT FINE PERF ART 7 G",
-    "CourseLevel": null
-  }
-]
-
-REMEMBER: Only include rows with BOTH CourseCode AND Credit. ProgramSubjectArea is ALWAYS null for master database!
-
-DOCUMENT TO EXTRACT FROM:
+DOCUMENT:
 ${inputText}`
       }
 
-      return `You are a course data extraction expert. Extract ALL course information from the provided document.
+      return `Extract ALL course data as JSON array. Return ONLY valid JSON starting with [ and ending with ].
 
-CRITICAL INSTRUCTIONS:
-1. Return ONLY a valid JSON array with NO additional text, markdown, or code blocks
-2. Start with [ and end with ]
-3. For missing fields: Use null (NOT "N/A", NOT empty string, NOT "-")
-4. For CourseCode: Extract course code if available, otherwise use null
-5. Fix character encoding issues: Replace garbled characters with readable text
-6. Include ALL courses found, even if details are partial
-7. Use proper JSON escaping for special characters
+FIELDS: Category, CourseName (REQUIRED), CourseCode, GradeLevel, Length, Prerequisite, Credit, Details, CourseDescription
+Use null for missing fields (NOT "N/A" or "-")
 
-For each course, create an object with EXACTLY these fields:
-- Category: string (department/category name) or null
-- CourseName: string (course title - REQUIRED, must not be null)
-- CourseCode: string (course number/code) or null
-- GradeLevel: string (grade range like "9-12") or null
-- Length: string (duration like "1 semester" or "1 year") or null
-- Prerequisite: string (prerequisite courses) or null
-- Credit: string (credit hours) or null
-- Details: string (additional notes/details) or null
-- CourseDescription: string (full course description) or null
+EXAMPLE:
+[{"Category":"Math","CourseName":"Algebra I","CourseCode":"MATH101","GradeLevel":"9-10","Length":"1 year","Prerequisite":null,"Credit":"1.0","Details":null,"CourseDescription":"Introduction to algebra"}]
 
-STRICT EXAMPLE (follow this format exactly):
-[
-  {
-    "Category": "Mathematics",
-    "CourseName": "Algebra I",
-    "CourseCode": "MATH101",
-    "GradeLevel": "9-10",
-    "Length": "1 year",
-    "Prerequisite": null,
-    "Credit": "1.0",
-    "Details": "Foundation course in algebra",
-    "CourseDescription": "Introduction to algebraic concepts including variables, equations, and functions"
-  },
-  {
-    "Category": "Science",
-    "CourseName": "Physics",
-    "CourseCode": null,
-    "GradeLevel": "11-12",
-    "Length": "2 semesters",
-    "Prerequisite": "Algebra I",
-    "Credit": "1.0",
-    "Details": "Honors course available",
-    "CourseDescription": "Study of motion, forces, energy and waves"
-  }
-]
-
-DOCUMENT TO EXTRACT FROM:
+DOCUMENT:
 ${inputText}`
   }
 

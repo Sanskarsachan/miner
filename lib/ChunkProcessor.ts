@@ -36,7 +36,7 @@ export interface Course {
 export class ChunkProcessor {
   private maxTokensPerChunk = 150000 // Increased for faster processing
   private retryAttempts = 3
-  private retryDelay = 1500 // Reduced from 2000ms
+  private retryDelay = 800 // Optimized for speed
   private batchSize = 3 // Process 3 pages at a time
   
   // Free tier limits per day
@@ -128,9 +128,9 @@ export class ChunkProcessor {
     try {
       console.log('[ChunkProcessor] Calling /api/secure_extract with', text.length, 'chars, apiKeyId present:', !!this.apiKeyId)
       
-      // Create AbortController with 60 second timeout
+      // Create AbortController with 45 second timeout
       const controller = new AbortController()
-      const timeoutId = setTimeout(() => controller.abort(), 60000) // 60 second timeout
+      const timeoutId = setTimeout(() => controller.abort(), 45000) // 45 second timeout
       
       const response = await fetch('/api/secure_extract', {
         method: 'POST',
@@ -212,7 +212,7 @@ export class ChunkProcessor {
     } catch (error: any) {
       // Handle abort/timeout errors
       if (error.name === 'AbortError') {
-        console.error('[ChunkProcessor] Request timed out after 60 seconds')
+        console.error('[ChunkProcessor] Request timed out after 45 seconds')
         // Retry timeouts
         if (attempt < this.retryAttempts) {
           const delay = this.retryDelay * Math.pow(2, attempt - 1)
@@ -374,9 +374,9 @@ export class ChunkProcessor {
           message: `✓ Found ${courses.length} course${courses.length === 1 ? '' : 's'} in chunk ${chunkNum}`,
         })
 
-        // Small delay between chunks to avoid rate limiting
+        // Minimal delay between chunks (Gemini 2.5 Flash has 15 RPM = 1 per 4s, but bursts allowed)
         if (i < chunks.length - 1) {
-          await new Promise((r) => setTimeout(r, 500))
+          await new Promise((r) => setTimeout(r, 100))
         }
       } catch (error: any) {
         // Re-throw rate limit errors so UI can show modal
