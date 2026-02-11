@@ -152,56 +152,97 @@ PROGRAM HEADER RULES - IMPORTANT:
 - After the program header, regular courses follow with full details
 
 COURSE LINE STRUCTURE (typical pattern):
-CourseCode CourseName CourseLength GradeLevel Credit Certification CourseAbbrevTitle ProgramSubjectArea [other codes]
+The Florida course catalog uses a MULTI-LINE format for each course:
 
-Example line:
-0300300 WORLD DANCE 2/Y PF 1.0 ANY FIELD WHEN CERT REFLECTS BACHELOR OR HIGHER World Dance DANCE 6 CLASSICAL ED (RESTRICTED) 6 PT FINE PERF ART 7 G
+Line 1: CourseCode CourseAbbrevTitle Duration/Term GradeLevel Credit GraduationRequirement
+Line 2 (indented): CourseTitle (full name) + sometimes Certification start
+Line 3+ (indented): Certification details (may span multiple lines)
+
+REAL EXAMPLE FROM PDF:
+0100300 AP ART HISTORY 3/Y PF 1.0 HUMANITIES 6 ART 6
+ Advanced Placement Art History CLASSICAL ED (RESTRICTED) 6
+ PT FINE PERF ART 7 G
+
+This extracts to:
+- CourseCode: "0100300"
+- CourseAbbrevTitle: "AP ART HISTORY"
+- CourseDuration: "3" (from "3/Y")
+- CourseTerm: "Y" (from "3/Y")
+- GradeLevel: "PF"
+- Credit: "1.0"
+- GraduationRequirement: "HUMANITIES 6 ART 6"
+- CourseTitle: "Advanced Placement Art History"
+- Certification: "CLASSICAL ED (RESTRICTED) 6 PT FINE PERF ART 7 G"
+
+Another REAL EXAMPLE:
+0101310 2-D STUDIO ART 2 2/Y PF 1.0 ART 6
+ Two-Dimensional Studio Art 2 CLASSICAL ED (RESTRICTED) 6
+ PT FINE PERF ART 7 G
 
 Extracts to:
-- CourseCode: "0300300"
-- CourseTitle: "WORLD DANCE"
+- CourseCode: "0101310"
+- CourseAbbrevTitle: "2-D STUDIO ART 2"
 - CourseDuration: "2"
 - CourseTerm: "Y"
 - GradeLevel: "PF"
 - Credit: "1.0"
-- Certification: "ANY FIELD WHEN CERT REFLECTS BACHELOR OR HIGHER"
-- CourseAbbrevTitle: "World Dance"
-- ProgramSubjectArea: "DANCE"
+- GraduationRequirement: "ART 6"
+- CourseTitle: "Two-Dimensional Studio Art 2"
+- Certification: "CLASSICAL ED (RESTRICTED) 6 PT FINE PERF ART 7 G"
 
-Example with 2/S (2 semesters):
-- CourseDuration: "2"
-- CourseTerm: "S"
+PARSING INSTRUCTIONS:
+1. First line has: Code, AbbrevTitle, Duration/Term, Grade, Credit, GraduationReq (everything after Credit)
+2. Second line (indented with spaces): Full CourseTitle, may also have start of Certification
+3. Third+ lines (indented with spaces): Additional Certification details
+4. Combine all indented certification text into one Certification field
+5. Split Duration/Term (like "3/Y") into CourseDuration="3" and CourseTerm="Y"
+6. Everything after Credit on first line goes into GraduationRequirement
 
 OUTPUT FIELDS (EXACT KEYS):
 - Category: string (from |HEADER| or section header) or null
 - SubCategory: string (career path header ONLY if clearly stated) or null
 - ProgramSubjectArea: string (program/subject area name) or null
 - CourseCode: string (course number - REQUIRED, must not be null/empty) or null
-- CourseAbbrevTitle: string (abbreviated title) or null
-- CourseTitle: string (full course title/name) or null
-- GradeLevel: string (grade level) or null
-- CourseDuration: string (just the number like "2", "3") or null
-- CourseTerm: string (just the term like "Y" for year, "S" for semester) or null
-- GraduationRequirement: string (requirements) or null
+- CourseAbbrevTitle: string (abbreviated title from first line) or null
+- CourseTitle: string (full course title/name from indented line) or null
+- GradeLevel: string (grade level like "PF") or null
+- CourseDuration: string (just the number like "2", "3" from Duration/Term) or null
+- CourseTerm: string (just the term like "Y" for year, "S" for semester from Duration/Term) or null
+- GraduationRequirement: string (requirements from END of first line, after Credit) or null
 - Credit: string (credit value - REQUIRED for valid courses) or null
-- Certification: string (certification requirements) or null
+- Certification: string (certification requirements from indented lines below course title) or null
 - CourseLevel: string (course level if stated) or null
 
 STRICT EXAMPLE (follow this format exactly):
 [
   {
-    "Category": "DANCE",
+    "Category": "ART-VISUAL ARTS",
     "SubCategory": null,
-    "ProgramSubjectArea": "DANCE",
-    "CourseCode": "0300300",
-    "CourseAbbrevTitle": "World Dance",
-    "CourseTitle": "WORLD DANCE",
+    "ProgramSubjectArea": "ART APPRECIATION/HISTORY/CRITICISM",
+    "CourseCode": "0100300",
+    "CourseAbbrevTitle": "AP ART HISTORY",
+    "CourseTitle": "Advanced Placement Art History",
+    "GradeLevel": "PF",
+    "CourseDuration": "3",
+    "CourseTerm": "Y",
+    "GraduationRequirement": "HUMANITIES 6 ART 6",
+    "Credit": "1.0",
+    "Certification": "CLASSICAL ED (RESTRICTED) 6 PT FINE PERF ART 7 G",
+    "CourseLevel": null
+  },
+  {
+    "Category": "ART-VISUAL ARTS",
+    "SubCategory": null,
+    "ProgramSubjectArea": "ART COMPREHENSIVE",
+    "CourseCode": "0101310",
+    "CourseAbbrevTitle": "2-D STUDIO ART 2",
+    "CourseTitle": "Two-Dimensional Studio Art 2",
     "GradeLevel": "PF",
     "CourseDuration": "2",
     "CourseTerm": "Y",
-    "GraduationRequirement": null,
+    "GraduationRequirement": "ART 6",
     "Credit": "1.0",
-    "Certification": "ANY FIELD WHEN CERT REFLECTS BACHELOR OR HIGHER",
+    "Certification": "CLASSICAL ED (RESTRICTED) 6 PT FINE PERF ART 7 G",
     "CourseLevel": null
   }
 ]
