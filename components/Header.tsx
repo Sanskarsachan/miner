@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { Upload, BarChart3, FolderOpen, Sparkles } from 'lucide-react';
+import { Upload, BarChart3, FolderOpen, Database, GitBranch, TestTube } from 'lucide-react';
 import { useRouter } from 'next/router';
 
 interface HeaderProps {
@@ -14,11 +14,20 @@ export default function Header({ transparent = false }: HeaderProps) {
     if (path === '/courseharvester') {
       return currentPath === '/courseharvester';
     }
+    if (path === '/masterdatabase') {
+      return currentPath === '/masterdatabase';
+    }
+    if (path === '/map') {
+      return currentPath === '/map';
+    }
     if (path === '/tokens') {
       return currentPath === '/tokens';
     }
     if (path === '/extractions') {
       return currentPath === '/extractions' || currentPath.startsWith('/extraction/');
+    }
+    if (path === '/test-api') {
+      return currentPath === '/test-api';
     }
     return false;
   };
@@ -181,10 +190,34 @@ export default function Header({ transparent = false }: HeaderProps) {
             <Link 
               href="/courseharvester" 
               className={`nav-link ${isActive('/courseharvester') ? 'active' : ''}`}
-              title="Extract"
+              title="Course Harvester"
             >
               <Upload size={18} />
-              <span className="nav-link-text">Extract</span>
+              <span className="nav-link-text">Harvester</span>
+            </Link>
+            <Link 
+              href="/masterdatabase" 
+              className={`nav-link ${isActive('/masterdatabase') ? 'active' : ''}`}
+              title="Master Database"
+            >
+              <Database size={18} />
+              <span className="nav-link-text">Master DB</span>
+            </Link>
+            <Link 
+              href="/map" 
+              className={`nav-link ${isActive('/map') ? 'active' : ''}`}
+              title="Mapping"
+            >
+              <GitBranch size={18} />
+              <span className="nav-link-text">Mapping</span>
+            </Link>
+            <Link 
+              href="/extractions" 
+              className={`nav-link ${isActive('/extractions') ? 'active' : ''}`}
+              title="History"
+            >
+              <FolderOpen size={18} />
+              <span className="nav-link-text">History</span>
             </Link>
             <Link 
               href="/tokens" 
@@ -195,12 +228,12 @@ export default function Header({ transparent = false }: HeaderProps) {
               <span className="nav-link-text">Analytics</span>
             </Link>
             <Link 
-              href="/extractions" 
-              className={`nav-link ${isActive('/extractions') ? 'active' : ''}`}
-              title="History"
+              href="/test-api" 
+              className={`nav-link ${isActive('/test-api') ? 'active' : ''}`}
+              title="Test API"
             >
-              <FolderOpen size={18} />
-              <span className="nav-link-text">History</span>
+              <TestTube size={18} />
+              <span className="nav-link-text">Test API</span>
             </Link>
           </nav>
         </div>

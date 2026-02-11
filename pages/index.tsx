@@ -3,7 +3,7 @@ import Link from 'next/link'
 import { NextPage } from 'next'
 import { useState } from 'react'
 import Header from '@/components/Header'
-import { FileText, Bot, Zap, BarChart3, Save, Download, ArrowRight, Sparkles } from 'lucide-react'
+import { FileText, Bot, Zap, BarChart3, Save, Download, ArrowRight, Sparkles, Database, GitBranch, TestTube, Upload, FolderOpen } from 'lucide-react'
 
 const Home: NextPage = () => {
   const [hoveredFeature, setHoveredFeature] = useState<number | null>(null)
@@ -11,8 +11,8 @@ const Home: NextPage = () => {
   return (
     <>
       <Head>
-        <title>CourseHarvester - Extract Course Data</title>
-        <meta name="description" content="Extract course information from curriculum documents using AI" />
+        <title>Planpaths Data Miner - Course Data Platform</title>
+        <meta name="description" content="Complete course data platform: Extract, map, and manage course information with AI-powered tools" />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
         {/* Favicon and fonts are in _document.tsx */}
       </Head>
@@ -88,25 +88,25 @@ const Home: NextPage = () => {
             color: '#31225C',
             maxWidth: '800px',
           }}>
-            Extract Course Data
+            Course Data Platform
             <br />
             <span style={{
               background: 'linear-gradient(135deg, #603AC8, #31225C)',
               WebkitBackgroundClip: 'text',
               WebkitTextFillColor: 'transparent',
               backgroundClip: 'text',
-            }}>in Seconds</span>
+            }}>Extract • Map • Manage</span>
           </h1>
 
           {/* Subtitle */}
           <p style={{
             fontSize: '1.25rem',
             color: '#6b7280',
-            maxWidth: '600px',
+            maxWidth: '700px',
             marginBottom: '40px',
             lineHeight: 1.6,
           }}>
-            Transform PDFs, Word documents, and presentations into structured course data using advanced AI. Fast, accurate, and effortless.
+            Complete course data solution: Extract from PDFs, build master databases, map with AI, and track everything with powerful analytics.
           </p>
 
           {/* CTA Buttons */}
@@ -125,9 +125,9 @@ const Home: NextPage = () => {
               boxShadow: '0 8px 30px rgba(96, 58, 200, 0.4)',
               transition: 'all 0.3s ease',
             }}>
-              Start Extracting <ArrowRight size={18} />
+              Launch Harvester <ArrowRight size={18} />
             </Link>
-            <Link href="/extractions" style={{
+            <Link href="/masterdatabase" style={{
               padding: '16px 32px',
               background: 'white',
               color: '#603AC8',
@@ -138,7 +138,20 @@ const Home: NextPage = () => {
               border: '2px solid #F4F0FF',
               transition: 'all 0.3s ease',
             }}>
-              View Extractions
+              Master Database
+            </Link>
+            <Link href="/map" style={{
+              padding: '16px 32px',
+              background: 'white',
+              color: '#603AC8',
+              borderRadius: '12px',
+              textDecoration: 'none',
+              fontWeight: 600,
+              fontSize: '16px',
+              border: '2px solid #F4F0FF',
+              transition: 'all 0.3s ease',
+            }}>
+              Start Mapping
             </Link>
           </div>
 
@@ -150,9 +163,9 @@ const Home: NextPage = () => {
             flexWrap: 'wrap',
             justifyContent: 'center',
           }}>
-            <StatItem value="10+" label="File Formats" />
-            <StatItem value="99%" label="Accuracy" />
-            <StatItem value="<5s" label="Per Page" />
+            <StatItem value="6" label="Tools" />
+            <StatItem value="AI-Powered" label="Mapping" />
+            <StatItem value="380" label="RPD Capacity" />
           </div>
         </section>
 
@@ -169,10 +182,10 @@ const Home: NextPage = () => {
                 color: '#31225C',
                 marginBottom: '16px',
               }}>
-                Powerful Features
+                Complete Toolset
               </h2>
-              <p style={{ fontSize: '1.1rem', color: '#6b7280', maxWidth: '500px', margin: '0 auto' }}>
-                Everything you need to extract and manage course data efficiently
+              <p style={{ fontSize: '1.1rem', color: '#6b7280', maxWidth: '600px', margin: '0 auto' }}>
+                Six powerful tools for extracting, mapping, and managing course data
               </p>
             </div>
 
@@ -182,8 +195,9 @@ const Home: NextPage = () => {
               gap: '24px',
             }}>
               {features.map((feature, idx) => (
-                <div
+                <Link
                   key={idx}
+                  href={feature.link}
                   onMouseEnter={() => setHoveredFeature(idx)}
                   onMouseLeave={() => setHoveredFeature(null)}
                   style={{
@@ -195,6 +209,8 @@ const Home: NextPage = () => {
                     cursor: 'pointer',
                     transform: hoveredFeature === idx ? 'translateY(-4px)' : 'none',
                     boxShadow: hoveredFeature === idx ? '0 20px 40px rgba(96, 58, 200, 0.15)' : 'none',
+                    textDecoration: 'none',
+                    display: 'block',
                   }}
                 >
                   <div style={{
@@ -221,7 +237,7 @@ const Home: NextPage = () => {
                   <p style={{ color: '#6b7280', lineHeight: 1.6 }}>
                     {feature.description}
                   </p>
-                </div>
+                </Link>
               ))}
             </div>
           </div>
@@ -303,26 +319,43 @@ const Home: NextPage = () => {
             fontSize: '1.1rem',
             color: 'rgba(255, 255, 255, 0.8)',
             marginBottom: '32px',
-            maxWidth: '500px',
+            maxWidth: '600px',
             margin: '0 auto 32px',
           }}>
-            Start extracting course data from your documents in seconds.
+            Choose your tool and start processing course data with AI-powered automation.
           </p>
-          <Link href="/courseharvester" style={{
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: '8px',
-            padding: '16px 40px',
-            background: 'white',
-            color: '#603AC8',
-            borderRadius: '12px',
-            textDecoration: 'none',
-            fontWeight: 600,
-            fontSize: '16px',
-            boxShadow: '0 8px 30px rgba(0, 0, 0, 0.2)',
-          }}>
-            Launch CourseHarvester <ArrowRight size={18} />
-          </Link>
+          <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap', justifyContent: 'center' }}>
+            <Link href="/courseharvester" style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '8px',
+              padding: '16px 40px',
+              background: 'white',
+              color: '#603AC8',
+              borderRadius: '12px',
+              textDecoration: 'none',
+              fontWeight: 600,
+              fontSize: '16px',
+              boxShadow: '0 8px 30px rgba(0, 0, 0, 0.2)',
+            }}>
+              Launch Harvester <ArrowRight size={18} />
+            </Link>
+            <Link href="/masterdatabase" style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '8px',
+              padding: '16px 40px',
+              background: 'rgba(255, 255, 255, 0.1)',
+              color: 'white',
+              borderRadius: '12px',
+              textDecoration: 'none',
+              fontWeight: 600,
+              fontSize: '16px',
+              border: '2px solid rgba(255, 255, 255, 0.3)',
+            }}>
+              Master Database <ArrowRight size={18} />
+            </Link>
+          </div>
         </section>
 
         {/* Footer */}
@@ -342,12 +375,15 @@ const Home: NextPage = () => {
           }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
               <img src="/PlanpathsIcon.png" alt="Planpaths" style={{ width: '20px', height: '20px', borderRadius: '4px' }} />
-              <span style={{ fontWeight: 600 }}>CourseHarvester</span>
+              <span style={{ fontWeight: 600 }}>Planpaths Data Miner</span>
             </div>
-            <div style={{ display: 'flex', gap: '24px', fontSize: '14px', opacity: 0.8 }}>
-              <Link href="/courseharvester" style={{ color: 'white', textDecoration: 'none' }}>Extract</Link>
-              <Link href="/tokens" style={{ color: 'white', textDecoration: 'none' }}>Analytics</Link>
+            <div style={{ display: 'flex', gap: '24px', fontSize: '14px', opacity: 0.8', flexWrap: 'wrap' }}>
+              <Link href="/courseharvester" style={{ color: 'white', textDecoration: 'none' }}>Harvester</Link>
+              <Link href="/masterdatabase" style={{ color: 'white', textDecoration: 'none' }}>Master DB</Link>
+              <Link href="/map" style={{ color: 'white', textDecoration: 'none' }}>Mapping</Link>
               <Link href="/extractions" style={{ color: 'white', textDecoration: 'none' }}>History</Link>
+              <Link href="/tokens" style={{ color: 'white', textDecoration: 'none' }}>Analytics</Link>
+              <Link href="/test-api" style={{ color: 'white', textDecoration: 'none' }}>Test API</Link>
             </div>
             <p style={{ fontSize: '14px', opacity: 0.6 }}>
               Built with Next.js • TypeScript • Gemini AI
@@ -369,19 +405,19 @@ const StatItem = ({ value, label }: { value: string; label: string }) => (
 
 // Features data
 const features = [
-  { icon: FileText, title: 'Multi-Format Support', description: 'Extract from PDF, DOCX, PPTX, HTML, TXT and more. Works with any curriculum document.' },
-  { icon: Bot, title: 'AI-Powered Extraction', description: 'Powered by Google Gemini AI for intelligent, context-aware data extraction.' },
-  { icon: Zap, title: 'Real-Time Processing', description: 'Watch courses appear as they are extracted. Live progress tracking included.' },
-  { icon: BarChart3, title: 'Analytics Dashboard', description: 'Track token usage, extraction history, and optimize your workflow.' },
-  { icon: Save, title: 'Auto-Save & History', description: 'All extractions are saved automatically. Access and manage anytime.' },
-  { icon: Download, title: 'Export Options', description: 'Download as CSV for easy import into spreadsheets and databases.' },
+  { icon: Upload, title: 'Course Harvester', description: 'Extract courses from curriculum PDFs with AI. Real-time processing with live progress tracking.', link: '/courseharvester' },
+  { icon: Database, title: 'Master Database', description: 'Build master course database from catalog PDFs. Auto-save, batch processing, and duplicate detection.', link: '/masterdatabase' },
+  { icon: GitBranch, title: 'Mapping Engine', description: 'Map extracted courses to master database. AI-powered similarity matching with manual refinement.', link: '/map' },
+  { icon: FolderOpen, title: 'Extraction History', description: 'Browse all extractions with detailed views. Download CSV exports and manage saved data.', link: '/extractions' },
+  { icon: BarChart3, title: 'Analytics Dashboard', description: 'Track token usage, API consumption, and extraction statistics across all operations.', link: '/tokens' },
+  { icon: TestTube, title: 'API Testing', description: 'Test Gemini API integration, check model availability, and debug extraction issues.', link: '/test-api' },
 ]
 
 // Steps data
 const steps = [
-  { title: 'Upload Your Document', description: 'Drag and drop or select your curriculum PDF, Word document, or presentation file.' },
-  { title: 'Select Page Range', description: 'Choose specific pages to extract or process the entire document at once.' },
-  { title: 'Get Structured Data', description: 'AI extracts course names, codes, descriptions, prerequisites, and more into a clean table.' },
+  { title: 'Extract Courses', description: 'Use Course Harvester to extract courses from curriculum PDFs with real-time AI processing.' },
+  { title: 'Build Master Database', description: 'Create master course catalog from course catalog PDFs with batch processing and auto-save.' },
+  { title: 'Map & Refine', description: 'Use AI-powered mapping to match extracted courses to master database with manual refinement tools.' },
 ]
 
 export default Home
