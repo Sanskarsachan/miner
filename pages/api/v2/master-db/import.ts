@@ -5,6 +5,7 @@ interface MasterCourse {
   _id?: string;
   category: string;
   subCategory: string;
+  programSubjectArea?: string;
   courseCode: string;
   courseName: string;
   courseTitle: string;
@@ -13,6 +14,7 @@ interface MasterCourse {
   level: string;
   gradReq: string;
   credit: string;
+  certification?: string;
   filename: string;
   addedAt?: string;
   [key: string]: any;
