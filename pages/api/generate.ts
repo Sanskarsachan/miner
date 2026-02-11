@@ -56,7 +56,7 @@ export default async function handler(
 
     // Forward to Gemini's v1beta generateContent endpoint
     // ⚠️ CRITICAL: API key in Authorization header, NOT in URL
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent`
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent`
 
     const r = await fetch(url, {
       method: 'POST',

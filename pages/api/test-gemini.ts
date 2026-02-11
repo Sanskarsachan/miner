@@ -27,7 +27,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     // Simple test prompt
     const testPrompt = "Return this exact JSON array: [{\"test\": \"hello\"}]"
     
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=${keyData.key}`
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${keyData.key}`
+    console.log('[test-gemini] Testing with model: gemini-2.5-flash')
     console.log('[test-gemini] Calling Gemini API...')
 
     const response = await fetch(url, {
