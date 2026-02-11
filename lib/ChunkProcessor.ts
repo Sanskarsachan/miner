@@ -162,17 +162,6 @@ export class ChunkProcessor {
         console.error(`[ChunkProcessor] ❌ API returned HTTP ${response.status}`)
         console.error('[ChunkProcessor] Response:', JSON.stringify(data).substring(0, 500))
 
-        // Handle specific error types from backend
-        if (data?.error === 'GEMINI_NO_CONTENT') {
-          console.error('[ChunkProcessor] ❌❌❌ GEMINI RETURNED NO CONTENT ❌❌❌')
-          console.error('[ChunkProcessor] Finish reason:', data.finishReason)
-          console.error('[ChunkProcessor] Block reason:', data.blockReason)
-          console.error('[ChunkProcessor] Full Gemini response:', JSON.stringify(data.fullResponse))
-          throw new Error(
-            `Gemini API failed: ${data.message}. Finish: ${data.finishReason}, Block: ${data.blockReason || 'none'}`
-          )
-        }
-
         // Handle rate limiting - throw a special error that the UI can catch
         if (response.status === 429) {
           const rateLimitError = new Error(
@@ -185,15 +174,10 @@ export class ChunkProcessor {
           throw rateLimitError
         }
 
-        // For 500 errors, server returns empty array to avoid crashing client
-        // Log but continue with empty result
+        // For 500 errors, log and return empty array
         if (response.status === 500) {
-          console.error('[ChunkProcessor] ❌ API returned 500 error.')
+          console.error('[ChunkProcessor] ❌ API returned 500 error. Check server logs for details.')
           console.error('[ChunkProcessor] Error details:', JSON.stringify(data))
-          // If there's specific error info, throw it
-          if (data?.error) {
-            throw new Error(`Server error: ${data.error} - ${data.message || 'Check logs'}`)
-          }
           // Return empty array - client will show "0 courses extracted"
           return []
         }

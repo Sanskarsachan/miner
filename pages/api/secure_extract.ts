@@ -348,27 +348,21 @@ ${text}`
       console.error('[secure_extract] ===== FULL GEMINI RESPONSE START =====')
       console.error(JSON.stringify(geminiData, null, 2))
       console.error('[secure_extract] ===== FULL GEMINI RESPONSE END =====')
+      console.error('[secure_extract] Finish reason:', geminiData.candidates?.[0]?.finishReason)
+      console.error('[secure_extract] Block reason:', geminiData.promptFeedback?.blockReason)
       logEntry.error = 'No text content in Gemini response'
       requestLogs.unshift(logEntry)
       if (requestLogs.length > 10) requestLogs.pop()
       
-      // Return error object instead of empty array so frontend knows it failed
-      return res.status(500).json({ 
-        error: 'GEMINI_NO_CONTENT',
-        message: 'Gemini returned no content. Check server logs for full response.',
-        hasCandidates: !!geminiData.candidates,
-        candidatesCount: geminiData.candidates?.length || 0,
-        finishReason: geminiData.candidates?.[0]?.finishReason,
-        blockReason: geminiData.promptFeedback?.blockReason,
-        fullResponse: geminiData
-      })
+      // Return empty array (keep 200 for frontend compatibility)
+      return res.status(200).json([])
     }
 
     console.log('[secure_extract] Gemini returned text, length:', responseContent.length)
     console.log('[secure_extract] Content preview (first 500):', responseContent.substring(0, 500))
     console.log('[secure_extract] Content preview (last 200):', responseContent.substring(Math.max(0, responseContent.length - 200)))
 
-    // CRITICAL CHECK: If Gemini literally returned "[]" as text, that's a problem
+    // CRITICAL CHECK: If Gemini literally returned "[]" as text, log it
     if (responseContent.trim() === '[]') {
       console.error('[secure_extract] ❌❌❌ GEMINI RETURNED LITERAL EMPTY ARRAY "[]" ❌❌❌')
       console.error('[secure_extract] This means Gemini processed the request but found NO courses')
@@ -382,14 +376,8 @@ ${text}`
       requestLogs.unshift(logEntry)
       if (requestLogs.length > 10) requestLogs.pop()
       
-      return res.status(200).json({
-        error: 'NO_COURSES_FOUND',
-        message: 'Gemini processed the document but found no courses. The document may not contain course information in a recognizable format.',
-        textLength: text.length,
-        textPreview: text.substring(0, 300),
-        finishReason: geminiData.candidates?.[0]?.finishReason,
-        safetyRatings: geminiData.candidates?.[0]?.safetyRatings
-      })
+      // Return empty array (Gemini explicitly said no courses found)
+      return res.status(200).json([])
     }
 
     // Extract JSON array from response
