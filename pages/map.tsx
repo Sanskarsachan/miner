@@ -1,12 +1,14 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Download, Trash2, Search, AlertCircle, CheckCircle } from 'lucide-react';
+import { Download, Trash2, Search, AlertCircle, CheckCircle, Sparkles, RefreshCw } from 'lucide-react';
 import Script from 'next/script';
 import Header from '@/components/Header';
+import ApiKeySelector from '@/components/ApiKeySelector';
 
 interface MasterCourse {
   _id?: string;
   category: string;
   subCategory: string;
+  programSubjectArea?: string;
   courseCode: string;
   courseName: string;
   courseTitle: string;
@@ -15,6 +17,7 @@ interface MasterCourse {
   level: string;
   gradReq: string;
   credit: string;
+  certification?: string;
   filename: string;
   addedAt?: string;
   [key: string]: any;
@@ -35,22 +38,149 @@ export default function MapPage() {
   const [masterData, setMasterData] = useState<MasterCourse[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [filterField, setFilterField] = useState<string>('courseName');
-  const [apiKey, setApiKey] = useState('');
+  const [apiKeyId, setApiKeyId] = useState('');
   const [extractionProgress, setExtractionProgress] = useState<ExtractionProgress>({
     pagesProcessed: 0,
     totalPages: 0,
     coursesFound: 0,
     currentBatch: 0,
   });
+  const [pageRangeStart, setPageRangeStart] = useState(1);
+  const [pageRangeEnd, setPageRangeEnd] = useState(0);
   const [isExtracting, setIsExtracting] = useState(false);
+  const [showCleaningModal, setShowCleaningModal] = useState(false);
+  const [cleaningProgress, setCleaningProgress] = useState(0);
+  const [isCleaning, setIsCleaning] = useState(false);
+  const [cleaningStats, setCleaningStats] = useState({ before: 0, after: 0, expanded: 0 });
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Load API key from localStorage on mount
-  useEffect(() => {
-    const savedKey = localStorage.getItem('geminiApiKey');
-    if (savedKey) {
-      setApiKey(savedKey);
+  /**
+   * Clean course name - remove special characters, extra spaces
+   */
+  const cleanCourseName = (name: string): string => {
+    return name
+      .replace(/[^\w\s\-&().,]/g, '') // Remove special chars except common ones
+      .replace(/\s+/g, ' ') // Normalize spaces
+      .trim();
+  };
+
+  /**
+   * Expand course codes like "1001030/31/32/34" into separate courses
+   * Example: "1001030/31/32/34" → ["1001030", "1001031", "1001032", "1001034"]
+   */
+  const expandCourseCode = (courseCode: string): string[] => {
+    // Check if code contains slashes (e.g., "1001030/31/32/34")
+    if (!courseCode.includes('/')) {
+      return [courseCode.trim()];
     }
+
+    const parts = courseCode.split('/').map(p => p.trim());
+    if (parts.length === 0) return [courseCode];
+
+    const basePart = parts[0];
+    if (!/^\d+$/.test(basePart)) {
+      // Not a numeric code, return as-is
+      return [courseCode.trim()];
+    }
+
+    // Extract the base (all but last 2 digits)
+    const basePrefix = basePart.slice(0, -2);
+    const codes: string[] = [basePart];
+
+    // Process remaining parts
+    for (let i = 1; i < parts.length; i++) {
+      const part = parts[i];
+      if (/^\d{1,2}$/.test(part)) {
+        // It's a suffix (like "31", "32")
+        codes.push(basePrefix + part);
+      } else if (/^\d+$/.test(part)) {
+        // It's a full code
+        codes.push(part);
+      }
+    }
+
+    return codes;
+  };
+
+  /**
+   * Clean and expand master data  
+   * - Remove special characters from course names
+   * - Expand course codes like "1001030/31/32/34"
+   */
+  const cleanAndExpandData = async () => {
+    if (masterData.length === 0) {
+      setError('No data to clean');
+      return;
+    }
+
+    setShowCleaningModal(true);
+    setIsCleaning(true);
+    setCleaningProgress(0);
+    setError(null);
+
+    try {
+      const statsBefore = masterData.length;
+      const cleanedData: MasterCourse[] = [];
+      
+      for (let i = 0; i < masterData.length; i++) {
+        const course = masterData[i];
+        const expandedCodes = expandCourseCode(course.courseCode);
+
+        // Create a course for each expanded code
+        expandedCodes.forEach((code) => {
+          cleanedData.push({
+            ...course,
+            courseCode: code,
+            courseName: cleanCourseName(course.courseName),
+            courseTitle: cleanCourseName(course.courseTitle),
+          });
+        });
+
+        // Update progress
+        setCleaningProgress(Math.round(((i + 1) / masterData.length) * 100));
+        
+        // Yield to UI
+        if (i % 10 === 0) {
+          await new Promise(r => setTimeout(r, 0));
+        }
+      }
+
+      const statsAfter = cleanedData.length;
+      const statsExpanded = statsAfter - statsBefore;
+      setCleaningStats({ before: statsBefore, after: statsAfter, expanded: statsExpanded });
+
+      // Update database with cleaned data
+      const response = await fetch('/api/v2/master-db/import', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ courses: cleanedData, replaceAll: true }),
+      });
+
+      const result = await response.json();
+      if (result.success) {
+        setSuccess(true);
+        await fetchMasterData();
+        setTimeout(() => {
+          setShowCleaningModal(false);
+          setIsCleaning(false);
+        }, 2000);
+      } else {
+        setError(result.error || 'Cleaning failed');
+        setIsCleaning(false);
+      }
+    } catch (err) {
+      const errorMsg = err instanceof Error ? err.message : String(err);
+      setError(`Cleaning failed: ${errorMsg}`);
+      setIsCleaning(false);
+    } finally {
+      setCleaningProgress(100);
+    }
+  };
+
+  // Remove old localStorage API key loading - now using API key pool
+  useEffect(() => {
+    // Load master data on mount
+    fetchMasterData();
   }, []);
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -76,23 +206,44 @@ export default function MapPage() {
       throw new Error('CSV must have at least a header row');
     }
 
-    const headers = lines[0].split('\t');
+    const delimiter = lines[0].includes('\t') ? '\t' : ',';
+    const headers = lines[0].split(delimiter);
+    const normalizeHeader = (value: string) =>
+      value
+        .toLowerCase()
+        .replace(/[^a-z0-9]/g, '')
+        .trim();
+    const headerIndex = new Map(headers.map((h, idx) => [normalizeHeader(h), idx]));
+    const getValue = (values: string[], keys: string[], fallbackIndex?: number) => {
+      for (const key of keys) {
+        const idx = headerIndex.get(normalizeHeader(key));
+        if (idx !== undefined && values[idx] !== undefined) {
+          return values[idx]?.trim() || '-';
+        }
+      }
+      if (fallbackIndex !== undefined) {
+        return values[fallbackIndex]?.trim() || '-';
+      }
+      return '-';
+    };
     const courses: MasterCourse[] = [];
 
     for (let i = 1; i < lines.length; i++) {
-      const values = lines[i].split('\t');
+      const values = lines[i].split(delimiter);
       if (values.length > 1) {
         const course: MasterCourse = {
-          category: values[0]?.trim() || '-',
-          subCategory: values[1]?.trim() || '-',
-          courseCode: values[2]?.trim() || '-',
-          courseName: values[3]?.trim() || '-',
-          courseTitle: values[4]?.trim() || '-',
-          levelLength: values[5]?.trim() || '-',
-          length: values[6]?.trim() || '-',
-          level: values[7]?.trim() || '-',
-          gradReq: values[8]?.trim() || '-',
-          credit: values[9]?.trim() || '-',
+          category: getValue(values, ['Category'], 0),
+          subCategory: getValue(values, ['Sub-Category', 'SubCategory'], 1),
+          programSubjectArea: getValue(values, ['Program/Subject Area', 'Program Subject Area', 'Program']),
+          courseCode: getValue(values, ['Course Code', 'CourseCode', 'Number'], 2),
+          courseName: getValue(values, ['Course Name', 'CourseName', 'Course Abbreviated Title'], 3),
+          courseTitle: getValue(values, ['Course Title', 'CourseTitle', 'Program/Course Title'], 4),
+          levelLength: getValue(values, ['Level/Length', 'LevelLength', 'Course Level'], 5),
+          length: getValue(values, ['Length', 'Course Length', 'Crse Length'], 6),
+          level: getValue(values, ['Level'], 7),
+          gradReq: getValue(values, ['Graduation Requirement', 'Graduation Requirements', 'Requirements'], 8),
+          credit: getValue(values, ['Credit'], 9),
+          certification: getValue(values, ['Certification'], 10),
           filename: file?.name || 'unknown',
         };
         courses.push(course);
@@ -127,38 +278,21 @@ export default function MapPage() {
 
   const extractCoursesFromText = async (text: string): Promise<MasterCourse[]> => {
     try {
-      if (!apiKey) {
+      if (!apiKeyId) {
         throw new Error('API key is required for course extraction');
       }
 
-      // Craft the Gemini API payload for course extraction
-      const payload = {
-        contents: [
-          {
-            parts: [
-              {
-                text: `Extract all courses from the following text. Return a JSON array of courses with these fields:
-Category, SubCategory, CourseCode, CourseName, CourseTitle, LevelLength, Length, Level, GraduationRequirement, Credit
-
-Text:
-${text}
-
-Return ONLY a valid JSON array, no other text. Example format:
-[{"Category":"CS","SubCategory":"Programming","CourseCode":"101","CourseName":"Intro","CourseTitle":"Introduction to CS","LevelLength":"Semester","Length":"16 weeks","Level":"Undergraduate","GraduationRequirement":"No","Credit":"3"}]`,
-              },
-            ],
-          },
-        ],
-      };
-
-      const response = await fetch('/api/generate', {
+      // Use secure_extract endpoint with API key pool
+      const response = await fetch('/api/secure_extract', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          apiKey: apiKey,
-          payload: payload,
+          text: text,
+          apiKeyId: apiKeyId,
+          filename: file?.name || 'master-import.pdf',
+          extractionType: 'master_db',
         }),
       });
 
@@ -203,14 +337,27 @@ Return ONLY a valid JSON array, no other text. Example format:
       return coursesArray.map((course: any) => ({
         category: course.Category || course.category || '-',
         subCategory: course.SubCategory || course.subCategory || '-',
+        programSubjectArea:
+          course.ProgramSubjectArea || course.programSubjectArea || course.Program || course.program || '-',
         courseCode: course.CourseCode || course.courseCode || '-',
-        courseName: course.CourseName || course.courseName || '-',
-        courseTitle: course.CourseTitle || course.courseTitle || '-',
+        courseName:
+          course.CourseName ||
+          course.courseName ||
+          course.CourseAbbrevTitle ||
+          course.courseAbbrevTitle ||
+          '-',
+        courseTitle:
+          course.CourseTitle ||
+          course.courseTitle ||
+          course.ProgramSubjectArea ||
+          course.programSubjectArea ||
+          '-',
         levelLength: course.LevelLength || course.levelLength || '-',
-        length: course.Length || course.length || '-',
-        level: course.Level || course.level || '-',
+        length: course.Length || course.length || course.CourseLength || course.courseLength || '-',
+        level: course.CourseLevel || course.courseLevel || course.Level || course.level || '-',
         gradReq: course.GraduationRequirement || course.gradReq || '-',
         credit: course.Credit || course.credit || '-',
+        certification: course.Certification || course.certification || '-',
         filename: file?.name || 'unknown',
       }));
     } catch (err) {
@@ -226,8 +373,8 @@ Return ONLY a valid JSON array, no other text. Example format:
       return;
     }
 
-    if (file.type === 'application/pdf' && !apiKey) {
-      setError('Please enter your Gemini API Key to extract from PDFs');
+    if (file.type === 'application/pdf' && !apiKeyId) {
+      setError('Please select an API Key to extract from PDFs');
       return;
     }
 
@@ -243,14 +390,23 @@ Return ONLY a valid JSON array, no other text. Example format:
       // Handle PDF files with intelligent batching (5 pages per request)
       if (file.type === 'application/pdf') {
         const pageTexts = await extractPdfText(file);
-        setExtractionProgress((p) => ({ ...p, totalPages: pageTexts.length }));
+        const totalPages = pageTexts.length;
+        const safeStart = Math.max(1, pageRangeStart || 1);
+        const safeEnd = pageRangeEnd && pageRangeEnd > 0 ? Math.min(pageRangeEnd, totalPages) : totalPages;
+
+        if (safeStart > safeEnd) {
+          throw new Error(`Invalid page range: start ${safeStart} is greater than end ${safeEnd}`);
+        }
+
+        const selectedPages = pageTexts.slice(safeStart - 1, safeEnd);
+        setExtractionProgress((p) => ({ ...p, totalPages: selectedPages.length }));
 
         const PAGES_PER_BATCH = 5;
         let allExtractedCourses: MasterCourse[] = [];
 
-        for (let batchIdx = 0; batchIdx < pageTexts.length; batchIdx += PAGES_PER_BATCH) {
-          const batchEnd = Math.min(batchIdx + PAGES_PER_BATCH, pageTexts.length);
-          const batchPages = pageTexts.slice(batchIdx, batchEnd);
+        for (let batchIdx = 0; batchIdx < selectedPages.length; batchIdx += PAGES_PER_BATCH) {
+          const batchEnd = Math.min(batchIdx + PAGES_PER_BATCH, selectedPages.length);
+          const batchPages = selectedPages.slice(batchIdx, batchEnd);
           const batchText = batchPages.join('\n---PAGE BREAK---\n');
 
           // Update progress
@@ -270,7 +426,7 @@ Return ONLY a valid JSON array, no other text. Example format:
             }));
 
             // Delay between batches to avoid rate limiting
-            if (batchEnd < pageTexts.length) {
+            if (batchEnd < selectedPages.length) {
               await new Promise((resolve) => setTimeout(resolve, 1500));
             }
           } catch (batchErr) {
@@ -334,6 +490,32 @@ Return ONLY a valid JSON array, no other text. Example format:
     }
   };
 
+  const downloadTemplate = () => {
+    const headers = [
+      'Category',
+      'Sub-Category',
+      'Program/Subject Area',
+      'Course Code',
+      'Course Name',
+      'Course Title',
+      'Level/Length',
+      'Length',
+      'Level',
+      'Graduation Requirement',
+      'Credit',
+      'Certification',
+    ];
+
+    const csv = '\uFEFF' + headers.join(',') + '\n';
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'master-database-template.csv';
+    a.click();
+    window.URL.revokeObjectURL(url);
+  };
+
   const exportCSV = () => {
     if (filteredData.length === 0) {
       setError('No data to export');
@@ -343,6 +525,7 @@ Return ONLY a valid JSON array, no other text. Example format:
     const headers = [
       'Category',
       'Sub-Category',
+      'Program/Subject Area',
       'Course Code',
       'Course Name',
       'Course Title',
@@ -351,12 +534,14 @@ Return ONLY a valid JSON array, no other text. Example format:
       'Level',
       'Graduation Requirement',
       'Credit',
+      'Certification',
       'Filename',
     ];
 
     const rows = filteredData.map((course) => [
       course.category,
       course.subCategory,
+      course.programSubjectArea,
       course.courseCode,
       course.courseName,
       course.courseTitle,
@@ -365,6 +550,7 @@ Return ONLY a valid JSON array, no other text. Example format:
       course.level,
       course.gradReq,
       course.credit,
+      course.certification,
       course.filename,
     ]);
 
@@ -550,6 +736,18 @@ Return ONLY a valid JSON array, no other text. Example format:
           cursor: not-allowed;
         }
 
+        .btn-secondary {
+          background: white;
+          color: #4b5563;
+          border: 1px solid #d1d5db;
+          flex: 1;
+        }
+
+        .btn-secondary:hover:not(:disabled) {
+          background: #f3f4f6;
+          border-color: #9ca3af;
+        }
+
         .alert {
           padding: 12px;
           border-radius: 8px;
@@ -733,15 +931,11 @@ Return ONLY a valid JSON array, no other text. Example format:
 
             <div className="input-group">
               <label className="label">Gemini API Key (Required for PDF extraction)</label>
-              <input
-                type="password"
-                value={apiKey}
-                onChange={(e) => {
-                  setApiKey(e.target.value);
-                  localStorage.setItem('geminiApiKey', e.target.value);
-                }}
-                placeholder="Enter your Gemini API key from aistudio.google.com"
-                style={{ marginBottom: '16px' }}
+              <ApiKeySelector
+                value={apiKeyId}
+                onChange={setApiKeyId}
+                disabled={loading}
+                showStats={true}
               />
             </div>
 
@@ -759,7 +953,7 @@ Return ONLY a valid JSON array, no other text. Example format:
               >
                 <div className="drop-text">Drag & drop your file here or click to select</div>
                 <div className="drop-subtext">
-                  CSV/TSV format with tab-separated headers: Category, Sub-Category, Course Code, Course Name, etc.
+                  CSV/TSV format with headers: Category, Sub-Category, Program/Subject Area, Course Code, Course Name, Certification, etc.
                   <br />
                   OR PDF file to extract courses using AI (5 pages per API call)
                 </div>
@@ -773,6 +967,35 @@ Return ONLY a valid JSON array, no other text. Example format:
               </div>
               {file && <div className="file-info">✓ {file.name}</div>}
             </div>
+
+            {file?.type === 'application/pdf' && (
+              <div className="input-group">
+                <label className="label">PDF Page Range (optional)</label>
+                <div style={{ display: 'flex', gap: '12px' }}>
+                  <div style={{ flex: 1 }}>
+                    <input
+                      type="number"
+                      min={1}
+                      value={pageRangeStart}
+                      onChange={(e) => setPageRangeStart(Number(e.target.value || 1))}
+                      placeholder="Start page"
+                    />
+                  </div>
+                  <div style={{ flex: 1 }}>
+                    <input
+                      type="number"
+                      min={0}
+                      value={pageRangeEnd}
+                      onChange={(e) => setPageRangeEnd(Number(e.target.value || 0))}
+                      placeholder="End page (0 = all)"
+                    />
+                  </div>
+                </div>
+                <div className="drop-subtext" style={{ marginTop: '8px' }}>
+                  Use 1-based pages. Set End to 0 to process all pages.
+                </div>
+              </div>
+            )}
 
             {isExtracting && (
               <div style={{ marginBottom: '16px', padding: '16px', background: '#f0f4f8', borderRadius: '8px' }}>
@@ -792,9 +1015,16 @@ Return ONLY a valid JSON array, no other text. Example format:
               <button
                 className="btn-primary"
                 onClick={uploadToDatabase}
-                disabled={loading || !file || (file.type === 'application/pdf' && !apiKey)}
+                disabled={loading || !file || (file.type === 'application/pdf' && !apiKeyId)}
               >
                 {loading ? (file.type === 'application/pdf' ? 'Extracting & Importing...' : 'Importing...') : 'Import Data'}
+              </button>
+              <button
+                className="btn-secondary"
+                onClick={downloadTemplate}
+                type="button"
+              >
+                Download CSV Template
               </button>
             </div>
           </div>
@@ -834,6 +1064,7 @@ Return ONLY a valid JSON array, no other text. Example format:
                   <option value="courseName">Course Name</option>
                   <option value="courseCode">Course Code</option>
                   <option value="category">Category</option>
+                  <option value="programSubjectArea">Program</option>
                   <option value="filename">Filename</option>
                 </select>
               </div>
@@ -842,6 +1073,19 @@ Return ONLY a valid JSON array, no other text. Example format:
                 <button className="export-btn" onClick={exportCSV}>
                   <Download size={14} />
                   Export CSV
+                </button>
+                <button 
+                  className="export-btn" 
+                  onClick={cleanAndExpandData}
+                  disabled={isCleaning || masterData.length === 0}
+                  style={{ 
+                    background: isCleaning ? '#e0e7ff' : 'linear-gradient(135deg, #667eea, #764ba2)',
+                    color: 'white',
+                    borderColor: 'transparent'
+                  }}
+                >
+                  <Sparkles size={14} />
+                  {isCleaning ? 'Cleaning...' : 'Clean Data'}
                 </button>
               </div>
 
@@ -852,6 +1096,7 @@ Return ONLY a valid JSON array, no other text. Example format:
                       <tr>
                         <th>Category</th>
                         <th>Sub-Category</th>
+                        <th>Program</th>
                         <th>Code</th>
                         <th>Course Name</th>
                         <th>Course Title</th>
@@ -867,6 +1112,7 @@ Return ONLY a valid JSON array, no other text. Example format:
                         <tr key={course._id || idx}>
                           <td>{course.category}</td>
                           <td>{course.subCategory}</td>
+                          <td>{course.programSubjectArea}</td>
                           <td>
                             <span className="badge">{course.courseCode}</span>
                           </td>
@@ -906,6 +1152,94 @@ Return ONLY a valid JSON array, no other text. Example format:
           )}
         </div>
       </div>
+
+      {/* Cleaning Progress Modal */}
+      {showCleaningModal && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          background: 'rgba(0, 0, 0, 0.5)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 1000,
+        }}>
+          <div style={{
+            background: 'white',
+            borderRadius: '12px',
+            padding: '32px',
+            maxWidth: '500px',
+            width: '90%',
+            boxShadow: '0 20px 60px rgba(0, 0, 0, 0.3)',
+          }}>
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '12px',
+              marginBottom: '20px',
+            }}>
+              <Sparkles size={24} style={{ color: '#667eea' }} />
+              <h2 style={{ fontSize: '20px', fontWeight: '700', color: '#1f2937', margin: 0 }}>
+                {cleaningProgress === 100 && !isCleaning ? 'Cleaning Complete!' : 'Cleaning Data...'}
+              </h2>
+            </div>
+
+            <div style={{ marginBottom: '24px' }}>
+              <div style={{
+                background: '#f3f4f6',
+                borderRadius: '8px',
+                height: '8px',
+                overflow: 'hidden',
+              }}>
+                <div style={{
+                  background: 'linear-gradient(135deg, #667eea, #764ba2)',
+                  height: '100%',
+                  width: `${cleaningProgress}%`,
+                  transition: 'width 0.3s ease',
+                }} />
+              </div>
+              <div style={{
+                marginTop: '8px',
+                fontSize: '13px',
+                color: '#6b7280',
+                textAlign: 'center',
+              }}>
+                {cleaningProgress}% Complete
+              </div>
+            </div>
+
+            {cleaningProgress === 100 && !isCleaning && (
+              <div style={{
+                padding: '16px',
+                background: '#ecfdf5',
+                borderRadius: '8px',
+                borderLeft: '3px solid #10b981',
+                marginTop: '16px',
+              }}>
+                <div style={{ fontSize: '14px', color: '#065f46', lineHeight: '1.6' }}>
+                  <div><strong>Before:</strong> {cleaningStats.before} courses</div>
+                  <div><strong>After:</strong> {cleaningStats.after} courses</div>
+                  <div><strong>Expanded:</strong> {cleaningStats.expanded} new courses</div>
+                </div>
+              </div>
+            )}
+
+            {isCleaning && (
+              <div style={{
+                fontSize: '13px',
+                color: '#6b7280',
+                textAlign: 'center',
+                fontStyle: 'italic',
+              }}>
+                Removing special characters and expanding course codes...
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </>
   );
 }
