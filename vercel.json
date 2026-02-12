@@ -2,10 +2,10 @@
   "version": 2,
   "functions": {
     "pages/api/secure_extract.ts": {
-      "maxDuration": 45
+      "maxDuration": 60
     },
     "pages/api/upload_generate.ts": {
-      "maxDuration": 45
+      "maxDuration": 60
     }
   },
   "headers": [

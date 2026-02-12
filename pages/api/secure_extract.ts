@@ -185,6 +185,11 @@ ${inputText}`
     while (retryCount < maxRetries) {
       try {
         console.log(`[secure_extract] Fetch attempt ${retryCount + 1}/${maxRetries}`)
+        
+        // Create abort controller for timeout (50s to leave buffer for Vercel)
+        const controller = new AbortController()
+        const timeoutId = setTimeout(() => controller.abort(), 50000)
+        
         response = await fetch(url, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -196,9 +201,13 @@ ${inputText}`
             ],
             generationConfig: {
               temperature: 0.1,
+              maxOutputTokens: 4096, // Limit output for faster responses
             },
           }),
+          signal: controller.signal,
         })
+        
+        clearTimeout(timeoutId)
         console.log('[secure_extract] Fetch succeeded, status:', response.status)
         break // Success, exit retry loop
       } catch (fetchError) {
@@ -212,7 +221,7 @@ ${inputText}`
           throw fetchError
         }
         // Wait before retry
-        await new Promise(r => setTimeout(r, 1000 * retryCount))
+        await new Promise(r => setTimeout(r, 500 * retryCount)) // Reduced from 1000ms
       }
     }
 
@@ -258,14 +267,24 @@ ${inputText}`
               
               // Recursive retry - make the API call again
               console.log('[secure_extract] Retrying after rate limit wait...')
+              
+              const retryController = new AbortController()
+              const retryTimeoutId = setTimeout(() => retryController.abort(), 50000)
+              
               const retryResponse = await fetch(url, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                   contents: [{ parts: [{ text: prompt }] }],
-                  generationConfig: { temperature: 0.1 },
+                  generationConfig: { 
+                    temperature: 0.1,
+                    maxOutputTokens: 4096,
+                  },
                 }),
+                signal: retryController.signal,
               })
+              
+              clearTimeout(retryTimeoutId)
               
               if (retryResponse.ok) {
                 const retryText = await retryResponse.text()
