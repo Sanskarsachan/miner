@@ -269,7 +269,7 @@ ${inputText}`
             ],
             generationConfig: {
               temperature: 0.1,
-              maxOutputTokens: 8192, // Increased from 4096 to prevent truncation of course lists
+              maxOutputTokens: 16000, // Increased to handle full course lists per chunk
             },
           }),
           signal: controller.signal,
@@ -346,7 +346,7 @@ ${inputText}`
                   contents: [{ parts: [{ text: prompt }] }],
                   generationConfig: { 
                     temperature: 0.1,
-                    maxOutputTokens: 8192, // Increased from 4096 to prevent truncation
+                    maxOutputTokens: 16000, // Increased to handle full course lists per chunk
                   },
                 }),
                 signal: retryController.signal,
@@ -491,7 +491,7 @@ ${inputText}`
               ],
               generationConfig: {
                 temperature: 0.1,
-                maxOutputTokens: 8192, // Increased from 4096 to prevent truncation
+                maxOutputTokens: 16000, // Increased to handle full course lists per chunk
               },
             }),
             signal: fallbackController.signal,
@@ -560,13 +560,37 @@ ${inputText}`
           return null
         }
         
-        const lastBrace = text.lastIndexOf('}')
-        if (lastBrace === -1 || lastBrace <= start) {
-          console.error('[secure_extract] No closing } found after [')
+        // Smart recovery: find all COMPLETE course objects, even if the response is truncated
+        let pos = start + 1 // Position after [
+        let braceDepth = 0
+        let completeObjects = 0
+        let lastValidPos = start + 1 // Position after [
+        
+        for (let i = pos; i < text.length; i++) {
+          const ch = text[i]
+          
+          if (ch === '{') {
+            braceDepth++
+          } else if (ch === '}') {
+            braceDepth--
+            
+            // When we close an object at depth 0 (top level), we have a complete course
+            if (braceDepth === 0) {
+              completeObjects++
+              lastValidPos = i + 1 // Position after the }
+              console.log('[secure_extract] Found complete object #' + completeObjects + ' at position ' + i)
+            }
+          }
+        }
+        
+        if (completeObjects === 0) {
+          console.error('[secure_extract] No complete course objects found in response')
           return null
         }
         
-        const recovered = text.slice(start, lastBrace + 1) + ']'
+        // Close the array after the last complete object
+        const recovered = text.slice(start, lastValidPos) + ']'
+        console.log('[secure_extract] Recovered ' + completeObjects + ' complete course objects')
         console.log('[secure_extract] Recovered JSON length:', recovered.length)
         console.log('[secure_extract] First 200 chars:', recovered.substring(0, 200))
         console.log('[secure_extract] Last 100 chars:', recovered.substring(Math.max(0, recovered.length - 100)))
