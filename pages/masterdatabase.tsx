@@ -324,8 +324,8 @@ export default function MasterDatabasePage() {
       if (result.length > 0) {
         // Map and deduplicate courses
         const chunkCourses = result.map((course: any) => ({
-          category: course.Category || course.category || '-',
-          subCategory: course.SubCategory || course.subCategory || '-',
+          category: course.Category || course.category || course.SubCategory || course.subCategory || '-',
+          subCategory: course.SubCategory || course.subCategory || course.Category || course.category || '-',
           programSubjectArea:
             course.ProgramSubjectArea || course.programSubjectArea || course.Program || course.program || '-',
           courseCode: course.CourseCode || course.courseCode || '-',

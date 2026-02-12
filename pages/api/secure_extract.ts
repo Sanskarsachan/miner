@@ -157,30 +157,31 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       if (mode === 'master_db' || mode === 'master-db') {
         return `EXTRACT Florida DOE course catalog as JSON array ONLY. Return [ and ].
 
+ABSOLUTELY CRITICAL - SPLIT DURATION AND TERM ALWAYS:
+When you see "3/Y" pattern:
+- Extract ONLY the NUMBER before slash: CourseDuration = "3"
+- Extract ONLY the LETTER after slash: CourseTerm = "Y"
+- NEVER put "3/Y" into either field - ALWAYS split them!
+- If you see "2/S": Duration="2", Term="S"
+- If you see "3/Y": Duration="3", Term="Y"
+
 FIELD MAPPING (find these in order on each line):
-1. CourseCode = first number (e.g., 0100300)
-2. CourseAbbrevTitle = text after code (e.g., AP ART HISTORY)
-3. CourseDuration = NUMBER from "X/Y" pattern (e.g., 3 from "3/Y")
-4. CourseTerm = LETTER from "X/Y" pattern (e.g., Y from "3/Y")
-   ** PUT "3/Y" VALUE HERE - FIND IT AFTER COURSE NAME **
-5. GradeLevel = 2-letter code after X/Y (e.g., PF, PK, PA)
-6. Credit = decimal number (e.g., 1.0, 0.5)
-7. GraduationRequirement = remaining text on line
-8. CourseTitle = first indented line
-9. Certification = remaining indented lines
+1. Category/SubCategory = subject area/program type before course code
+2. CourseCode = first number (e.g., 0100300)
+3. CourseAbbrevTitle = text after code (e.g., AP ART HISTORY)
+4. CourseDuration = NUMBER from X/Y ONLY (e.g., "3" from "3/Y")
+5. CourseTerm = LETTER from X/Y ONLY (e.g., "Y" from "3/Y")
+6. GradeLevel = 2-letter code (e.g., PF, PK, PA)
+7. Credit = decimal number (e.g., 1.0, 0.5)
+8. GraduationRequirement = remaining content
+9. CourseTitle = descriptive title if available
+10. Certification = certification/requirement codes
 
-EXACT LOCATION OF X/Y:
-Line example: "0100300 AP ART HISTORY 3/Y PF 1.0 HUMANITIES 6 ART 6"
-                                       ^^^
-                            THIS IS WHAT YOU NEED!
-
-IN JSON: "CourseDuration": "3/Y" (OR if you split: "CourseDuration": "3", "CourseTerm": "Y")
-
-REQUIRED: Category, SubCategory, ProgramSubjectArea(null), CourseCode, CourseAbbrevTitle,
-CourseTitle, GradeLevel, CourseDuration, CourseTerm, GraduationRequirement, Credit, 
-Certification, CourseLevel
-
-NULL for missing (NOT "-" or "N/A"). Only rows with CourseCode AND Credit.
+OUTPUT REQUIREMENTS:
+- Every course MUST have CourseCode and at least CourseName or CourseAbbrevTitle
+- CourseDuration and CourseTerm MUST be separated (never "3/Y", always "3" and "Y")
+- Use null for missing Category/SubCategory, not empty string or dash
+- Extract ALL courses, even partial ones
 
 DOCUMENT:
 ${inputText}`
@@ -676,9 +677,32 @@ ${inputText}`
       logEntry.coursesExtracted = courses.length
       console.log('[secure_extract] Successfully parsed', courses.length, 'courses')
       
+      // POST-PROCESSING: Fix common extraction issues
+      courses = courses.map((course: any) => {
+        // Fix combined Duration/Term if they got merged (e.g., "2/S" in CourseTerm)
+        if (course.CourseTerm && course.CourseTerm.includes('/')) {
+          const [dur, term] = course.CourseTerm.split('/')
+          if (dur && term) {
+            console.log(`[secure_extract] Fixed combined Duration/Term: "${course.CourseTerm}" → Duration="${dur}", Term="${term}"`)
+            course.CourseDuration = course.CourseDuration || dur
+            course.CourseTerm = term
+          }
+        }
+        
+        // Fix if Duration has combined format too
+        if (course.CourseDuration && course.CourseDuration.includes('/')) {
+          const [dur, term] = course.CourseDuration.split('/')
+          console.log(`[secure_extract] Fixed combined in Duration: "${course.CourseDuration}" → Duration="${dur}", Term="${term}"`)
+          course.CourseDuration = dur
+          course.CourseTerm = course.CourseTerm || term
+        }
+        
+        return course
+      })
+      
       // Log first course for debugging
       if (courses.length > 0) {
-        console.log('[secure_extract] First course:', JSON.stringify(courses[0]).substring(0, 300))
+        console.log('[secure_extract] First course after post-processing:', JSON.stringify(courses[0]).substring(0, 300))
       }
     } catch (parseError) {
       const errMsg = parseError instanceof Error ? parseError.message : String(parseError)
