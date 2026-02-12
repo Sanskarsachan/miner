@@ -124,14 +124,33 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     const normalizedExtractionType = typeof extractionType === 'string' ? extractionType.trim().toLowerCase() : ''
     
+    // Check if document looks like master_db format (has pipes and codes)
+    const looksLikeMasterDB = text.includes('|') && text.match(/\|[A-Z\s-]+\|/)
+    const looksLikeNumbers = text.match(/\d{7}/) // Master DB course codes are 7 digits
+    const looksLikeK12 = text.match(/grade[s]?\s*\d/i) || text.match(/k-12/i) || text.match(/\bages?\s*\d/i)
+    
     // Auto-detect format if not specified
     let detectedType = normalizedExtractionType
     if (!detectedType) {
-      const isMasterDB = text.includes('|') && text.match(/\|[A-Z\s-]+\|/)
-      detectedType = isMasterDB ? 'master_db' : 'regular'
-      console.log('[secure_extract] Auto-detected format:', detectedType)
+      if (looksLikeMasterDB || looksLikeNumbers) {
+        detectedType = 'master_db'
+      } else {
+        detectedType = 'regular'
+      }
+      console.log('[secure_extract] Auto-detected format:', detectedType, '(pipes:', looksLikeMasterDB, ', 7-digit codes:', looksLikeNumbers, ', k12:', looksLikeK12, ')')
     } else {
       console.log('[secure_extract] Extraction type specified:', normalizedExtractionType)
+      
+      // WARN if specified format doesn't match detected format
+      const specifiedIsMasterDB = normalizedExtractionType.includes('master')
+      if (specifiedIsMasterDB && looksLikeK12 && !looksLikeMasterDB) {
+        console.warn('[secure_extract] ⚠️  WARNING: Specified master_db but document looks like K-12 (has grade levels, no pipes)')
+        console.warn('[secure_extract] If extraction fails, the format mismatch may be the cause')
+        console.warn('[secure_extract] Consider uploading K-12 docs to Course Harvester instead')
+      } else if (!specifiedIsMasterDB && looksLikeMasterDB) {
+        console.warn('[secure_extract] ⚠️  WARNING: Specified regular but document looks like Florida Master DB (has pipes)')
+        console.warn('[secure_extract] Will attempt with regular prompt, but may not extract correctly')
+      }
     }
 
     const buildPrompt = (mode: string, inputText: string) => {
@@ -406,7 +425,7 @@ ${inputText}`
     }
 
     // Extract the text content from Gemini response
-    const responseContent = geminiData.candidates?.[0]?.content?.parts?.[0]?.text
+    let responseContent = geminiData.candidates?.[0]?.content?.parts?.[0]?.text
     logEntry.geminiContentLength = responseContent?.length || 0
     
     console.log('[secure_extract] Has candidates?', !!geminiData.candidates)
@@ -441,21 +460,86 @@ ${inputText}`
     if (responseContent.trim() === '[]') {
       console.error('[secure_extract] ❌❌❌ GEMINI RETURNED LITERAL EMPTY ARRAY "[]" ❌❌❌')
       console.error('[secure_extract] This means Gemini processed the request but found NO courses')
-        console.error('[secure_extract] Format detected:', detectedType)
-        console.error('[secure_extract] API Key ID used:', apiKeyId || 'legacy direct key')
-        console.error('[secure_extract] Input text length:', text.length)
-        console.error('[secure_extract] Input text preview:', text.substring(0, 500))
-        console.error('[secure_extract] Finish reason:', geminiData.candidates?.[0]?.finishReason)
-        console.error('[secure_extract] Safety ratings:', JSON.stringify(geminiData.candidates?.[0]?.safetyRatings))
+      console.error('[secure_extract] Format used:', detectedType)
+      console.error('[secure_extract] API Key ID used:', apiKeyId || 'legacy direct key')
+      console.error('[secure_extract] Input text length:', text.length)
+      console.error('[secure_extract] Input text preview:', text.substring(0, 500))
+      console.error('[secure_extract] Finish reason:', geminiData.candidates?.[0]?.finishReason)
+      console.error('[secure_extract] Safety ratings:', JSON.stringify(geminiData.candidates?.[0]?.safetyRatings))
+      
+      // SMART FALLBACK: If master_db returned empty but document looks like K-12, retry with regular prompt
+      if ((detectedType === 'master_db' || detectedType === 'master-db') && (looksLikeK12 && !looksLikeMasterDB)) {
+        console.warn('[secure_extract] 🔄 FALLBACK: Master DB prompt returned empty, but document looks like K-12')
+        console.warn('[secure_extract] Retrying with regular K-12 extraction prompt...')
+        
+        // Rebuild prompt for regular format
+        const regularPrompt = buildPrompt('regular', text)
+        console.log('[secure_extract] Fallback prompt length:', regularPrompt.length)
+        
+        try {
+          const fallbackController = new AbortController()
+          const fallbackTimeoutId = setTimeout(() => fallbackController.abort(), 30000)
+          
+          const fallbackResponse = await fetch(url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              contents: [
+                {
+                  parts: [{ text: regularPrompt }],
+                },
+              ],
+              generationConfig: {
+                temperature: 0.1,
+                maxOutputTokens: 4096,
+              },
+            }),
+            signal: fallbackController.signal,
+          })
+          
+          clearTimeout(fallbackTimeoutId)
+          
+          if (fallbackResponse.ok) {
+            const fallbackText = await fallbackResponse.text()
+            const fallbackData = JSON.parse(fallbackText)
+            const fallbackContentText = fallbackData.candidates?.[0]?.content?.parts?.[0]?.text
+            
+            if (fallbackContentText && fallbackContentText.trim() !== '[]') {
+              console.log('[secure_extract] ✅ FALLBACK SUCCEEDED! Found courses with regular prompt')
+              responseContent = fallbackContentText // Use fallback content instead
+            } else {
+              console.error('[secure_extract] Fallback also returned empty array')
+              logEntry.error = `Both master_db and fallback regular returned empty - likely wrong document type`
+              requestLogs.unshift(logEntry)
+              if (requestLogs.length > 10) requestLogs.pop()
+              return res.status(200).json([])
+            }
+          } else {
+            console.error('[secure_extract] Fallback API call failed:', fallbackResponse.status)
+            logEntry.error = `Fallback extraction failed (${fallbackResponse.status})`
+            requestLogs.unshift(logEntry)
+            if (requestLogs.length > 10) requestLogs.pop()
+            return res.status(200).json([])
+          }
+        } catch (fallbackError) {
+          console.error('[secure_extract] Fallback error:', fallbackError)
+          logEntry.error = `Fallback extraction error`
+          requestLogs.unshift(logEntry)
+          if (requestLogs.length > 10) requestLogs.pop()
+          return res.status(200).json([])
+        }
+      } else {
         console.error('[secure_extract] ⚠️  POSSIBLE CAUSES:')
         console.error('   1) Format mismatch - document doesn\'t match prompt expectations')
         console.error('   2) Course content too ambiguous for Gemini')
         console.error('   3) Prompt asking for fields that don\'t exist in document')
         console.error('   4) Document has unusual structure')
         
-        // Log to help diagnose - maybe the prompt is bad or text format is wrong
         logEntry.error = `Gemini returned empty array - Format: ${detectedType}, Finish: ${geminiData.candidates?.[0]?.finishReason}`
-      return res.status(200).json([])
+        requestLogs.unshift(logEntry)
+        if (requestLogs.length > 10) requestLogs.pop()
+        return res.status(200).json([])
+      }
     }
 
     // Extract JSON array from response
