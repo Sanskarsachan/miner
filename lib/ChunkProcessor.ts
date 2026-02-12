@@ -22,6 +22,8 @@ export interface Course {
   Category?: string
   CourseName: string
   CourseCode?: string
+  CourseAbbrevTitle?: string  // For Florida master DB: abbreviated title
+  CourseTitle?: string        // For Florida master DB: full title
   GradeLevel?: string
   Length?: string
   CourseDuration?: string  // For Florida master DB: duration number (from "3/Y")
@@ -30,6 +32,8 @@ export interface Course {
   Credit?: string
   Details?: string
   CourseDescription?: string
+  GraduationRequirement?: string  // For Florida master DB: graduation requirements
+  Certification?: string          // For Florida master DB: certification info
   SourceFile?: string
 }
 
@@ -440,9 +444,7 @@ export class ChunkProcessor {
       console.warn(`  - This could mean: empty document, wrong format, or all chunks failed`)
     }
 
-    return deduplicated
-  }
-
+    // Report final progress
     this.onProgress({
       status: 'processing',
       total: totalChunks,
@@ -456,7 +458,6 @@ export class ChunkProcessor {
 
   /**
    * Remove duplicate courses based on category, name, and grade level
-   * Use fuzzy matching to catch variations in course names
    */
   private deduplicateCourses(courses: Course[]): Course[] {
     const seen = new Map<string, Course>()
