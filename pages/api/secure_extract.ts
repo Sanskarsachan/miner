@@ -126,35 +126,32 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     const buildPrompt = (mode: string, inputText: string) => {
       if (mode === 'master_db' || mode === 'master-db') {
-        return `Extract ALL Florida DOE course catalog data as JSON array. Return ONLY valid JSON starting with [ and ending with ].
+        return `EXTRACT Florida DOE course catalog as JSON array ONLY. Return [ and ].
 
-FORMAT RULES:
-1. Category: from |PIPES| (e.g., |ART-VISUAL ARTS|)
-2. SubCategory: section header with dashes below
-3. ProgramSubjectArea: ALWAYS null (not used in master DB)
-4. Find X/Y pattern (e.g., 3/Y, 2/S):
-   - Number before "/" → CourseDuration
-   - Letter after "/" → CourseTerm
-   - If can't split, put full "3/Y" in CourseDuration
-5. Missing fields: use null (NOT "N/A" or "-")
-6. Only include rows with BOTH CourseCode AND Credit
+FIELD MAPPING (find these in order on each line):
+1. CourseCode = first number (e.g., 0100300)
+2. CourseAbbrevTitle = text after code (e.g., AP ART HISTORY)
+3. CourseDuration = NUMBER from "X/Y" pattern (e.g., 3 from "3/Y")
+4. CourseTerm = LETTER from "X/Y" pattern (e.g., Y from "3/Y")
+   ** PUT "3/Y" VALUE HERE - FIND IT AFTER COURSE NAME **
+5. GradeLevel = 2-letter code after X/Y (e.g., PF, PK, PA)
+6. Credit = decimal number (e.g., 1.0, 0.5)
+7. GraduationRequirement = remaining text on line
+8. CourseTitle = first indented line
+9. Certification = remaining indented lines
 
-LINE PARSING (e.g., "0100300 AP ART HISTORY 3/Y PF 1.0 HUMANITIES 6 ART 6"):
-Position 1: CourseCode = "0100300"
-Position 2-4: CourseAbbrevTitle = "AP ART HISTORY"
-Position 5: Find X/Y → CourseDuration="3", CourseTerm="Y" (or "3/Y" if can't split)
-Position 6: GradeLevel = "PF"
-Position 7: Credit = "1.0"
-Position 8+: GraduationRequirement = "HUMANITIES 6 ART 6"
-Line 2 (indented): CourseTitle = "Advanced Placement Art History"
-Line 3+ (indented): Certification = combined text
+EXACT LOCATION OF X/Y:
+Line example: "0100300 AP ART HISTORY 3/Y PF 1.0 HUMANITIES 6 ART 6"
+                                       ^^^
+                            THIS IS WHAT YOU NEED!
 
-OUTPUT FIELDS (JSON keys):
-Category, SubCategory, ProgramSubjectArea (null), CourseCode, CourseAbbrevTitle, CourseTitle, GradeLevel, CourseDuration, CourseTerm, GraduationRequirement, Credit, Certification, CourseLevel
+IN JSON: "CourseDuration": "3/Y" (OR if you split: "CourseDuration": "3", "CourseTerm": "Y")
 
-EXAMPLE:
-Input: "0100300 AP ART HISTORY 3/Y PF 1.0 HUMANITIES 6 ART 6"
-Output: {"Category":"ART-VISUAL ARTS","SubCategory":"ART APPRECIATION","ProgramSubjectArea":null,"CourseCode":"0100300","CourseAbbrevTitle":"AP ART HISTORY","CourseTitle":"Advanced Placement Art History","GradeLevel":"PF","CourseDuration":"3","CourseTerm":"Y","GraduationRequirement":"HUMANITIES 6 ART 6","Credit":"1.0","Certification":"...","CourseLevel":null}
+REQUIRED: Category, SubCategory, ProgramSubjectArea(null), CourseCode, CourseAbbrevTitle,
+CourseTitle, GradeLevel, CourseDuration, CourseTerm, GraduationRequirement, Credit, 
+Certification, CourseLevel
+
+NULL for missing (NOT "-" or "N/A"). Only rows with CourseCode AND Credit.
 
 DOCUMENT:
 ${inputText}`

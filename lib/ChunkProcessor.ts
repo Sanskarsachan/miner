@@ -261,23 +261,46 @@ export class ChunkProcessor {
   /**
    * Normalize Duration/Term fields
    * If CourseDuration contains "X/Y" format, split it into separate fields
+   * Also attempts to extract from other fields if not found
    */
   normalizeDurationTerm(courses: Course[]): Course[] {
     return courses.map(course => {
-      // Check if CourseDuration has the X/Y format
-      if (course.CourseDuration && typeof course.CourseDuration === 'string') {
-        const match = course.CourseDuration.match(/^(\d+)\/([A-Z])$/i)
+      let duration = course.CourseDuration
+      let term = course.CourseTerm
+
+      // If CourseDuration exists and has X/Y format, split it
+      if (duration && typeof duration === 'string') {
+        const match = duration.match(/^(\d+)\/([A-Z])$/i)
         if (match) {
-          // Split: "3/Y" → CourseDuration="3", CourseTerm="Y"
-          const [, duration, term] = match
-          console.log(`[ChunkProcessor] Splitting "${course.CourseDuration}" → Duration="${duration}", Term="${term}"`)
+          const [, dur, t] = match
+          console.log(`[ChunkProcessor] Splitting "${duration}" → Duration="${dur}", Term="${t}"`)
           return {
             ...course,
-            CourseDuration: duration,
-            CourseTerm: term,
+            CourseDuration: dur,
+            CourseTerm: t,
           }
         }
       }
+
+      // Fallback: Try to extract X/Y from other fields if CourseDuration is empty/missing
+      if ((!duration || duration === '-' || duration === null) && !term) {
+        // Try to find X/Y pattern in CourseAbbrevTitle or other fields
+        const searchText = `${course.CourseAbbrevTitle || ''} ${course.Length || ''}`
+        
+        // Look for pattern like "3/Y" or "2/S" anywhere in the text
+        const match = searchText.match(/(\d+)\/([A-Z])/i)
+        if (match) {
+          const [fullMatch, dur, t] = match
+          console.log(`[ChunkProcessor] Extracted Duration/Term from text: "${fullMatch}" → Duration="${dur}", Term="${t}"`)
+          return {
+            ...course,
+            CourseDuration: dur,
+            CourseTerm: t,
+            Length: course.Length || `${dur}/${t}`, // Preserve original if it has meaning
+          }
+        }
+      }
+
       return course
     })
   }
