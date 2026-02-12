@@ -123,6 +123,16 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     console.log('[secure_extract] Last 200 chars:', text.substring(text.length - 200))
 
     const normalizedExtractionType = typeof extractionType === 'string' ? extractionType.trim().toLowerCase() : ''
+    
+    // Auto-detect format if not specified
+    let detectedType = normalizedExtractionType
+    if (!detectedType) {
+      const isMasterDB = text.includes('|') && text.match(/\|[A-Z\s-]+\|/)
+      detectedType = isMasterDB ? 'master_db' : 'regular'
+      console.log('[secure_extract] Auto-detected format:', detectedType)
+    } else {
+      console.log('[secure_extract] Extraction type specified:', normalizedExtractionType)
+    }
 
     const buildPrompt = (mode: string, inputText: string) => {
       if (mode === 'master_db' || mode === 'master-db') {
@@ -157,21 +167,60 @@ DOCUMENT:
 ${inputText}`
       }
 
-      return `Extract ALL course data as JSON array. Return ONLY valid JSON starting with [ and ending with ].
+      return `EXTRACT ALL COURSES FROM K-12/EDUCATION DOCUMENT. OUTPUT ONLY JSON ARRAY.
 
-FIELDS: Category, CourseName (REQUIRED), CourseCode, GradeLevel, Length, Prerequisite, Credit, Details, CourseDescription
-Use null for missing fields (NOT "N/A" or "-")
+SEARCH PATTERNS FOR COURSES:
+1. Course Title (any capitalized text that appears to be a course name)
+2. Grade Level (e.g., "Grade 9", "Grades 9-12", "K-12", "High School")
+3. Credit Hours/Units (e.g., "0.5 credit", "1 unit", ".5 credit")
+4. Course Code (e.g., course numbers like "ALG1", "BIO10", "ENG1")
+5. Duration/Semester info (e.g., "Full year", "1 semester", "Half year")
+6. Prerequisites (any course dependencies mentioned)
+7. Category/Subject (Subject area like Math, English, Science, Social Studies, etc.)
+8. Description (purpose or content of course)
 
-EXAMPLE:
-[{"Category":"Math","CourseName":"Algebra I","CourseCode":"MATH101","GradeLevel":"9-10","Length":"1 year","Prerequisite":null,"Credit":"1.0","Details":null,"CourseDescription":"Introduction to algebra"}]
+COMMON K-12 COURSE LISTING FORMATS:
+- "Course Name - Grade Level, Credit Hours"
+- "Subject: Course Name (Grade Range) - Prerequisites - Description"
+- Bulleted or numbered lists with course details
+- Table format with course code | name | grade | credit columns
+- Category sections (e.g., "MATHEMATICS COURSES:") followed by course listings
 
-DOCUMENT:
+SPECIFIC INSTRUCTIONS:
+- Look at EVERY paragraph and bullet point - courses can appear anywhere
+- If you see a capitalized phrase followed by grade levels, that's likely a course
+- Even if not all fields present for a course, INCLUDE IT if you can identify a course name
+- Handle partial information - use null for truly missing fields
+- Handle decimal credits like ".5" and "0.5"
+- Level/Grade examples: "Algebra 1 (Grades 9-12)", "AP Chemistry High School", "Elementary Art"
+- Subject/Category: Extract from section headers or infer from course content
+
+OUTPUT JSON STRUCTURE:
+{
+  "Category": "Subject area (Math, Science, English, etc.) or null",
+  "CourseName": "Full course name - REQUIRED, cannot be null",
+  "CourseCode": "Code/Number if available, null otherwise",
+  "GradeLevel": "Grade range like '9-12' or 'Grades 9-12', null if not applicable",
+  "Credit": "Credit hours or units (e.g. '0.5', '1'), null if not specified",
+  "Length": "Duration info like 'full year', '1 semester', null if not specified",
+  "CourseDescription": "Brief description of course content, null if not available",
+  "Details": "Any other relevant info (prerequisites, requirements, etc.), null if none",
+  "Prerequisite": "Prerequisite courses, null if none"
+}
+
+CRITICAL: 
+- Return ONLY the JSON array: [ {...}, {...}, ... ]
+- No markdown, no code blocks, ONLY JSON
+- CourseName MUST be a string, never null
+- Find EVERY course mentioned in this document
+- If unsure, include it - better to over-extract than miss courses
+
+DOCUMENT TEXT:
 ${inputText}`
   }
 
   // Build prompt that explicitly asks for JSON
-  const prompt = buildPrompt(normalizedExtractionType, text)
-
+    const prompt = buildPrompt(detectedType, text)
     logEntry.promptLength = prompt.length
     console.log('[secure_extract] Prompt built, length:', prompt.length)
     
@@ -392,19 +441,20 @@ ${inputText}`
     if (responseContent.trim() === '[]') {
       console.error('[secure_extract] ❌❌❌ GEMINI RETURNED LITERAL EMPTY ARRAY "[]" ❌❌❌')
       console.error('[secure_extract] This means Gemini processed the request but found NO courses')
-      console.error('[secure_extract] API Key ID used:', apiKeyId || 'legacy direct key')
-      console.error('[secure_extract] Input text length:', text.length)
-      console.error('[secure_extract] Input text preview:', text.substring(0, 500))
-      console.error('[secure_extract] Finish reason:', geminiData.candidates?.[0]?.finishReason)
-      console.error('[secure_extract] Safety ratings:', JSON.stringify(geminiData.candidates?.[0]?.safetyRatings))
-      console.error('[secure_extract] ⚠️  POSSIBLE CAUSES: 1) Document format not recognized, 2) API key quota exhausted, 3) Safety filters blocking')
-      
-      // Log to help diagnose - maybe the prompt is bad or text format is wrong
-      logEntry.error = `Gemini returned empty array - API key: ${apiKeyId || 'direct'}, finish: ${geminiData.candidates?.[0]?.finishReason}`
-      requestLogs.unshift(logEntry)
-      if (requestLogs.length > 10) requestLogs.pop()
-      
-      // Return empty array (Gemini explicitly said no courses found)
+        console.error('[secure_extract] Format detected:', detectedType)
+        console.error('[secure_extract] API Key ID used:', apiKeyId || 'legacy direct key')
+        console.error('[secure_extract] Input text length:', text.length)
+        console.error('[secure_extract] Input text preview:', text.substring(0, 500))
+        console.error('[secure_extract] Finish reason:', geminiData.candidates?.[0]?.finishReason)
+        console.error('[secure_extract] Safety ratings:', JSON.stringify(geminiData.candidates?.[0]?.safetyRatings))
+        console.error('[secure_extract] ⚠️  POSSIBLE CAUSES:')
+        console.error('   1) Format mismatch - document doesn\'t match prompt expectations')
+        console.error('   2) Course content too ambiguous for Gemini')
+        console.error('   3) Prompt asking for fields that don\'t exist in document')
+        console.error('   4) Document has unusual structure')
+        
+        // Log to help diagnose - maybe the prompt is bad or text format is wrong
+        logEntry.error = `Gemini returned empty array - Format: ${detectedType}, Finish: ${geminiData.candidates?.[0]?.finishReason}`
       return res.status(200).json([])
     }
 
@@ -431,6 +481,8 @@ ${inputText}`
         if (!recovered) {
           console.error('[secure_extract] Could not find JSON array in response')
           console.error('[secure_extract] Full response text:', responseContent)
+          console.error('[secure_extract] ⚠️  Gemini might have returned text instead of JSON')
+          console.error('[secure_extract] Response preview (first 500 chars):', responseContent.substring(0, 500))
           logEntry.error = 'No JSON array found in Gemini content'
           requestLogs.unshift(logEntry)
           if (requestLogs.length > 10) requestLogs.pop()

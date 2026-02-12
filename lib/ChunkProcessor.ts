@@ -130,7 +130,12 @@ export class ChunkProcessor {
    */
   async processChunk(text: string, filename: string, attempt: number = 1): Promise<Course[]> {
     try {
+      // Auto-detect extraction type based on content
+      const isMasterDB = text.includes('|') && text.match(/\|[A-Z\s-]+\|/)
+      const extractionType = isMasterDB ? 'master_db' : 'regular'
+      
       console.log('[ChunkProcessor] Calling /api/secure_extract with', text.length, 'chars, apiKeyId present:', !!this.apiKeyId)
+      console.log('[ChunkProcessor] Detected format:', extractionType)
       
       // Create AbortController with 45 second timeout
       const controller = new AbortController()
@@ -139,7 +144,7 @@ export class ChunkProcessor {
       const response = await fetch('/api/secure_extract', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text, filename, apiKeyId: this.apiKeyId }),  // Send API key ID
+        body: JSON.stringify({ text, filename, apiKeyId: this.apiKeyId, extractionType }),  // Send extraction type
         signal: controller.signal,
       })
       
