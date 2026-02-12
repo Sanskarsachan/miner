@@ -308,6 +308,8 @@ export default function MasterDatabasePage() {
         '-',
       gradeLevel: course.GradeLevel || course.gradeLevel || '-',
       courseLevel: course.CourseLevel || course.courseLevel || '-',
+      courseDuration: course.CourseDuration || course.courseDuration || '-',
+      courseTerm: course.CourseTerm || course.courseTerm || '-',
       courseLength: course.CourseLength || course.courseLength || '-',
       levelLength: course.LevelLength || course.levelLength || '-',
       length: course.Length || course.length || '-',
