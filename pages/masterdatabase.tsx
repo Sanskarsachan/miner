@@ -237,87 +237,140 @@ export default function MasterDatabasePage() {
 
     return pageTexts;
   };
+  // Split large text into smaller chunks for better extraction
+  // Smaller chunks allow Gemini to output more courses per request
+  const chunkText = (text: string, maxChunkSize: number = 5000): string[] => {
+    if (text.length <= maxChunkSize) {
+      return [text];
+    }
+
+    const chunks: string[] = [];
+    let currentPos = 0;
+
+    while (currentPos < text.length) {
+      let endPos = Math.min(currentPos + maxChunkSize, text.length);
+
+      // Try to break at a newline to avoid splitting mid-sentence
+      if (endPos < text.length) {
+        const lastNewline = text.lastIndexOf('\n', endPos);
+        if (lastNewline > currentPos + maxChunkSize * 0.7) {
+          // Found a newline in the last 30%, use it
+          endPos = lastNewline;
+        }
+      }
+
+      chunks.push(text.substring(currentPos, endPos).trim());
+      currentPos = endPos;
+    }
+
+    console.log(`[masterdatabase] Chunked ${text.length} chars into ${chunks.length} chunks`);
+    return chunks;
+  };
 
   const extractCoursesFromText = async (text: string): Promise<MasterCourse[]> => {
     if (!apiKeyId) {
       throw new Error('API key is required for course extraction');
     }
 
-    const response = await fetch('/api/secure_extract', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        text,
-        apiKeyId,
-        filename: file?.name || 'master-import.pdf',
-        extractionType: 'master_db',
-      }),
-    });
+    // Split into smaller chunks for better extraction
+    const chunks = chunkText(text, 5000);
+    const allCourses: MasterCourse[] = [];
+    const seenKeys = new Set<string>(); // Track unique courses to avoid duplicates
 
-    if (response.status === 429) {
-      const data = await response.json();
-      setApiDebug(JSON.stringify(data).substring(0, 1000));
-      setRateLimitModal({
-        show: true,
-        message: data.message || 'API rate limit reached',
-        retryAfter: data.retryAfter || 60,
-        suggestion: data.suggestion || 'Please wait and try again or switch API key.',
+    // Process each chunk and combine results
+    for (let i = 0; i < chunks.length; i++) {
+      console.log(`[masterdatabase] Processing chunk ${i + 1}/${chunks.length} (${chunks[i].length} chars)`);
+
+      const response = await fetch('/api/secure_extract', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          text: chunks[i],
+          apiKeyId,
+          filename: file?.name || 'master-import.pdf',
+          extractionType: 'master_db',
+        }),
       });
-      throw new Error('Rate limit reached');
+
+      if (response.status === 429) {
+        const data = await response.json();
+        setApiDebug(JSON.stringify(data).substring(0, 1000));
+        setRateLimitModal({
+          show: true,
+          message: data.message || 'API rate limit reached',
+          retryAfter: data.retryAfter || 60,
+          suggestion: data.suggestion || 'Please wait and try again or switch API key.',
+        });
+        throw new Error('Rate limit reached');
+      }
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        setApiDebug(errorText.substring(0, 1000));
+        throw new Error(`API returned ${response.status}: ${errorText.substring(0, 200)}`);
+      }
+
+      const result = await response.json();
+      setApiDebug(null);
+
+      // Validate response format
+      if (!Array.isArray(result)) {
+        setApiDebug(JSON.stringify(result).substring(0, 1000));
+        throw new Error('API returned unexpected format (expected array)');
+      }
+
+      if (result.length > 0) {
+        // Map and deduplicate courses
+        const chunkCourses = result.map((course: any) => ({
+          category: course.Category || course.category || '-',
+          subCategory: course.SubCategory || course.subCategory || '-',
+          programSubjectArea:
+            course.ProgramSubjectArea || course.programSubjectArea || course.Program || course.program || '-',
+          courseCode: course.CourseCode || course.courseCode || '-',
+          courseName:
+            course.CourseName ||
+            course.courseName ||
+            course.CourseAbbrevTitle ||
+            course.courseAbbrevTitle ||
+            '-',
+          courseTitle:
+            course.CourseTitle ||
+            course.courseTitle ||
+            course.ProgramSubjectArea ||
+            course.programSubjectArea ||
+            '-',
+          gradeLevel: course.GradeLevel || course.gradeLevel || '-',
+          courseLevel: course.CourseLevel || course.courseLevel || '-',
+          courseDuration: course.CourseDuration || course.courseDuration || '-',
+          courseTerm: course.CourseTerm || course.courseTerm || '-',
+          courseLength: course.CourseLength || course.courseLength || '-',
+          levelLength: course.LevelLength || course.levelLength || '-',
+          length: course.Length || course.length || '-',
+          gradReq: course.GraduationRequirement || course.gradReq || '-',
+          credit: course.Credit || course.credit || '-',
+          certification: course.Certification || course.certification || '-',
+          filename: file?.name || 'unknown',
+        }));
+
+        // Add courses that haven't been seen before
+        for (const course of chunkCourses) {
+          const courseKey = `${course.courseCode}::${course.courseName}`;
+          if (!seenKeys.has(courseKey)) {
+            seenKeys.add(courseKey);
+            allCourses.push(course);
+          }
+        }
+
+        console.log(`[masterdatabase] Chunk ${i + 1}: ${result.length} courses extracted, ${allCourses.length} unique total`);
+      } else {
+        console.log(`[masterdatabase] Chunk ${i + 1}: No courses extracted`);
+      }
     }
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      setApiDebug(errorText.substring(0, 1000));
-      throw new Error(`API returned ${response.status}: ${errorText.substring(0, 200)}`);
-    }
-
-    const result = await response.json();
-    setApiDebug(null);
-
-    // secure_extract now returns courses array directly, not Gemini response format
-    if (!Array.isArray(result)) {
-      setApiDebug(JSON.stringify(result).substring(0, 1000));
-      throw new Error('API returned unexpected format (expected array)');
-    }
-
-    if (result.length === 0) {
-      console.warn('[extractCoursesFromText] API returned empty array');
-      return [];
-    }
-
-    return result.map((course: any) => ({
-      category: course.Category || course.category || '-',
-      subCategory: course.SubCategory || course.subCategory || '-',
-      programSubjectArea:
-        course.ProgramSubjectArea || course.programSubjectArea || course.Program || course.program || '-',
-      courseCode: course.CourseCode || course.courseCode || '-',
-      courseName:
-        course.CourseName ||
-        course.courseName ||
-        course.CourseAbbrevTitle ||
-        course.courseAbbrevTitle ||
-        '-',
-      courseTitle:
-        course.CourseTitle ||
-        course.courseTitle ||
-        course.ProgramSubjectArea ||
-        course.programSubjectArea ||
-        '-',
-      gradeLevel: course.GradeLevel || course.gradeLevel || '-',
-      courseLevel: course.CourseLevel || course.courseLevel || '-',
-      courseDuration: course.CourseDuration || course.courseDuration || '-',
-      courseTerm: course.CourseTerm || course.courseTerm || '-',
-      courseLength: course.CourseLength || course.courseLength || '-',
-      levelLength: course.LevelLength || course.levelLength || '-',
-      length: course.Length || course.length || '-',
-      gradReq: course.GraduationRequirement || course.gradReq || '-',
-      credit: course.Credit || course.credit || '-',
-      certification: course.Certification || course.certification || '-',
-      filename: file?.name || 'unknown',
-    }));
+    console.log(`[masterdatabase] ✅ Total courses extracted: ${allCourses.length}`);
+    return allCourses;
   };
 
   const extractFromPdf = async () => {
