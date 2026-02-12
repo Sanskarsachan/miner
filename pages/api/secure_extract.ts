@@ -269,7 +269,7 @@ ${inputText}`
             ],
             generationConfig: {
               temperature: 0.1,
-              maxOutputTokens: 4096, // Limit output for faster responses
+              maxOutputTokens: 8192, // Increased from 4096 to prevent truncation of course lists
             },
           }),
           signal: controller.signal,
@@ -346,7 +346,7 @@ ${inputText}`
                   contents: [{ parts: [{ text: prompt }] }],
                   generationConfig: { 
                     temperature: 0.1,
-                    maxOutputTokens: 4096,
+                    maxOutputTokens: 8192, // Increased from 4096 to prevent truncation
                   },
                 }),
                 signal: retryController.signal,
@@ -491,7 +491,7 @@ ${inputText}`
               ],
               generationConfig: {
                 temperature: 0.1,
-                maxOutputTokens: 4096,
+                maxOutputTokens: 8192, // Increased from 4096 to prevent truncation
               },
             }),
             signal: fallbackController.signal,
@@ -545,28 +545,48 @@ ${inputText}`
     // Extract JSON array from response
     let courses: Course[] = []
     try {
-      const recoverPartialJsonArray = (text: string): string | null => {
-        const cleaned = text.replace(/```json|```/g, '')
-        const start = cleaned.indexOf('[')
-        if (start === -1) return null
-        const lastBrace = cleaned.lastIndexOf('}')
-        if (lastBrace === -1 || lastBrace <= start) return null
-        return cleaned.slice(start, lastBrace + 1) + ']'
+      // FIRST: Strip markdown code fences if present
+      let cleanedContent = responseContent
+      if (cleanedContent.includes('```json')) {
+        console.log('[secure_extract] Response wrapped in markdown fence, stripping...')
+        cleanedContent = cleanedContent.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim()
+        console.log('[secure_extract] After markdown strip, length:', cleanedContent.length)
       }
 
-      // Try to find JSON array in the response
-      const jsonMatch = responseContent.match(/\[[\s\S]*\]/)
+      const recoverPartialJsonArray = (text: string): string | null => {
+        const start = text.indexOf('[')
+        if (start === -1) {
+          console.error('[secure_extract] No opening [ found')
+          return null
+        }
+        
+        const lastBrace = text.lastIndexOf('}')
+        if (lastBrace === -1 || lastBrace <= start) {
+          console.error('[secure_extract] No closing } found after [')
+          return null
+        }
+        
+        const recovered = text.slice(start, lastBrace + 1) + ']'
+        console.log('[secure_extract] Recovered JSON length:', recovered.length)
+        console.log('[secure_extract] First 200 chars:', recovered.substring(0, 200))
+        console.log('[secure_extract] Last 100 chars:', recovered.substring(Math.max(0, recovered.length - 100)))
+        
+        return recovered
+      }
+
+      // Try to find complete JSON array in the response
+      const jsonMatch = cleanedContent.match(/\[[\s\S]*\]/)
       let jsonStr = ''
 
       if (jsonMatch) {
+        console.log('[secure_extract] Found complete JSON array with regex')
         jsonStr = jsonMatch[0]
       } else {
-        const recovered = recoverPartialJsonArray(responseContent)
+        console.warn('[secure_extract] Could not find complete JSON array, attempting recovery from truncation')
+        const recovered = recoverPartialJsonArray(cleanedContent)
         if (!recovered) {
-          console.error('[secure_extract] Could not find JSON array in response')
-          console.error('[secure_extract] Full response text:', responseContent)
-          console.error('[secure_extract] ⚠️  Gemini might have returned text instead of JSON')
-          console.error('[secure_extract] Response preview (first 500 chars):', responseContent.substring(0, 500))
+          console.error('[secure_extract] Could not recover partial JSON array')
+          console.error('[secure_extract] Full response text:', cleanedContent.substring(0, 500))
           logEntry.error = 'No JSON array found in Gemini content'
           requestLogs.unshift(logEntry)
           if (requestLogs.length > 10) requestLogs.pop()
@@ -579,7 +599,54 @@ ${inputText}`
 
       console.log('[secure_extract] Found JSON array, length:', jsonStr.length)
       
-      courses = JSON.parse(jsonStr)
+      try {
+        courses = JSON.parse(jsonStr)
+      } catch (parseError) {
+        // JSON is malformed, likely due to truncation. Try to fix it.
+        console.warn('[secure_extract] Initial JSON parse failed, attempting to fix truncation:', parseError instanceof Error ? parseError.message : String(parseError))
+        
+        // Common truncation patterns - try to close incomplete objects
+        let fixed = jsonStr
+        
+        // Try different closure patterns
+        const closureAttempts = [
+          fixed + '}]',        // Single object truncated
+          fixed + '}}]',       // Nested object truncated  
+          fixed + '"]',        // String value truncated
+          fixed + '"}]',       // Object with string truncated
+        ]
+        
+        let parsed = false
+        for (const attempt of closureAttempts) {
+          try {
+            console.log('[secure_extract] Trying closure pattern:', attempt.substring(Math.max(0, attempt.length - 20)))
+            courses = JSON.parse(attempt)
+            console.log('[secure_extract] ✅ Successfully parsed after fixing truncation')
+            parsed = true
+            break
+          } catch (e) {
+            // Try next pattern
+          }
+        }
+        
+        if (!parsed) {
+          console.error('[secure_extract] Could not fix truncated JSON')
+          console.error('[secure_extract] Attempted JSON:', jsonStr.substring(0, 500))
+          
+          // If MAX_TOKENS was the finish reason, we know it's truncated
+          const finishReason = geminiData.candidates?.[0]?.finishReason
+          if (finishReason === 'MAX_TOKENS') {
+            console.error('[secure_extract] Response was truncated (MAX_TOKENS) - this is a Gemini issue')
+            console.error('[secure_extract] Suggestion: Increase maxOutputTokens or reduce input')
+          }
+          
+          logEntry.error = `JSON parse error: Could not parse or fix truncated JSON`
+          requestLogs.unshift(logEntry)
+          if (requestLogs.length > 10) requestLogs.pop()
+          return res.status(200).json([])
+        }
+      }
+      
       logEntry.coursesExtracted = courses.length
       console.log('[secure_extract] Successfully parsed', courses.length, 'courses')
       
@@ -589,9 +656,9 @@ ${inputText}`
       }
     } catch (parseError) {
       const errMsg = parseError instanceof Error ? parseError.message : String(parseError)
-      console.error('[secure_extract] JSON parse error:', errMsg)
-      console.error('[secure_extract] Attempted to parse:', responseContent.substring(0, 500))
-      logEntry.error = `JSON parse error: ${errMsg}`
+      console.error('[secure_extract] Unexpected error during JSON extraction:', errMsg)
+      console.error('[secure_extract] Response content preview:', responseContent.substring(0, 500))
+      logEntry.error = `Unexpected error: ${errMsg}`
       requestLogs.unshift(logEntry)
       if (requestLogs.length > 10) requestLogs.pop()
       return res.status(200).json([])
