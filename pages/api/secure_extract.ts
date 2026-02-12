@@ -254,9 +254,11 @@ ${inputText}`
       try {
         console.log(`[secure_extract] Fetch attempt ${retryCount + 1}/${maxRetries}`)
         
-        // Create abort controller for timeout (50s to leave buffer for Vercel)
+        // Create abort controller for timeout
+        // Use 55s timeout (leaves 5s buffer for Vercel 60s limit)
+        // High token output needs more time to generate
         const controller = new AbortController()
-        const timeoutId = setTimeout(() => controller.abort(), 50000)
+        const timeoutId = setTimeout(() => controller.abort(), 55000)
         
         response = await fetch(url, {
           method: 'POST',
@@ -269,7 +271,7 @@ ${inputText}`
             ],
             generationConfig: {
               temperature: 0.1,
-              maxOutputTokens: 16000, // Increased to handle full course lists per chunk
+              maxOutputTokens: 12000, // Balanced: enough for multi-course chunks, fast enough to avoid timeout
             },
           }),
           signal: controller.signal,
@@ -346,7 +348,7 @@ ${inputText}`
                   contents: [{ parts: [{ text: prompt }] }],
                   generationConfig: { 
                     temperature: 0.1,
-                    maxOutputTokens: 16000, // Increased to handle full course lists per chunk
+                    maxOutputTokens: 12000,
                   },
                 }),
                 signal: retryController.signal,
@@ -491,7 +493,7 @@ ${inputText}`
               ],
               generationConfig: {
                 temperature: 0.1,
-                maxOutputTokens: 16000, // Increased to handle full course lists per chunk
+                maxOutputTokens: 12000,
               },
             }),
             signal: fallbackController.signal,
