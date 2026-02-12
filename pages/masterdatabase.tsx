@@ -140,7 +140,7 @@ export default function MasterDatabasePage() {
   };
 
   const buildCourseKey = (course: MasterCourse) => {
-    const normalize = (value?: string) => (value || '').trim().toLowerCase();
+    const normalize = (value?: string | number | null) => String(value || '').trim().toLowerCase();
 
     return [
       normalize(course.category),
