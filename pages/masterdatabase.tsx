@@ -273,12 +273,16 @@ export default function MasterDatabasePage() {
       throw new Error('API key is required for course extraction');
     }
 
-    // Split into smaller chunks for better extraction
-    const chunks = chunkText(text, 5000);
+    // IMPORTANT: Master DB format needs full context - DO NOT CHUNK
+    // The complex prompt relies on seeing category headers, subcategories, and full course relationships
+    // Chunking breaks the extraction by losing context
+    console.log(`[masterdatabase] Processing full document (${text.length} chars) as single chunk`);
+    
+    const chunks = [text]; // Keep as single chunk for better extraction
     const allCourses: MasterCourse[] = [];
     const seenKeys = new Set<string>(); // Track unique courses to avoid duplicates
 
-    // Process each chunk and combine results
+    // Process the document
     for (let i = 0; i < chunks.length; i++) {
       console.log(`[masterdatabase] Processing chunk ${i + 1}/${chunks.length} (${chunks[i].length} chars)`);
 
