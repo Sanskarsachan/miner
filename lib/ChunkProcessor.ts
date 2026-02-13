@@ -105,10 +105,15 @@ export class ChunkProcessor {
     
     console.log('[ChunkProcessor] K12 detection: codes:', !!hasCodesWithDash, 'header:', !!hasSchoolHeader, 'isK12:', isK12, 'docLength:', text.length)
     
-    if (isK12 && text.length > 12000) {
-      // For large K-12 documents: Split into roughly equal chunks by character count
-      // This avoids MAX_TOKENS issues without needing complex pattern matching
-      const K12_CHUNK_SIZE = 8000 // Characters per chunk
+    // For ANY large document: Split into chunks to avoid Vercel timeouts
+    // Vercel free tier has 60s limit, so smaller chunks = faster responses = no 504 errors
+    const AGGRESSIVE_CHUNK_SIZE = 6000 // Characters per chunk (conservative for Vercel)
+    const CHUNK_THRESHOLD = 10000 // Only chunk if larger than this
+    
+    if ((isK12 || !isK12) && text.length > CHUNK_THRESHOLD) {
+      // For large documents: Split into roughly equal chunks by character count
+      // This avoids MAX_TOKENS and Vercel timeout issues
+      const K12_CHUNK_SIZE = AGGRESSIVE_CHUNK_SIZE // Characters per chunk
       const numChunks = Math.ceil(text.length / K12_CHUNK_SIZE)
       
       console.log('[ChunkProcessor] K-12 document detected (size:', text.length, 'chars), splitting into ~', numChunks, 'chunks')

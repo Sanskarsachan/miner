@@ -264,7 +264,7 @@ ${inputText}`
             ],
             generationConfig: {
               temperature: 0.1,
-              maxOutputTokens: 24000, // Allow full course output for large PDFs
+              maxOutputTokens: 8000, // Reduced from 24000 for faster API responses
             },
           })
           console.log('[secure_extract] Request body serialized, size:', requestBody.length)
