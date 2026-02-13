@@ -98,29 +98,35 @@ export class ChunkProcessor {
   createSemanticChunks(text: string): string[] {
     const chunks: string[] = []
     
-    // Detect if this is a K-12 document
+    // Detect document type
+    const hasPipes = text.includes('|') && text.match(/\|[A-Z\s-]+\|/)
     const hasCodesWithDash = text.match(/[–-]\s*\d{7}/)
     const hasSchoolHeader = text.match(/High School|Middle School|Elementary|Course Selection|Freshman|Course Guide/i)
     const isK12 = (hasCodesWithDash && hasSchoolHeader) || text.match(/[A-Z][A-Z\s]+\*/)
+    const isMasterDB = hasPipes && text.match(/\d{7}/) // Master DB has pipes and 7-digit codes
     
-    console.log('[ChunkProcessor] K12 detection: codes:', !!hasCodesWithDash, 'header:', !!hasSchoolHeader, 'isK12:', isK12, 'docLength:', text.length)
+    console.log('[ChunkProcessor] Format detection: isK12:', isK12, 'isMasterDB:', isMasterDB, 'docLength:', text.length)
     
-    // For ANY large document: Split into chunks to avoid Vercel timeouts
-    // Vercel free tier has 60s limit, so smaller chunks = faster responses = no 504 errors
+    // MASTER DB: Keep as single chunk (complex prompt needs full context)
+    if (isMasterDB) {
+      console.log('[ChunkProcessor] Master DB format detected, processing as single chunk')
+      return [text]
+    }
+    
+    // K-12: Chunk if large to avoid Vercel timeouts
     const AGGRESSIVE_CHUNK_SIZE = 6000 // Characters per chunk (conservative for Vercel)
     const CHUNK_THRESHOLD = 10000 // Only chunk if larger than this
     
-    if ((isK12 || !isK12) && text.length > CHUNK_THRESHOLD) {
-      // For large documents: Split into roughly equal chunks by character count
+    if (isK12 && text.length > CHUNK_THRESHOLD) {
+      // For large K-12 documents: Split into roughly equal chunks by character count
       // This avoids MAX_TOKENS and Vercel timeout issues
-      const K12_CHUNK_SIZE = AGGRESSIVE_CHUNK_SIZE // Characters per chunk
-      const numChunks = Math.ceil(text.length / K12_CHUNK_SIZE)
+      const numChunks = Math.ceil(text.length / AGGRESSIVE_CHUNK_SIZE)
       
       console.log('[ChunkProcessor] K-12 document detected (size:', text.length, 'chars), splitting into ~', numChunks, 'chunks')
       
       for (let i = 0; i < numChunks; i++) {
-        const start = i * K12_CHUNK_SIZE
-        const end = (i + 1) * K12_CHUNK_SIZE
+        const start = i * AGGRESSIVE_CHUNK_SIZE
+        const end = (i + 1) * AGGRESSIVE_CHUNK_SIZE
         const chunk = text.substring(start, end).trim()
         
         if (chunk.length > 100) { // Only include non-empty chunks
@@ -133,7 +139,7 @@ export class ChunkProcessor {
       console.log('[ChunkProcessor] K-12 document detected (size:', text.length, 'chars), processing as single chunk')
       chunks.push(text)
     } else {
-      // For regular/master_db: Try to split by common section patterns
+      // For regular documents: Try to split by common section patterns
       const sectionPattern = /\n(?=[A-Z][A-Z\s]{3,}:|\d+\.\s+[A-Z]|\n\n[A-Z][A-Z\s]+\n)/
       const sections = text.split(sectionPattern)
 
