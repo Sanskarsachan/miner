@@ -68,6 +68,7 @@ export default function MasterDatabasePage() {
     currentBatch: 0,
   });
   const [rateLimitModal, setRateLimitModal] = useState<RateLimitModal | null>(null);
+  const [refreshApiKeysTrigger, setRefreshApiKeysTrigger] = useState(0);
   const [sidebarRefreshTrigger, setSidebarRefreshTrigger] = useState(0);
   const [showSidebar, setShowSidebar] = useState(true);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -464,10 +465,14 @@ export default function MasterDatabasePage() {
           `Extracted ${allExtractedCourses.length} courses from ${file.name}. Saved ${totalSaved} to master database.`
         );
         setSidebarRefreshTrigger(prev => prev + 1);
+        // Refresh API key status to show updated usage counts
+        setRefreshApiKeysTrigger(prev => prev + 1);
       } else {
         setSuccess(
           `Extracted ${allExtractedCourses.length} courses from ${file.name}. Preview only (not saved).`
         );
+        // Still refresh API keys even if not saving
+        setRefreshApiKeysTrigger(prev => prev + 1);
       }
     } catch (err) {
       const errorMsg = err instanceof Error ? err.message : String(err);
@@ -597,7 +602,7 @@ export default function MasterDatabasePage() {
                 )}
 
                 <div style={{ marginBottom: '16px' }}>
-                  <ApiKeySelector value={apiKeyId} onChange={setApiKeyId} disabled={loading} showStats={true} />
+                  <ApiKeySelector value={apiKeyId} onChange={setApiKeyId} disabled={loading} showStats={true} refreshTrigger={refreshApiKeysTrigger} />
                 </div>
 
                 <div style={{ marginBottom: '16px' }}>

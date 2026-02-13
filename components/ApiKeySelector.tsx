@@ -12,6 +12,7 @@ interface ApiKeySelectorProps {
   onChange: (apiKeyId: string) => void;
   disabled?: boolean;
   showStats?: boolean;
+  refreshTrigger?: number;
 }
 
 export default function ApiKeySelector({
@@ -19,6 +20,7 @@ export default function ApiKeySelector({
   onChange,
   disabled = false,
   showStats = true,
+  refreshTrigger = 0,
 }: ApiKeySelectorProps) {
   const [apiKeys, setApiKeys] = useState<ApiKeySelection[]>([]);
   const [loading, setLoading] = useState(true);
@@ -28,6 +30,11 @@ export default function ApiKeySelector({
   useEffect(() => {
     loadAvailableKeys();
   }, []);
+
+  // Re-fetch keys when refreshTrigger changes (e.g., after extraction completes)
+  useEffect(() => {
+    loadAvailableKeys();
+  }, [refreshTrigger]);
 
   useEffect(() => {
     if (value && apiKeys.length > 0) {

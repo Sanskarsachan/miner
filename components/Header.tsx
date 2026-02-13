@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { Upload, BarChart3, FolderOpen, Database, GitBranch, TestTube } from 'lucide-react';
+import { Upload, BarChart3, FolderOpen, Database, GitBranch, TestTube, Zap, Activity } from 'lucide-react';
 import { useRouter } from 'next/router';
 
 interface HeaderProps {
@@ -22,6 +22,9 @@ export default function Header({ transparent = false }: HeaderProps) {
     }
     if (path === '/tokens') {
       return currentPath === '/tokens';
+    }
+    if (path === '/analytics') {
+      return currentPath === '/analytics';
     }
     if (path === '/extractions') {
       return currentPath === '/extractions' || currentPath.startsWith('/extraction/');
@@ -222,10 +225,18 @@ export default function Header({ transparent = false }: HeaderProps) {
             <Link 
               href="/tokens" 
               className={`nav-link ${isActive('/tokens') ? 'active' : ''}`}
-              title="Analytics"
+              title="Token Analytics"
             >
               <BarChart3 size={18} />
               <span className="nav-link-text">Analytics</span>
+            </Link>
+            <Link 
+              href="/analytics" 
+              className={`nav-link ${isActive('/analytics') ? 'active' : ''}`}
+              title="API Usage"
+            >
+              <Zap size={18} />
+              <span className="nav-link-text">API Usage</span>
             </Link>
             <Link 
               href="/test-api" 
