@@ -45,6 +45,9 @@ export function getRequestLogs() {
 }
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+  console.log('[secure_extract] === HANDLER CALLED ===')
+  console.log('[secure_extract] Method:', req.method)
+  
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' })
   }
@@ -127,17 +130,19 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     // Check if document looks like master_db format (has pipes and codes)
     const looksLikeMasterDB = text.includes('|') && text.match(/\|[A-Z\s-]+\|/)
     const looksLikeNumbers = text.match(/\d{7}/) // Master DB course codes are 7 digits
-    const looksLikeK12 = text.match(/grade[s]?\s*\d/i) || text.match(/k-12/i) || text.match(/\bages?\s*\d/i)
+    const looksLikeK12 = text.match(/grade[s]?\s*\d/i) || text.match(/k-12/i) || text.match(/\bages?\s*\d/i) || text.match(/[A-Z][A-Z\s]+\*/) // Detect asterisk-delimited K-12
     
-    // Auto-detect format if not specified
+    // Auto-detect format if not specified - PREFER K-12 if asterisks found
     let detectedType = normalizedExtractionType
     if (!detectedType) {
-      if (looksLikeMasterDB || looksLikeNumbers) {
+      if (looksLikeK12) {
+        detectedType = 'k12'
+      } else if (looksLikeMasterDB || looksLikeNumbers) {
         detectedType = 'master_db'
       } else {
         detectedType = 'regular'
       }
-      console.log('[secure_extract] Auto-detected format:', detectedType, '(pipes:', looksLikeMasterDB, ', 7-digit codes:', looksLikeNumbers, ', k12:', looksLikeK12, ')')
+      console.log('[secure_extract] Auto-detected format:', detectedType, '(asterisks:', looksLikeK12, ', pipes:', looksLikeMasterDB, ', 7-digit codes:', looksLikeNumbers, ')')
     } else {
       console.log('[secure_extract] Extraction type specified:', normalizedExtractionType)
       
@@ -221,37 +226,8 @@ DOCUMENT:
 ${inputText}`
       }
 
-      return `EXTRACT FLORIDA K-12 COURSES. OUTPUT ONLY JSON ARRAY.
+      return `Extract every course from this K-12 course catalog. Return compact JSON array ONLY: [["Category","Name","Code","Grade",Credit,"Length"], ...]. Include ALL sections.
 
-CRITICAL: Courses marked with ASTERISK: "COURSE_NAME*"
-Example: "WORLD HISTORY A*" starts a new course.
-Course continues until next asterisk or EOF.
-
-EXTRACT FIELDS:
-- Category: Subject (Social Studies, English, Math, Science, Economics, Health, etc.)
-- CourseName: Full name after asterisk
-- CourseCode: null (usually not in this format)
-- GradeLevel: "9-12" (Florida K-12 default)
-- Credit: null (not mentioned in this document)
-- Length: null (not mentioned in this document)
-- CourseDescription: Full paragraph(s) until next course
-- Details: Metadata like "Honors Course Available"
-- Prerequisite: null
-
-EXAMPLE FROM YOUR DATA:
-Input: "WORLD HISTORY A*\nWorld History (1 of 2) explores...\nHonors Course Available"
-Output: {"Category":"Social Studies","CourseName":"WORLD HISTORY A","CourseCode":null,"GradeLevel":"9-12","Credit":null,"Length":null,"CourseDescription":"World History (1 of 2) explores...","Details":"Honors Course Available","Prerequisite":null}
-
-RULES:
-1. Find EVERY "WORD*" pattern (capitalized text + asterisk)
-2. Extract description until next asterisk or end
-3. Return ALL courses found, not just first 3
-4. null for missing fields (never empty strings)
-5. CourseName MUST NOT be null
-
-RETURN: JSON array only [ {...}, {...}, ... ]
-
-DOCUMENT:
 ${inputText}`
   }
 
@@ -270,17 +246,17 @@ ${inputText}`
     while (retryCount < maxRetries) {
       try {
         console.log(`[secure_extract] Fetch attempt ${retryCount + 1}/${maxRetries}`)
+        console.log('[secure_extract] Prompt type:', typeof prompt, 'length:', prompt?.length || 'undefined')
         
         // Create abort controller for timeout
-        // Use 55s timeout (leaves 5s buffer for Vercel 60s limit)
-        // High token output needs more time to generate
+        // Use 65s timeout for initial attempt (API calls take ~45s, need buffer)
+        // Retry logic handles failures automatically
         const controller = new AbortController()
-        const timeoutId = setTimeout(() => controller.abort(), 55000)
+        const timeoutId = setTimeout(() => controller.abort(), 90000) // 90s timeout for large PDFs
         
-        response = await fetch(url, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
+        let requestBody: string
+        try {
+          requestBody = JSON.stringify({
             contents: [
               {
                 parts: [{ text: prompt }],
@@ -288,9 +264,20 @@ ${inputText}`
             ],
             generationConfig: {
               temperature: 0.1,
-              maxOutputTokens: 12000, // Balanced: enough for multi-course chunks, fast enough to avoid timeout
+              maxOutputTokens: 24000, // Allow full course output for large PDFs
             },
-          }),
+          })
+          console.log('[secure_extract] Request body serialized, size:', requestBody.length)
+        } catch (stringifyError) {
+          const errMsg = stringifyError instanceof Error ? stringifyError.message : String(stringifyError)
+          console.error('[secure_extract] Failed to serialize request body:', errMsg)
+          throw new Error(`Request serialization failed: ${errMsg}`)
+        }
+        
+        response = await fetch(url, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: requestBody,
           signal: controller.signal,
         })
         
@@ -356,16 +343,16 @@ ${inputText}`
               console.log('[secure_extract] Retrying after rate limit wait...')
               
               const retryController = new AbortController()
-              const retryTimeoutId = setTimeout(() => retryController.abort(), 50000)
+              const retryTimeoutId = setTimeout(() => retryController.abort(), 90000)
               
               const retryResponse = await fetch(url, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                   contents: [{ parts: [{ text: prompt }] }],
-                  generationConfig: { 
+                  generationConfig: {
                     temperature: 0.1,
-                    maxOutputTokens: 12000,
+                    maxOutputTokens: 24000,
                   },
                 }),
                 signal: retryController.signal,
@@ -497,7 +484,7 @@ ${inputText}`
         
         try {
           const fallbackController = new AbortController()
-          const fallbackTimeoutId = setTimeout(() => fallbackController.abort(), 30000)
+          const fallbackTimeoutId = setTimeout(() => fallbackController.abort(), 90000)
           
           const fallbackResponse = await fetch(url, {
             method: 'POST',
@@ -510,7 +497,7 @@ ${inputText}`
               ],
               generationConfig: {
                 temperature: 0.1,
-                maxOutputTokens: 12000,
+                maxOutputTokens: 24000,
               },
             }),
             signal: fallbackController.signal,
@@ -648,11 +635,14 @@ ${inputText}`
         // JSON is malformed, likely due to truncation. Try to fix it.
         console.warn('[secure_extract] Initial JSON parse failed, attempting to fix truncation:', parseError instanceof Error ? parseError.message : String(parseError))
         
-        // Common truncation patterns - try to close incomplete objects
+        // Common truncation patterns - try to close incomplete arrays/objects
         let fixed = jsonStr
         
-        // Try different closure patterns
+        // Try different closure patterns (array format first, then object format)
         const closureAttempts = [
+          fixed + ']',         // Simple array truncated
+          fixed + ']]',        // Array of arrays truncated
+          fixed + '},]',       // Last dict incomplete
           fixed + '}]',        // Single object truncated
           fixed + '}}]',       // Nested object truncated  
           fixed + '"]',        // String value truncated
@@ -688,6 +678,22 @@ ${inputText}`
           if (requestLogs.length > 10) requestLogs.pop()
           return res.status(200).json([])
         }
+      }
+      
+      // Handle both compact array format [[category, name, code, ...]] and object format [{Category, CourseName, ...}]
+      if (Array.isArray(courses) && courses.length > 0 && Array.isArray(courses[0])) {
+        console.log('[secure_extract] Converting compact array format to object format')
+        courses = (courses as any[]).map((row: any) => ({
+          Category: row[0] || null,
+          CourseName: row[1] || null,
+          CourseCode: row[2] || null,
+          GradeLevel: row[3] || '9-12',
+          Credit: row[4] || null,
+          Length: row[5] || null,
+          CourseDescription: null,
+          Details: null,
+          Prerequisite: null
+        }))
       }
       
       logEntry.coursesExtracted = courses.length

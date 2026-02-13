@@ -91,7 +91,8 @@ MAPPING SESSIONS (NEW):
 export interface Course {
   _id?: ObjectId;
   name: string;
-  code?: string;
+  co
+  de?: string;
   grade_level?: string;
   credits?: string;
   description?: string;

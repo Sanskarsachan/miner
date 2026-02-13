@@ -93,35 +93,74 @@ export class ChunkProcessor {
   /**
    * Split text into semantic chunks based on document structure
    * This reduces API calls by grouping related content
+   * For K-12 documents, intelligently chunks by subject sections
    */
   createSemanticChunks(text: string): string[] {
     const chunks: string[] = []
-
-    // Try to split by common section headers
-    const sectionPattern = /\n(?=[A-Z][A-Z\s]{3,}:|\d+\.\s+[A-Z]|\n\n[A-Z][A-Z\s]+\n)/
-    const sections = text.split(sectionPattern)
-
-    let currentChunk = ''
-    let currentTokens = 0
-
-    for (const section of sections) {
-      const sectionTokens = this.estimateTokens(section)
-
-      // If adding this section would exceed limit, save current chunk and start new one
-      if (currentTokens + sectionTokens > this.maxTokensPerChunk && currentChunk) {
+    
+    // Detect if this is a K-12 document
+    const hasCodesWithDash = text.match(/[–-]\s*\d{7}/)
+    const hasSchoolHeader = text.match(/High School|Middle School|Elementary|Course Selection|Freshman|Course Guide/i)
+    const isK12 = (hasCodesWithDash && hasSchoolHeader) || text.match(/[A-Z][A-Z\s]+\*/)
+    
+    if (isK12) {
+      // For K-12: Split by subject sections (English, Math, Science, Languages, etc.)
+      // Pattern: Subject name followed by colons or dashes, then courses
+      const subjectPattern = /\n(?=(?:ENGLISH|MATH|SCIENCE|LANGUAGE|SOCIAL STUDIES|SOCIAL SCIENCE|HISTORY|PHYSICAL EDUCATION|PE|ARTS|MUSIC|CTE|TECHNOLOGY|WORLD LANGUAGE|FINE ARTS|AP |HONORS |ELECTIVES|DUAL ENROLLMENT|OTHER)[\s:,\-]*\n)/i
+      const sections = text.split(subjectPattern)
+      
+      console.log('[ChunkProcessor] K-12 document detected, splitting into', sections.length, 'sections')
+      
+      // Combine sections into reasonable chunk sizes (smaller for K-12 to avoid truncation)
+      let currentChunk = ''
+      let currentTokens = 0
+      const K12_CHUNK_LIMIT = 8000 // Smaller chunks for K-12 to avoid MAX_TOKENS
+      
+      for (const section of sections) {
+        const sectionTokens = this.estimateTokens(section)
+        
+        // If adding this section would exceed limit, save current chunk and start new one
+        if (currentTokens + sectionTokens > K12_CHUNK_LIMIT && currentChunk) {
+          chunks.push(currentChunk.trim())
+          currentChunk = section
+          currentTokens = sectionTokens
+        } else {
+          currentChunk += '\n' + section
+          currentTokens += sectionTokens
+        }
+      }
+      
+      if (currentChunk.trim()) {
         chunks.push(currentChunk.trim())
-        currentChunk = section
-        currentTokens = sectionTokens
-      } else {
-        currentChunk += '\n\n' + section
-        currentTokens += sectionTokens
+      }
+    } else {
+      // For regular/master_db: Use original pattern-based chunking
+      const sectionPattern = /\n(?=[A-Z][A-Z\s]{3,}:|\d+\.\s+[A-Z]|\n\n[A-Z][A-Z\s]+\n)/
+      const sections = text.split(sectionPattern)
+
+      let currentChunk = ''
+      let currentTokens = 0
+
+      for (const section of sections) {
+        const sectionTokens = this.estimateTokens(section)
+
+        // If adding this section would exceed limit, save current chunk and start new one
+        if (currentTokens + sectionTokens > this.maxTokensPerChunk && currentChunk) {
+          chunks.push(currentChunk.trim())
+          currentChunk = section
+          currentTokens = sectionTokens
+        } else {
+          currentChunk += '\n\n' + section
+          currentTokens += sectionTokens
+        }
+      }
+
+      if (currentChunk.trim()) {
+        chunks.push(currentChunk.trim())
       }
     }
 
-    if (currentChunk.trim()) {
-      chunks.push(currentChunk.trim())
-    }
-
+    console.log('[ChunkProcessor] Created', chunks.length, 'chunks for processing')
     return chunks.length > 0 ? chunks : [text]
   }
 
@@ -132,14 +171,24 @@ export class ChunkProcessor {
     try {
       // Auto-detect extraction type based on content
       const isMasterDB = text.includes('|') && text.match(/\|[A-Z\s-]+\|/)
-      const extractionType = isMasterDB ? 'master_db' : 'regular'
+      const isK12Asterisk = text.match(/[A-Z][A-Z\s]+\*/) // Detect K-12 format with asterisks like "COURSE NAME*"
+      const hasCodesWithDash = text.match(/[–-]\s*\d{7}/) // Any "– XXXXXX7" pattern (very common in K-12)
+      const hasSchoolHeader = text.match(/High School|Middle School|Elementary|Course Selection|Freshman|Course Guide/i)
+      const isK12 = (hasCodesWithDash && hasSchoolHeader) || isK12Asterisk || (text.match(/English|Math|Science/i) && text.match(/\d{7}/))
       
-      console.log('[ChunkProcessor] Calling /api/secure_extract with', text.length, 'chars, apiKeyId present:', !!this.apiKeyId)
-      console.log('[ChunkProcessor] Detected format:', extractionType)
+      let extractionType = 'regular'
+      if (isK12) {
+        extractionType = 'k12'
+      } else if (isMasterDB) {
+        extractionType = 'master_db'
+      }
       
-      // Create AbortController with 45 second timeout
+      console.log('[ChunkProcessor] Calling /api/secure_extract with', text.length, 'chars, apiKeyId present:', !!this.apiKeyId, 'detected:', extractionType)
+      console.log('[ChunkProcessor] Detection: K12-codes:', !!hasCodesWithDash, 'K12-header:', !!hasSchoolHeader, 'K12-basic:', !!isK12, 'pipes:', isMasterDB)
+      
+      // Create AbortController with 120 second timeout (Gemini takes 45s, plus overhead)
       const controller = new AbortController()
-      const timeoutId = setTimeout(() => controller.abort(), 45000) // 45 second timeout
+      const timeoutId = setTimeout(() => controller.abort(), 120000) // 120 second timeout
       
       const response = await fetch('/api/secure_extract', {
         method: 'POST',
@@ -157,13 +206,47 @@ export class ChunkProcessor {
       try {
         responseText = await response.text()
         console.log('[ChunkProcessor] Response text length:', responseText.length)
-        console.log('[ChunkProcessor] Full response text:', responseText.substring(0, 500))
+        console.log('[ChunkProcessor] First 300 chars:', responseText.substring(0, 300))
       } catch (textError) {
         console.error('[ChunkProcessor] Failed to read response text:', textError)
         throw new Error('Failed to read API response')
       }
 
-      // Try to parse response as JSON
+      // Check if response is HTML (error page) first
+      if (responseText.startsWith('<') || responseText.includes('<!DOCTYPE')) {
+        console.error('[ChunkProcessor] ❌ API returned HTML error page (not JSON)')
+        console.error('[ChunkProcessor] HTML content:', responseText.substring(0, 500))
+        throw new Error('API returned error page (likely server error). Check server logs.')
+      }
+
+      // Check HTTP status BEFORE trying to parse JSON
+      if (!response.ok) {
+        console.error(`[ChunkProcessor] ❌ API returned HTTP ${response.status}`)
+        console.error('[ChunkProcessor] Response preview:', responseText.substring(0, 300))
+        
+        // Try to parse as JSON to get error message
+        try {
+          const errorData = JSON.parse(responseText)
+          
+          // Handle 429 rate limit specifically
+          if (response.status === 429) {
+            const rateLimitError = new Error(
+              errorData.message || 'API rate limit reached. Free tier allows 20 requests/day.'
+            )
+            ;(rateLimitError as any).isRateLimit = true
+            ;(rateLimitError as any).retryAfter = errorData.retryAfter || 60
+            throw rateLimitError
+          }
+          
+          const errorMsg = errorData.error || errorData.message || 'Unknown error'
+          throw new Error(`API Error (HTTP ${response.status}): ${errorMsg}`)
+        } catch (e) {
+          if ((e as any).isRateLimit) throw e
+          throw new Error(`API Error (HTTP ${response.status}): ${responseText.substring(0, 100)}`)
+        }
+      }
+
+      // Try to parse response as JSON (should be OK by now)
       let data: any = []
       try {
         if (responseText) {
@@ -171,39 +254,8 @@ export class ChunkProcessor {
         }
       } catch (parseError) {
         console.error('[ChunkProcessor] Failed to parse response as JSON:', parseError)
-        console.error('[ChunkProcessor] Response text was:', responseText.substring(0, 300))
-        throw new Error(`Invalid API response: ${responseText.substring(0, 100)}`)
-      }
-
-      // Handle error responses (HTTP errors, API errors)
-      if (!response.ok) {
-        console.error(`[ChunkProcessor] ❌ API returned HTTP ${response.status}`)
-        console.error('[ChunkProcessor] Response:', JSON.stringify(data).substring(0, 500))
-
-        // Handle rate limiting - throw a special error that the UI can catch
-        if (response.status === 429) {
-          const rateLimitError = new Error(
-            data.message || 'API rate limit reached. Free tier allows 20 requests/day.'
-          )
-          // Add custom properties to identify this as a rate limit error
-          ;(rateLimitError as any).isRateLimit = true
-          ;(rateLimitError as any).retryAfter = data.retryAfter || 60
-          ;(rateLimitError as any).suggestion = data.suggestion || 'Please wait and try again, or use a different API key.'
-          throw rateLimitError
-        }
-
-        // For 500 errors, log and return empty array
-        if (response.status === 500) {
-          console.error('[ChunkProcessor] ❌ API returned 500 error. Check server logs for details.')
-          console.error('[ChunkProcessor] Error details:', JSON.stringify(data))
-          // Return empty array - client will show "0 courses extracted"
-          return []
-        }
-
-        // For other errors, throw
-        throw new Error(
-          `API Error (HTTP ${response.status}): ${typeof data === 'string' ? data.substring(0, 100) : JSON.stringify(data).substring(0, 100)}`
-        )
+        console.error('[ChunkProcessor] Response text sample:', responseText.substring(0, 500))
+        throw new Error(`Invalid JSON response from API: ${responseText.substring(0, 150)}`)
       }
 
       // Data should be an array of courses
