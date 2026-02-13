@@ -5,7 +5,6 @@
 
 import React, { useState, useEffect } from 'react';
 import Head from 'next/head';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, LineChart, Line } from 'recharts';
 import { AlertCircle, TrendingUp, Activity, Zap } from 'lucide-react';
 
 interface UsageStats {
