@@ -70,6 +70,7 @@ export interface Extraction {
   extraction_time_ms: number
   api_used: string
   tokens_used: number
+  verification_count?: number // Tracks how many times this extraction was verified/rechecked
   
   // Extended Metadata (for UI display)
   metadata?: {

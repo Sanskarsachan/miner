@@ -62,6 +62,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       
       const mergedCourses = [...existingCourses, ...newCourses]
       
+      // Increment verification/recheck count
+      const currentVerifications = (existing.verification_count || 0) + 1
+      
       // Update existing extraction with merged courses
       await collection.updateOne(
         { _id: existing._id },
@@ -70,6 +73,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
             courses: mergedCourses,
             total_courses: mergedCourses.length,
             tokens_used: (existing.tokens_used || 0) + (tokens_used || 0),
+            verification_count: currentVerifications, // Track how many times verified
             updated_at: new Date(),
             metadata: {
               ...existing.metadata,
@@ -81,15 +85,16 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         }
       )
       
-      console.log(`[v2/save] ✅ MERGED ${newCourses.length} new courses into ${filename} (total: ${mergedCourses.length})`)
+      console.log(`[v2/save] ✅ RECHECK verified ${filename}: ${newCourses.length} new + ${existingCourses.length} existing = ${mergedCourses.length} total (verification #${currentVerifications})`)
       
       return res.status(200).json({
         success: true,
         extraction_id: existing._id?.toString(),
         total_courses: mergedCourses.length,
         new_courses_added: newCourses.length,
+        verification_count: currentVerifications,
         tokens_used: (existing.tokens_used || 0) + (tokens_used || 0),
-        message: `Merged ${newCourses.length} new courses (total: ${mergedCourses.length})`,
+        message: `Recheck complete: ${newCourses.length} new courses, ${mergedCourses.length} total (Verification #${currentVerifications})`,
         merged: true,
       })
     }
@@ -119,6 +124,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       extraction_time_ms: extraction_time_ms || 0,
       api_used: api_used || 'gemini',
       tokens_used: tokens_used || 0,
+      verification_count: 1, // First extraction is the initial verification
       status: 'completed',
       current_version: 1,
       is_refined: false,
