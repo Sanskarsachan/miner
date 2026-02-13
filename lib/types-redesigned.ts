@@ -506,7 +506,7 @@ export interface GeminiApiKey {
   
   // Daily quota management (20 RPM = 1200 per hour)
   quota: {
-    daily_limit: number; // Default: 20 RPM * 1440 min = 28,800 requests per day
+    daily_limit: number; // Default: 20 requests per day (free tier limit)
     used_today: number; // Reset daily at midnight UTC
     reset_at: Date; // When quota resets
   };

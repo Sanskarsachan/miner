@@ -114,7 +114,7 @@ export default async function handler(
         is_active: true,
         is_deleted: false,
         quota: {
-          daily_limit: 28800, // 20 RPM * 1440 minutes
+          daily_limit: 20, // Free tier limit: 20 requests per day
           used_today: 0,
           reset_at: tomorrow,
         },

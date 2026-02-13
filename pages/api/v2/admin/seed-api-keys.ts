@@ -79,7 +79,7 @@ export default async function handler(
           is_active: true,
           is_deleted: false,
           quota: {
-            daily_limit: 28800,
+            daily_limit: 20,
             used_today: 0,
             reset_at: tomorrow,
           },

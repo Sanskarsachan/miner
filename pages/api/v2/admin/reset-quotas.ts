@@ -28,8 +28,8 @@ export default async function handler(
     tomorrow.setDate(tomorrow.getDate() + 1);
     tomorrow.setHours(0, 0, 0, 0);
 
-    //RPM = 20, so 20 * 1440 minutes = 28,800 per day
-    const DAILY_LIMIT = 28800;
+    // Free tier limit: 20 requests per day
+    const DAILY_LIMIT = 20;
     
     const result = await apiKeysCollection.updateMany(
       {},
