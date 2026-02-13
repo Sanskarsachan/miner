@@ -264,7 +264,7 @@ ${inputText}`
             ],
             generationConfig: {
               temperature: 0.1,
-              maxOutputTokens: 8000, // Reduced from 24000 for faster API responses
+              maxOutputTokens: 12000, // Balance speed (avoid 504 timeout) + completeness (avoid truncation)
             },
           })
           console.log('[secure_extract] Request body serialized, size:', requestBody.length)
