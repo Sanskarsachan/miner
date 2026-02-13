@@ -221,62 +221,37 @@ DOCUMENT:
 ${inputText}`
       }
 
-      return `EXTRACT ALL COURSES FROM FLORIDA K-12 CURRICULUM DOCUMENT. OUTPUT ONLY JSON ARRAY.
+      return `EXTRACT FLORIDA K-12 COURSES. OUTPUT ONLY JSON ARRAY.
 
-🚨 CRITICAL FORMAT RULES FOR FLORIDA K-12 COURSES:
+CRITICAL: Courses marked with ASTERISK: "COURSE_NAME*"
+Example: "WORLD HISTORY A*" starts a new course.
+Course continues until next asterisk or EOF.
 
-1. COURSE BOUNDARY DETECTION:
-   - Courses are marked by: COURSE_NAME* (asterisk after name)
-   - Example: "WORLD HISTORY A*"
-   - Each course continues until the NEXT course name with asterisk OR end of document
+EXTRACT FIELDS:
+- Category: Subject (Social Studies, English, Math, Science, Economics, Health, etc.)
+- CourseName: Full name after asterisk
+- CourseCode: null (usually not in this format)
+- GradeLevel: "9-12" (Florida K-12 default)
+- Credit: null (not mentioned in this document)
+- Length: null (not mentioned in this document)
+- CourseDescription: Full paragraph(s) until next course
+- Details: Metadata like "Honors Course Available"
+- Prerequisite: null
 
-2. EXTRACT THESE FIELDS:
-   {
-     "Category": "Subject (Social Studies, Economics, English, Math, Science, etc.)",
-     "CourseName": "Full course name after the * ",
-     "CourseCode": "Code if present (e.g., from header), null if not found",
-     "GradeLevel": "Grade range (e.g., '9-12', 'High School', null if not specified)",
-     "Credit": "Credit hours if mentioned, null otherwise",
-     "Length": "Duration (e.g., '1 semester', 'Full year'), null if not mentioned",
-     "CourseDescription": "Full description paragraph",
-     "Details": "Metadata like 'Honors Course Available' or 'Credit Recovery Course Available'",
-     "Prerequisite": null
-   }
+EXAMPLE FROM YOUR DATA:
+Input: "WORLD HISTORY A*\nWorld History (1 of 2) explores...\nHonors Course Available"
+Output: {"Category":"Social Studies","CourseName":"WORLD HISTORY A","CourseCode":null,"GradeLevel":"9-12","Credit":null,"Length":null,"CourseDescription":"World History (1 of 2) explores...","Details":"Honors Course Available","Prerequisite":null}
 
-3. REAL EXAMPLE FROM DOCUMENT:
-   Input: "WORLD HISTORY A*\nWorld History (1 of 2) explores the key events...\nHonors Course Available\nCredit Recovery Course Available"
-   Output: {
-     "Category": "Social Studies",
-     "CourseName": "WORLD HISTORY A",
-     "CourseCode": null,
-     "GradeLevel": "9-12",
-     "Credit": null,
-     "Length": null,
-     "CourseDescription": "World History (1 of 2) explores the key events and global historical developments from hunter-gatherer societies to the Industrial Revolution...",
-     "Details": "Honors Course Available, Credit Recovery Course Available",
-     "Prerequisite": null
-   }
+RULES:
+1. Find EVERY "WORD*" pattern (capitalized text + asterisk)
+2. Extract description until next asterisk or end
+3. Return ALL courses found, not just first 3
+4. null for missing fields (never empty strings)
+5. CourseName MUST NOT be null
 
-4. FIND EVERY COURSE:
-   - Search for ALL instances of "WORD*" pattern (capitalized text followed by asterisk)
-   - Extract course name (text before asterisk)
-   - Get description (paragraph following the course name)
-   - Look for metadata lines beneath description (Honors, Credit Recovery, etc.)
-   - Assign category based on course name (World History→Social Studies, Economics→Economics, etc.)
-   - Grade level: Most Florida courses are 9-12 unless otherwise specified
+RETURN: JSON array only [ {...}, {...}, ... ]
 
-5. COURSE BOUNDARY RULES:
-   - Description ends when you see the next COURSE_NAME* pattern
-   - Metadata (Honors, Credit Recovery) belongs to that course
-   - Don't split a course description mid-paragraph
-
-MUST RETURN:
-- A complete JSON array with [ ... ] brackets
-- All courses found in document (not just first 3)
-- null for missing fields (not empty strings)
-- CourseName MUST NOT be null
-
-DOCUMENT TEXT:
+DOCUMENT:
 ${inputText}`
   }
 
