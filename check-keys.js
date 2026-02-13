@@ -2,9 +2,10 @@
  * Check API keys in local database
  */
 const { MongoClient } = require('mongodb');
+require('dotenv').config({ path: '.env.local' });
 
 async function checkKeys() {
-  const client = new MongoClient(process.env.MONGODB_URI || 'mongodb://localhost:27017/course_harvester');
+  const client = new MongoClient(process.env.MONGODB_URI || 'mongodb://localhost:27017/course_harvester_v2');
   
   try {
     await client.connect();

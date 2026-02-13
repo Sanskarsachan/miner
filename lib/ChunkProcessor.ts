@@ -157,7 +157,7 @@ export class ChunkProcessor {
       try {
         responseText = await response.text()
         console.log('[ChunkProcessor] Response text length:', responseText.length)
-        console.log('[ChunkProcessor] Response preview:', responseText.substring(0, 200))
+        console.log('[ChunkProcessor] Full response text:', responseText.substring(0, 500))
       } catch (textError) {
         console.error('[ChunkProcessor] Failed to read response text:', textError)
         throw new Error('Failed to read API response')
@@ -213,9 +213,11 @@ export class ChunkProcessor {
       }
 
       const courses = this.extractCoursesFromResponse(data)
+      console.log(`[ChunkProcessor] Extracted ${courses.length} courses from API response`)
       
       // Post-process: Split Duration/Term if needed
       const processedCourses = this.normalizeDurationTerm(courses)
+      console.log(`[ChunkProcessor] After post-processing: ${processedCourses.length} courses`)
       
       return processedCourses
     } catch (error: any) {
