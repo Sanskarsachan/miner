@@ -221,53 +221,60 @@ DOCUMENT:
 ${inputText}`
       }
 
-      return `EXTRACT ALL COURSES FROM K-12/EDUCATION DOCUMENT. OUTPUT ONLY JSON ARRAY.
+      return `EXTRACT ALL COURSES FROM FLORIDA K-12 CURRICULUM DOCUMENT. OUTPUT ONLY JSON ARRAY.
 
-SEARCH PATTERNS FOR COURSES:
-1. Course Title (any capitalized text that appears to be a course name)
-2. Grade Level (e.g., "Grade 9", "Grades 9-12", "K-12", "High School")
-3. Credit Hours/Units (e.g., "0.5 credit", "1 unit", ".5 credit")
-4. Course Code (e.g., course numbers like "ALG1", "BIO10", "ENG1")
-5. Duration/Semester info (e.g., "Full year", "1 semester", "Half year")
-6. Prerequisites (any course dependencies mentioned)
-7. Category/Subject (Subject area like Math, English, Science, Social Studies, etc.)
-8. Description (purpose or content of course)
+🚨 CRITICAL FORMAT RULES FOR FLORIDA K-12 COURSES:
 
-COMMON K-12 COURSE LISTING FORMATS:
-- "Course Name - Grade Level, Credit Hours"
-- "Subject: Course Name (Grade Range) - Prerequisites - Description"
-- Bulleted or numbered lists with course details
-- Table format with course code | name | grade | credit columns
-- Category sections (e.g., "MATHEMATICS COURSES:") followed by course listings
+1. COURSE BOUNDARY DETECTION:
+   - Courses are marked by: COURSE_NAME* (asterisk after name)
+   - Example: "WORLD HISTORY A*"
+   - Each course continues until the NEXT course name with asterisk OR end of document
 
-SPECIFIC INSTRUCTIONS:
-- Look at EVERY paragraph and bullet point - courses can appear anywhere
-- If you see a capitalized phrase followed by grade levels, that's likely a course
-- Even if not all fields present for a course, INCLUDE IT if you can identify a course name
-- Handle partial information - use null for truly missing fields
-- Handle decimal credits like ".5" and "0.5"
-- Level/Grade examples: "Algebra 1 (Grades 9-12)", "AP Chemistry High School", "Elementary Art"
-- Subject/Category: Extract from section headers or infer from course content
+2. EXTRACT THESE FIELDS:
+   {
+     "Category": "Subject (Social Studies, Economics, English, Math, Science, etc.)",
+     "CourseName": "Full course name after the * ",
+     "CourseCode": "Code if present (e.g., from header), null if not found",
+     "GradeLevel": "Grade range (e.g., '9-12', 'High School', null if not specified)",
+     "Credit": "Credit hours if mentioned, null otherwise",
+     "Length": "Duration (e.g., '1 semester', 'Full year'), null if not mentioned",
+     "CourseDescription": "Full description paragraph",
+     "Details": "Metadata like 'Honors Course Available' or 'Credit Recovery Course Available'",
+     "Prerequisite": null
+   }
 
-OUTPUT JSON STRUCTURE:
-{
-  "Category": "Subject area (Math, Science, English, etc.) or null",
-  "CourseName": "Full course name - REQUIRED, cannot be null",
-  "CourseCode": "Code/Number if available, null otherwise",
-  "GradeLevel": "Grade range like '9-12' or 'Grades 9-12', null if not applicable",
-  "Credit": "Credit hours or units (e.g. '0.5', '1'), null if not specified",
-  "Length": "Duration info like 'full year', '1 semester', null if not specified",
-  "CourseDescription": "Brief description of course content, null if not available",
-  "Details": "Any other relevant info (prerequisites, requirements, etc.), null if none",
-  "Prerequisite": "Prerequisite courses, null if none"
-}
+3. REAL EXAMPLE FROM DOCUMENT:
+   Input: "WORLD HISTORY A*\nWorld History (1 of 2) explores the key events...\nHonors Course Available\nCredit Recovery Course Available"
+   Output: {
+     "Category": "Social Studies",
+     "CourseName": "WORLD HISTORY A",
+     "CourseCode": null,
+     "GradeLevel": "9-12",
+     "Credit": null,
+     "Length": null,
+     "CourseDescription": "World History (1 of 2) explores the key events and global historical developments from hunter-gatherer societies to the Industrial Revolution...",
+     "Details": "Honors Course Available, Credit Recovery Course Available",
+     "Prerequisite": null
+   }
 
-CRITICAL: 
-- Return ONLY the JSON array: [ {...}, {...}, ... ]
-- No markdown, no code blocks, ONLY JSON
-- CourseName MUST be a string, never null
-- Find EVERY course mentioned in this document
-- If unsure, include it - better to over-extract than miss courses
+4. FIND EVERY COURSE:
+   - Search for ALL instances of "WORD*" pattern (capitalized text followed by asterisk)
+   - Extract course name (text before asterisk)
+   - Get description (paragraph following the course name)
+   - Look for metadata lines beneath description (Honors, Credit Recovery, etc.)
+   - Assign category based on course name (World History→Social Studies, Economics→Economics, etc.)
+   - Grade level: Most Florida courses are 9-12 unless otherwise specified
+
+5. COURSE BOUNDARY RULES:
+   - Description ends when you see the next COURSE_NAME* pattern
+   - Metadata (Honors, Credit Recovery) belongs to that course
+   - Don't split a course description mid-paragraph
+
+MUST RETURN:
+- A complete JSON array with [ ... ] brackets
+- All courses found in document (not just first 3)
+- null for missing fields (not empty strings)
+- CourseName MUST NOT be null
 
 DOCUMENT TEXT:
 ${inputText}`
