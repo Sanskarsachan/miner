@@ -118,8 +118,8 @@ export async function getAvailableApiKeys(db: Db): Promise<ApiKeySelection[]> {
         percentage_used: percentageUsed,
       };
     })
-    // Filter: Only show keys with more than 1 request remaining (keep 1 in reserve)
-    .filter((key) => key.rpd_remaining > 1)
+    // Show all active keys (even if low on quota) so user can see and rotate them
+    .filter((key) => key.rpd_remaining > 0)
     // Sort by most quota available first
     .sort((a, b) => b.rpd_remaining - a.rpd_remaining);
 
