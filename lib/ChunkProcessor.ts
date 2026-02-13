@@ -103,54 +103,49 @@ export class ChunkProcessor {
     const hasSchoolHeader = text.match(/High School|Middle School|Elementary|Course Selection|Freshman|Course Guide/i)
     const isK12 = (hasCodesWithDash && hasSchoolHeader) || text.match(/[A-Z][A-Z\s]+\*/)
     
-    if (isK12) {
-      // For K-12: Split by subject sections (English, Math, Science, Languages, etc.)
-      // Pattern: Subject name followed by colons or dashes, then courses
-      const subjectPattern = /\n(?=(?:ENGLISH|MATH|SCIENCE|LANGUAGE|SOCIAL STUDIES|SOCIAL SCIENCE|HISTORY|PHYSICAL EDUCATION|PE|ARTS|MUSIC|CTE|TECHNOLOGY|WORLD LANGUAGE|FINE ARTS|AP |HONORS |ELECTIVES|DUAL ENROLLMENT|OTHER)[\s:,\-]*\n)/i
-      const sections = text.split(subjectPattern)
+    console.log('[ChunkProcessor] K12 detection: codes:', !!hasCodesWithDash, 'header:', !!hasSchoolHeader, 'isK12:', isK12, 'docLength:', text.length)
+    
+    if (isK12 && text.length > 12000) {
+      // For large K-12 documents: Split into roughly equal chunks by character count
+      // This avoids MAX_TOKENS issues without needing complex pattern matching
+      const K12_CHUNK_SIZE = 8000 // Characters per chunk
+      const numChunks = Math.ceil(text.length / K12_CHUNK_SIZE)
       
-      console.log('[ChunkProcessor] K-12 document detected, splitting into', sections.length, 'sections')
+      console.log('[ChunkProcessor] K-12 document detected (size:', text.length, 'chars), splitting into ~', numChunks, 'chunks')
       
-      // Combine sections into reasonable chunk sizes (smaller for K-12 to avoid truncation)
-      let currentChunk = ''
-      let currentTokens = 0
-      const K12_CHUNK_LIMIT = 8000 // Smaller chunks for K-12 to avoid MAX_TOKENS
-      
-      for (const section of sections) {
-        const sectionTokens = this.estimateTokens(section)
+      for (let i = 0; i < numChunks; i++) {
+        const start = i * K12_CHUNK_SIZE
+        const end = (i + 1) * K12_CHUNK_SIZE
+        const chunk = text.substring(start, end).trim()
         
-        // If adding this section would exceed limit, save current chunk and start new one
-        if (currentTokens + sectionTokens > K12_CHUNK_LIMIT && currentChunk) {
-          chunks.push(currentChunk.trim())
-          currentChunk = section
-          currentTokens = sectionTokens
-        } else {
-          currentChunk += '\n' + section
-          currentTokens += sectionTokens
+        if (chunk.length > 100) { // Only include non-empty chunks
+          chunks.push(chunk)
+          console.log(`[ChunkProcessor] Chunk ${i + 1}: ${chunk.length} chars`)
         }
       }
-      
-      if (currentChunk.trim()) {
-        chunks.push(currentChunk.trim())
-      }
+    } else if (isK12) {
+      // Small K-12 document, process as-is
+      console.log('[ChunkProcessor] K-12 document detected (size:', text.length, 'chars), processing as single chunk')
+      chunks.push(text)
     } else {
-      // For regular/master_db: Use original pattern-based chunking
+      // For regular/master_db: Try to split by common section patterns
       const sectionPattern = /\n(?=[A-Z][A-Z\s]{3,}:|\d+\.\s+[A-Z]|\n\n[A-Z][A-Z\s]+\n)/
       const sections = text.split(sectionPattern)
 
       let currentChunk = ''
       let currentTokens = 0
+      const CHUNK_LIMIT = this.maxTokensPerChunk
 
       for (const section of sections) {
         const sectionTokens = this.estimateTokens(section)
 
         // If adding this section would exceed limit, save current chunk and start new one
-        if (currentTokens + sectionTokens > this.maxTokensPerChunk && currentChunk) {
+        if (currentTokens + sectionTokens > CHUNK_LIMIT && currentChunk) {
           chunks.push(currentChunk.trim())
           currentChunk = section
           currentTokens = sectionTokens
         } else {
-          currentChunk += '\n\n' + section
+          currentChunk += (currentChunk ? '\n\n' : '') + section
           currentTokens += sectionTokens
         }
       }
@@ -158,9 +153,11 @@ export class ChunkProcessor {
       if (currentChunk.trim()) {
         chunks.push(currentChunk.trim())
       }
+      
+      console.log('[ChunkProcessor] Regular document, created', chunks.length, 'chunks')
     }
 
-    console.log('[ChunkProcessor] Created', chunks.length, 'chunks for processing')
+    console.log('[ChunkProcessor] Created', chunks.length, 'chunks total')
     return chunks.length > 0 ? chunks : [text]
   }
 
