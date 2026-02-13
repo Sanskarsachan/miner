@@ -155,33 +155,67 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     const buildPrompt = (mode: string, inputText: string) => {
       if (mode === 'master_db' || mode === 'master-db') {
-        return `EXTRACT Florida DOE course catalog as JSON array ONLY. Return [ and ].
+        return `EXTRACT Florida DOE course catalog as JSON array ONLY. Return valid JSON: [ ... ]
 
-ABSOLUTELY CRITICAL - SPLIT DURATION AND TERM ALWAYS:
-When you see "3/Y" pattern:
-- Extract ONLY the NUMBER before slash: CourseDuration = "3"
-- Extract ONLY the LETTER after slash: CourseTerm = "Y"
-- NEVER put "3/Y" into either field - ALWAYS split them!
-- If you see "2/S": Duration="2", Term="S"
-- If you see "3/Y": Duration="3", Term="Y"
+🚨 CRITICAL - MANDATORY RULES:
 
-FIELD MAPPING (find these in order on each line):
-1. Category/SubCategory = subject area/program type before course code
-2. CourseCode = first number (e.g., 0100300)
-3. CourseAbbrevTitle = text after code (e.g., AP ART HISTORY)
-4. CourseDuration = NUMBER from X/Y ONLY (e.g., "3" from "3/Y")
-5. CourseTerm = LETTER from X/Y ONLY (e.g., "Y" from "3/Y")
-6. GradeLevel = 2-letter code (e.g., PF, PK, PA)
-7. Credit = decimal number (e.g., 1.0, 0.5)
-8. GraduationRequirement = remaining content
-9. CourseTitle = descriptive title if available
-10. Certification = certification/requirement codes
+1. SPLIT DURATION/TERM - THIS IS MANDATORY:
+   When you see X/Y pattern (e.g., "3/Y", "2/S"):
+   - CourseDuration = ONLY the NUMBER (e.g., "3" or "2")
+   - CourseTerm = ONLY the LETTER (e.g., "Y" or "S")
+   - NEVER put combined "3/Y" into either field
+   - NEVER put "2/S" into Term field - split as Duration="2", Term="S"
 
-OUTPUT REQUIREMENTS:
-- Every course MUST have CourseCode and at least CourseName or CourseAbbrevTitle
-- CourseDuration and CourseTerm MUST be separated (never "3/Y", always "3" and "Y")
-- Use null for missing Category/SubCategory, not empty string or dash
-- Extract ALL courses, even partial ones
+2. EXTRACT CATEGORY FROM PIPES:
+   Lines like |ART-VISUAL ARTS| → Category = "ART-VISUAL ARTS"
+   Extract everything between pipes as Category
+
+3. EXTRACT SUBCATEGORY FROM SECTION HEADERS:
+   Section headers like "ART APPRECIATION/HISTORY/CRITICISM" → SubCategory
+   These appear as lines with dashes like: -------
+                                            ART APPRECIATION/...
+                                            -------
+
+4. LINE FORMAT for course data:
+   CourseCode CourseAbbrevTitle Duration/Term GradeLevel Credit GraduationReq...
+   Example: 0100300 AP ART HISTORY 3/Y PF 1.0 HUMANITIES 6 ART 6
+
+EXACT EXAMPLE FROM DOCUMENT:
+Input line: "0100300 AP ART HISTORY 3/Y PF 1.0 HUMANITIES 6 ART 6"
+              Advanced Placement Art History CLASSICAL ED (RESTRICTED) 6 PT FINE PERF ART 7 G
+
+Output JSON:
+{
+  "Category": "ART-VISUAL ARTS",
+  "SubCategory": "ART APPRECIATION/HISTORY/CRITICISM",
+  "CourseCode": "0100300",
+  "CourseAbbrevTitle": "AP ART HISTORY",
+  "CourseDuration": "3",
+  "CourseTerm": "Y",
+  "GradeLevel": "PF",
+  "Credit": 1.0,
+  "GraduationRequirement": "HUMANITIES 6 ART 6",
+  "CourseTitle": "Advanced Placement Art History",
+  "Certification": "CLASSICAL ED (RESTRICTED) 6 PT FINE PERF ART 7 G"
+}
+
+ANOTHER EXAMPLE:
+Input: "0100310 INTRO TO ART HIST 2/S PF 0.5 HUMANITIES 6 ART 6"
+Duration="2", Term="S" (NOT Duration="2/S")
+
+EXTRACTION RULES:
+- Extract Category from |PIPES| sections
+- Extract SubCategory from section headers with dashes
+- CourseCode = first number on line (7 digits)
+- CourseAbbrevTitle = text after code before X/Y pattern
+- SPLIT X/Y → Duration (number), Term (letter)
+- GradeLevel = 2-letter code after X/Y
+- Credit = decimal number
+- CourseTitle = formatted line below course code line
+- Certification = remaining text after credit on initial lines + indented lines
+- GraduationRequirement = text before "CREDIT" on first line
+
+MUST EXTRACT ALL COURSES from document, even if partial data.
 
 DOCUMENT:
 ${inputText}`
@@ -678,26 +712,59 @@ ${inputText}`
       console.log('[secure_extract] Successfully parsed', courses.length, 'courses')
       
       // POST-PROCESSING: Fix common extraction issues
-      courses = courses.map((course: any) => {
-        // Fix combined Duration/Term if they got merged (e.g., "2/S" in CourseTerm)
-        if (course.CourseTerm && course.CourseTerm.includes('/')) {
+      courses = courses.map((course: any, idx: number) => {
+        // MANDATORY CHECK: Fix combined Duration/Term if they got merged
+        // This handles cases where Gemini put "2/S" in Term field instead of splitting
+        if (course.CourseTerm && typeof course.CourseTerm === 'string' && course.CourseTerm.includes('/')) {
           const [dur, term] = course.CourseTerm.split('/')
-          if (dur && term) {
-            console.log(`[secure_extract] Fixed combined Duration/Term: "${course.CourseTerm}" → Duration="${dur}", Term="${term}"`)
+          if (dur && term && term.length === 1) {
+            console.log(`[secure_extract] Fixed combined in Term: "${course.CourseTerm}" → Duration="${dur}", Term="${term}"`)
             course.CourseDuration = course.CourseDuration || dur
             course.CourseTerm = term
           }
         }
         
-        // Fix if Duration has combined format too
-        if (course.CourseDuration && course.CourseDuration.includes('/')) {
-          const [dur, term] = course.CourseDuration.split('/')
-          console.log(`[secure_extract] Fixed combined in Duration: "${course.CourseDuration}" → Duration="${dur}", Term="${term}"`)
-          course.CourseDuration = dur
-          course.CourseTerm = course.CourseTerm || term
+        // Fix if Duration has combined format (less common but possible)
+        if (course.CourseDuration && typeof course.CourseDuration === 'string' && course.CourseDuration.includes('/')) {
+          const parts = course.CourseDuration.split('/')
+          if (parts.length === 2 && /^\d+$/.test(parts[0])) {
+            console.log(`[secure_extract] Fixed combined in Duration: "${course.CourseDuration}" → Duration="${parts[0]}", Term="${parts[1]}"`)
+            course.CourseDuration = parts[0]
+            course.CourseTerm = course.CourseTerm || parts[1]
+          }
+        }
+        
+        // Validate Credit is numeric (convert if string)
+        if (course.Credit && typeof course.Credit === 'string') {
+          const numCredit = parseFloat(course.Credit)
+          if (!isNaN(numCredit)) {
+            course.Credit = numCredit
+          }
+        }
+        
+        // Ensure Category is set (critical for data quality)
+        if (!course.Category || course.Category === '-' || course.Category === '') {
+          // Try to use SubCategory if Category is missing
+          if (course.SubCategory && course.SubCategory !== '-' && course.SubCategory !== '') {
+            console.log(`[secure_extract] Course ${course.CourseCode}: Using SubCategory as Category (was empty)`)
+            course.Category = course.SubCategory
+          }
         }
         
         return course
+      })
+      
+      // Validation: Log any courses with missing critical fields
+      courses.forEach((course: any, idx: number) => {
+        if (!course.CourseCode) {
+          console.warn(`[secure_extract] ⚠️  Course ${idx}: Missing CourseCode`)
+        }
+        if (!course.Category || course.Category === '-') {
+          console.warn(`[secure_extract] ⚠️  Course ${course.CourseCode}: Missing Category`)
+        }
+        if (!course.CourseDuration || !course.CourseTerm) {
+          console.warn(`[secure_extract] ⚠️  Course ${course.CourseCode}: Missing Duration or Term`)
+        }
       })
       
       // Log first course for debugging
