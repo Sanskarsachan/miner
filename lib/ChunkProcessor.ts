@@ -183,9 +183,9 @@ export class ChunkProcessor {
       console.log('[ChunkProcessor] Calling /api/secure_extract with', text.length, 'chars, apiKeyId present:', !!this.apiKeyId, 'detected:', extractionType)
       console.log('[ChunkProcessor] Detection: K12-codes:', !!hasCodesWithDash, 'K12-header:', !!hasSchoolHeader, 'K12-basic:', !!isK12, 'pipes:', isMasterDB)
       
-      // Create AbortController with 120 second timeout (Gemini takes 45s, plus overhead)
+      // Create AbortController with 60 second timeout (Gemini + network, Vercel free tier max is 60s)
       const controller = new AbortController()
-      const timeoutId = setTimeout(() => controller.abort(), 120000) // 120 second timeout
+      const timeoutId = setTimeout(() => controller.abort(), 60000) // 60 second timeout (Vercel max)
       
       const response = await fetch('/api/secure_extract', {
         method: 'POST',

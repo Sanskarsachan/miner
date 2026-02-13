@@ -249,10 +249,10 @@ ${inputText}`
         console.log('[secure_extract] Prompt type:', typeof prompt, 'length:', prompt?.length || 'undefined')
         
         // Create abort controller for timeout
-        // Use 65s timeout for initial attempt (API calls take ~45s, need buffer)
+        // Use 50s timeout to fit within Vercel's 60s function limit
         // Retry logic handles failures automatically
         const controller = new AbortController()
-        const timeoutId = setTimeout(() => controller.abort(), 90000) // 90s timeout for large PDFs
+        const timeoutId = setTimeout(() => controller.abort(), 50000) // 50s timeout (Vercel free tier: 60s max)
         
         let requestBody: string
         try {
@@ -343,7 +343,7 @@ ${inputText}`
               console.log('[secure_extract] Retrying after rate limit wait...')
               
               const retryController = new AbortController()
-              const retryTimeoutId = setTimeout(() => retryController.abort(), 90000)
+              const retryTimeoutId = setTimeout(() => retryController.abort(), 50000) // Match main timeout
               
               const retryResponse = await fetch(url, {
                 method: 'POST',
@@ -484,7 +484,7 @@ ${inputText}`
         
         try {
           const fallbackController = new AbortController()
-          const fallbackTimeoutId = setTimeout(() => fallbackController.abort(), 90000)
+          const fallbackTimeoutId = setTimeout(() => fallbackController.abort(), 50000) // Match main timeout
           
           const fallbackResponse = await fetch(url, {
             method: 'POST',
