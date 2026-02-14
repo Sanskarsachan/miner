@@ -532,7 +532,7 @@ export class ChunkProcessor {
     for (const course of courses) {
       // Normalize course name for comparison (remove extra spaces, lowercase)
       const normalizedName = (course.CourseName || '').replace(/\s+/g, ' ').toLowerCase().trim()
-      const key = `${(course.Category || '').toLowerCase().trim()}|${normalizedName}|${(course.GradeLevel || '').toLowerCase().trim()}`
+      const key = `${String(course.Category || '').toLowerCase().trim()}|${normalizedName}|${String(course.GradeLevel || '').toLowerCase().trim()}`
 
       // Keep first occurrence of each unique course
       if (!seen.has(key)) {
