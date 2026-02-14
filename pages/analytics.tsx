@@ -45,7 +45,7 @@ export default function AnalyticsDashboard() {
       setError(null);
 
       // Fetch API key usage stats
-      const statsResponse = await fetch('/api/v2/api-keys/reports/usage');
+      const statsResponse = await fetch('/api/v2/api-keys/stats');
       const statsResult = await statsResponse.json();
 
       if (statsResult.success) {
@@ -188,9 +188,8 @@ export default function AnalyticsDashboard() {
                     <thead>
                       <tr style={{ borderBottom: '2px solid #e5e7eb' }}>
                         <th style={{ textAlign: 'left', padding: '12px', color: '#6b7280', fontWeight: '600' }}>API Key</th>
-                        <th style={{ textAlign: 'center', padding: '12px', color: '#6b7280', fontWeight: '600' }}>Used</th>
+                        <th style={{ textAlign: 'center', padding: '12px', color: '#6b7280', fontWeight: '600' }}>Quota Status</th>
                         <th style={{ textAlign: 'center', padding: '12px', color: '#6b7280', fontWeight: '600' }}>Remaining</th>
-                        <th style={{ textAlign: 'center', padding: '12px', color: '#6b7280', fontWeight: '600' }}>Limit</th>
                         <th style={{ textAlign: 'center', padding: '12px', color: '#6b7280', fontWeight: '600' }}>Usage %</th>
                         <th style={{ textAlign: 'center', padding: '12px', color: '#6b7280', fontWeight: '600' }}>Extractions</th>
                         <th style={{ textAlign: 'left', padding: '12px', color: '#6b7280', fontWeight: '600' }}>Last Used</th>
@@ -199,7 +198,7 @@ export default function AnalyticsDashboard() {
                     <tbody>
                       {stats.length === 0 ? (
                         <tr>
-                          <td colSpan={7} style={{ textAlign: 'center', padding: '24px', color: '#9ca3af' }}>
+                          <td colSpan={6} style={{ textAlign: 'center', padding: '24px', color: '#9ca3af' }}>
                             No API keys configured. Set up API keys in the system to see usage data.
                           </td>
                         </tr>
@@ -207,7 +206,17 @@ export default function AnalyticsDashboard() {
                         stats.map((stat) => (
                           <tr key={stat.api_key_id} style={{ borderBottom: '1px solid #f3f4f6' }}>
                             <td style={{ padding: '12px', fontWeight: '500', color: '#111827' }}>{stat.nickname}</td>
-                            <td style={{ textAlign: 'center', padding: '12px', color: '#374151' }}>{stat.rpd_used}</td>
+                            <td
+                              style={{
+                                textAlign: 'center',
+                                padding: '12px',
+                                color: stat.rpd_remaining === 0 ? '#dc2626' : '#059669',
+                                fontWeight: '600',
+                                fontSize: '15px',
+                              }}
+                            >
+                              {stat.rpd_used}/{stat.daily_limit}
+                            </td>
                             <td
                               style={{
                                 textAlign: 'center',
@@ -218,7 +227,6 @@ export default function AnalyticsDashboard() {
                             >
                               {stat.rpd_remaining}
                             </td>
-                            <td style={{ textAlign: 'center', padding: '12px', color: '#374151' }}>{stat.daily_limit}</td>
                             <td style={{ textAlign: 'center', padding: '12px' }}>
                               <div
                                 style={{

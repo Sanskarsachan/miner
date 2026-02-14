@@ -1,7 +1,7 @@
 import type { NextApiRequest, NextApiResponse } from 'next'
 import { ObjectId } from 'mongodb'
 import { connectDB } from '@/lib/db'
-import { getApiKey } from '@/lib/api-key-manager'
+import { getApiKey, logApiUsage } from '@/lib/api-key-manager'
 
 interface RequestBody {
   apiKey?: string // Legacy: raw API key
@@ -68,6 +68,23 @@ export default async function handler(
     })
 
     const text = await r.text()
+
+    // Log API usage if using API key from pool
+    if (apiKeyId) {
+      try {
+        const db = await connectDB()
+        await logApiUsage(db, new ObjectId(apiKeyId), {
+          user_id: 'system',
+          requests_count: 1,
+          tokens_used: Math.ceil(payloadStr.length / 4), // Rough estimate
+          success: r.ok,
+          error_message: r.ok ? undefined : `HTTP ${r.status}`,
+        })
+        console.log('[generate] ✅ API usage logged for key:', apiKeyId)
+      } catch (logError) {
+        console.error('[generate] Failed to log API usage:', logError)
+      }
+    }
 
     // Forward status and body
     res.status(r.status).setHeader('content-type', 'application/json').send(text)
