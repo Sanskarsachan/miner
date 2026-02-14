@@ -5,7 +5,7 @@
 
 import React, { useState, useEffect } from 'react';
 import Head from 'next/head';
-import { AlertCircle, TrendingUp, Activity, Zap } from 'lucide-react';
+import { AlertCircle, TrendingUp, Activity, Zap, RefreshCw } from 'lucide-react';
 
 interface UsageStats {
   api_key_id: string;
@@ -31,17 +31,16 @@ export default function AnalyticsDashboard() {
   const [error, setError] = useState<string | null>(null);
   const [totalApiUsage, setTotalApiUsage] = useState(0);
   const [totalExtractionsToday, setTotalExtractionsToday] = useState(0);
+  const [lastRefresh, setLastRefresh] = useState<Date | null>(null);
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
   useEffect(() => {
     loadAnalytics();
-    // Refresh every 10 seconds to show real-time updates
-    const interval = setInterval(loadAnalytics, 10000);
-    return () => clearInterval(interval);
   }, []);
 
   const loadAnalytics = async () => {
     try {
-      setLoading(true);
+      setIsRefreshing(true);
       setError(null);
 
       // Fetch API key usage stats
@@ -94,12 +93,14 @@ export default function AnalyticsDashboard() {
 
         setSchoolUsage(schoolData);
       }
+      setLastRefresh(new Date());
     } catch (err) {
       const errMsg = err instanceof Error ? err.message : 'Unknown error';
       setError(`Failed to load analytics: ${errMsg}`);
       console.error('Analytics error:', err);
     } finally {
       setLoading(false);
+      setIsRefreshing(false);
     }
   };
 
@@ -113,13 +114,51 @@ export default function AnalyticsDashboard() {
         <div style={{ maxWidth: '1400px', margin: '0 auto' }}>
           {/* Header */}
           <div style={{ marginBottom: '32px' }}>
-            <h1 style={{ fontSize: '28px', fontWeight: 'bold', color: 'white', marginBottom: '8px' }}>
-              📊 API Usage Analytics
-            </h1>
-            <p style={{ color: 'rgba(255,255,255,0.8)', fontSize: '14px' }}>
-              Real-time tracking of API key consumption and extraction activity
-            </p>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '16px' }}>
+              <div>
+                <h1 style={{ fontSize: '28px', fontWeight: 'bold', color: 'white', marginBottom: '8px' }}>
+                  📊 API Usage Analytics
+                </h1>
+                <p style={{ color: 'rgba(255,255,255,0.8)', fontSize: '14px' }}>
+                  Real-time tracking of API key consumption and extraction activity
+                </p>
+              </div>
+              <button
+                onClick={loadAnalytics}
+                disabled={isRefreshing}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  padding: '10px 16px',
+                  background: 'white',
+                  color: '#603ac8',
+                  border: 'none',
+                  borderRadius: '8px',
+                  fontWeight: '600',
+                  cursor: isRefreshing ? 'not-allowed' : 'pointer',
+                  opacity: isRefreshing ? 0.7 : 1,
+                  transition: 'all 0.2s ease',
+                }}
+                onMouseEnter={(e) => !isRefreshing && (e.currentTarget.style.background = '#f3f4f6')}
+                onMouseLeave={(e) => (e.currentTarget.style.background = 'white')}
+              >
+                <RefreshCw size={18} style={{ animation: isRefreshing ? 'spin 1s linear infinite' : 'none' }} />
+                {isRefreshing ? 'Refreshing...' : 'Refresh'}
+              </button>
+            </div>
+            {lastRefresh && (
+              <p style={{ color: 'rgba(255,255,255,0.6)', fontSize: '12px' }}>
+                Last updated: {lastRefresh.toLocaleTimeString()}
+              </p>
+            )}
           </div>
+
+          <style>{`
+            @keyframes spin {
+              to { transform: rotate(360deg); }
+            }
+          `}</style>
 
           {error && (
             <div
@@ -310,7 +349,7 @@ export default function AnalyticsDashboard() {
 
               {/* Refresh Note */}
               <div style={{ marginTop: '24px', textAlign: 'center', color: 'rgba(255,255,255,0.7)', fontSize: '12px' }}>
-                This page refreshes automatically every 10 seconds
+                Click the Refresh button to update data
               </div>
             </>
           )}
